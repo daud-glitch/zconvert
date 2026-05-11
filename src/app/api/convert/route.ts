@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { convertFile, getMimeType } from "@/lib/converter";
 import { detectCategory, getFormatByExt } from "@/lib/formats";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
