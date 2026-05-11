@@ -9,7 +9,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null });
     }
 
-    const session = JSON.parse(sessionCookie.value);
+    let session;
+    try {
+      session = JSON.parse(sessionCookie.value);
+    } catch (e) {
+      // If cookie is invalid JSON, clear it and return null
+      const response = NextResponse.json({ user: null });
+      response.cookies.delete("session");
+      return response;
+    }
+    
+    if (!session || !session.userId) {
+      return NextResponse.json({ user: null });
+    }
+
     const user = await db.user.findUnique({
       where: { id: session.userId },
       select: {

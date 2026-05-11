@@ -71,7 +71,6 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
   const totalUsers = stats?.totalUsers || 0;
   const storageSaved = stats?.storageSaved || 0;
   const completedCount = stats?.conversionsByStatus?.completed || 0;
-  const failedCount = stats?.conversionsByStatus?.failed || 0;
   const successRate =
     totalConversions > 0
       ? Math.round((completedCount / totalConversions) * 100)
@@ -111,6 +110,13 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
       textColor: "text-amber-600 dark:text-amber-400",
     },
   ];
+
+  // Static class mapping for system status to avoid dynamic Tailwind class generation issues
+  const statusStyles: Record<string, string> = {
+    emerald: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
+    amber: "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
+    red: "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400",
+  };
 
   return (
     <div className="space-y-6">
@@ -489,7 +495,7 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
               >
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center bg-${item.status}-100 text-${item.status}-600 dark:bg-${item.status}-950 dark:text-${item.status}-400`}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${statusStyles[item.status] || ""}`}
                 >
                   {item.icon}
                 </div>
