@@ -1,0 +1,249 @@
+zconvert\prisma\schema.prisma#L1-170
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User & Auth ─────────────────────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  role            String    @default("user") // user, admin
+  avatar          String?
+  passwordHash    String?
+  twoFactorSecret String?
+  twoFactorEnabled Boolean  @default(false)
+  isActive        Boolean   @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  conversions Conversion[]
+  bookmarks   Bookmark[]
+  apiKeys     ApiKey[]
+  sessions    Session[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model ApiKey {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String    @unique
+  name      String
+  isActive  Boolean   @default(true)
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([key])
+}
+
+// ─── File Conversions ─────────────────────────────────────────────────────────
+
+model Conversion {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fileName    String
+  originalExt String
+  targetExt   String
+  category    String
+  inputSize   Int
+  outputSize  Int
+  status      String   @default("pending") // pending, processing, done, error
+  duration    Int?     // milliseconds
+  error       String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── Bookmarks ───────────────────────────────────────────────────────────────
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  inputExt  String
+  outputExt String
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@unique([userId, inputExt, outputExt])
+}
+
+// ─── Formats & Categories ───────────────────────────────────────────────────
+
+model Category {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  label    String
+  color    String
+  bgColor  String
+  icon     String
+  enabled  Boolean @default(true)
+  order    Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  formats Format[]
+
+  @@index([name])
+  @@index([enabled])
+}
+
+model Format {
+  id            String   @id @default(cuid())
+  ext           String   @unique
+  name          String
+  description   String
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  mimeTypes     String   // JSON array string
+  targetFormats String   // JSON array string
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([enabled])
+}
+
+// ─── CMS Content ──────────────────────────────────────────────────────────────
+
+model FeatureCard {
+  id          String  @id @default(cuid())
+  title       String
+  description String
+  icon        String
+  enabled     Boolean @default(true)
+  order       Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([order])
+}
+
+model Link {
+  id      String  @id @default(cuid())
+  label   String
+  url     String
+  group   String // header_nav, footer_product, footer_company, footer_legal, social
+  enabled Boolean @default(true)
+  order   Int     @default(0)
+  icon    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([group])
+  @@index([enabled])
+  @@index([order])
+}
+
+model Page {
+  id        String  @id @default(cuid())
+  slug      String  @unique
+  title     String
+  content   String
+  enabled   Boolean @default(true)
+  seoTitle  String?
+  seoDesc   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([enabled])
+}
+
+model Ad {
+  id        String  @id @default(cuid())
+  title     String
+  location  String // homepage_top, homepage_side, converter_top, converter_side, footer
+  type      String // banner, code, google
+  content   String?
+  code      String?
+  enabled   Boolean @default(true)
+  order     Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([location])
+  @@index([enabled])
+}
+
+// ─── App Settings ─────────────────────────────────────────────────────────────
+
+model AppSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      String   @default("string") // string, number, boolean, json
+  category  String   @default("general") // general, seo, api, limits, branding
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+  @@index([category])
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  ipHash    String?
+  userId    String?
+  userAgent String?
+  referrer  String?
+  country   String?
+  createdAt DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+}
+
+model DailyStats {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  conversions Int      @default(0)
+  users       Int      @default(0)
+  pageViews   Int      @default(0)
+  storageUsed BigInt   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([date])
+}
