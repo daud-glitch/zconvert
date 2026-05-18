@@ -1,83 +1,76 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { Prisma } from "@prisma/client";
+import { requireAdmin } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.authorized) return auth.response;
+
   try {
-    // Run all queries in parallel
     const [
       totalConversions,
       totalUsers,
-      categoryBreakdown,
+      sizeAgg,
+      conversionsByCategoryRaw,
+      conversionsByStatusRaw,
       recentConversions,
-      storageResult,
     ] = await Promise.all([
-      // Total conversions
       db.conversion.count(),
-
-      // Total users
       db.user.count(),
-
-      // Conversions by category (for chart)
+      db.conversion.aggregate({
+        _sum: { outputSize: true, inputSize: true },
+      }),
       db.conversion.groupBy({
         by: ["category"],
-        _count: { category: true },
-        _sum: { outputSize: true },
-        orderBy: { _count: { category: "desc" } },
+        _count: { _all: true },
+        _sum: { inputSize: true },
       }),
-
-      // Recent 10 conversions
+      db.conversion.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
       db.conversion.findMany({
+        take: 20,
         orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-
-      // Storage saved: sum of (inputSize - outputSize) for completed conversions
-      db.conversion.aggregate({
-        _sum: {
-          inputSize: true,
-          outputSize: true,
+        include: {
+          user: {
+            select: { name: true, email: true },
+          },
         },
-        where: { status: "completed" },
       }),
     ]);
 
-    // Build chart-friendly data
-    const conversionsByCategory: { category: string; count: number; size: number }[] =
-      categoryBreakdown.map((item) => ({
-        category: item.category,
-        count: item._count.category,
-        size: item._sum.outputSize ?? 0,
-      }));
-
-    // Compute storage saved
-    const totalInputSize = storageResult._sum.inputSize ?? 0;
-    const totalOutputSize = storageResult._sum.outputSize ?? 0;
+    const totalInputSize = Number(sizeAgg._sum.inputSize || 0);
+    const totalOutputSize = Number(sizeAgg._sum.outputSize || 0);
     const storageSaved = Math.max(0, totalInputSize - totalOutputSize);
 
-    // Status breakdown
-    const statusBreakdown = await db.conversion.groupBy({
-      by: ["status"],
-      _count: { status: true },
-    });
+    const conversionsByCategory = conversionsByCategoryRaw.map((item) => ({
+      category: item.category,
+      count: item._count._all,
+      size: Number(item._sum.inputSize || 0),
+    }));
 
     const conversionsByStatus: Record<string, number> = {};
-    for (const item of statusBreakdown) {
-      conversionsByStatus[item.status] = item._count.status;
-    }
+    conversionsByStatusRaw.forEach((item) => {
+      conversionsByStatus[item.status] = item._count._all;
+    });
 
     return NextResponse.json({
       totalConversions,
       totalUsers,
       conversionsByCategory,
       conversionsByStatus,
-      recentConversions,
+      recentConversions: recentConversions.map((c) => ({
+        ...c,
+        createdAt: c.createdAt.toISOString(),
+      })),
       storageSaved,
       storageUsed: totalOutputSize,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Server error" },
+      { status: 500 },
+    );
   }
 }

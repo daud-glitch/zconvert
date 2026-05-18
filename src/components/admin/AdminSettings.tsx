@@ -47,15 +47,26 @@ export function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [activeGroup, setActiveGroup] = useState("all");
+  const [error, setError] = useState<string | null>(null);
 
   const loadSettings = useCallback(() => {
+    setError(null);
     fetch("/api/admin/settings")
       .then((r) => r.json())
       .then((data) => {
-        setSettings(data.data || []);
+        if (data && Array.isArray(data.data)) {
+          setSettings(data.data);
+        } else {
+          setSettings([]);
+        }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Failed to load settings";
+        setError(message);
+        setSettings([]);
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -63,25 +74,52 @@ export function AdminSettings() {
   }, [loadSettings]);
 
   const saveSetting = async (key: string, value: string) => {
-    await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, value }),
-    });
-    loadSettings();
+    try {
+      setError(null);
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save setting");
+      }
+      loadSettings();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save setting";
+      setError(message);
+    }
   };
 
   const addSetting = async () => {
-    if (!newKey || !newValue) return;
+    if (!newKey || !newValue) {
+      setError("Both key and value are required.");
+      return;
+    }
     await saveSetting(newKey, newValue);
-    setNewKey("");
-    setNewValue("");
-    setShowAdd(false);
+    if (!error) {
+      setNewKey("");
+      setNewValue("");
+      setShowAdd(false);
+    }
   };
 
   const deleteSetting = async (key: string) => {
-    await saveSetting(key, "");
-    loadSettings();
+    try {
+      setError(null);
+      const res = await fetch(`/api/admin/settings?key=${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete setting");
+      }
+      loadSettings();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete setting";
+      setError(message);
+    }
   };
 
   const groups = [
@@ -169,6 +207,12 @@ export function AdminSettings() {
           {showAdd ? "Hide" : "Add Setting"}
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* Add Setting Panel */}
       {showAdd && (

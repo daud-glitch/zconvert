@@ -19,7 +19,7 @@ export default function AdminLoginPage() {
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState("");
+  const [_userId, setUserId] = useState("");
 
   const handlePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, isAdminLogin: true }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: "Invalid response from server" }));
 
       if (data.requires2FA) {
         setUserId(data.userId);
@@ -42,14 +42,14 @@ export default function AdminLoginPage() {
       }
 
       if (!res.ok) {
-        setError(data.error || "Invalid password");
+        setError(data.error || `Error ${res.status}: Invalid password`);
         setLoading(false);
         return;
       }
 
       window.location.href = "/";
-    } catch {
-      setError("Connection error");
+    } catch (err) {
+      setError(`Connection error: ${err instanceof Error ? err.message : "Network failed"}`);
       setLoading(false);
     }
   };

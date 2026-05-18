@@ -1,48 +1,49 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
-  Upload, Download, FileText, Image as ImageIcon, Music, Database, Archive,
-  BookOpen, Subtitles, Type, FileQuestion, Presentation, RefreshCw, Trash2,
-  Plus, Star, Settings, BarChart3, History, Bookmark, Layers, X, Check,
-  AlertCircle, Search, Copy, File, Globe, Shield, Zap, Clock, HardDrive,
-  TrendingUp, DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft, List, Filter,
-  Home, ArrowRight, CheckCircle2, XCircle, Server, Code, Terminal, FolderOpen,
-  FileImage, FileVideo, FileAudio, Timer, RotateCcw, Keyboard, Github,
-  Twitter, Sparkles, ArrowDown, Package, Info, ArrowUp, GripVertical, Share2,
-  Maximize, Activity, LayoutDashboard, PieChart, AlertTriangle, ChevronDown,
-  ChevronUp, Calendar, Circle, Lock, Key, FileCode2, FolderCog, ArrowUpDown,
-  MonitorSmartphone, Folder, Link as LinkIcon, Edit, Megaphone, LogOut, LogIn,
-  Video,
+  Download, RefreshCw, Plus, Settings,
+  History, Bookmark, Layers, Check, AlertCircle,
+  File as FileIcon, Globe, Shield, Clock, HardDrive,
+  DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
+  RotateCcw, Sparkles,
+  GripVertical, Maximize, Upload, Trash2,
+  Timer, X, Zap, FileStack,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { type ViewType } from "@/lib/formats";
+
 import { type FileItem, type ConversionRecord, type BookmarkRecord, type FormatsData } from "@/lib/app-types";
 import {
-  qualityPresets, SUPPORTED_EXTENSIONS, categoryColors, categoryTextColors,
-  categoryBorderColors, categoryLightBg, formatBadgeData,
+  qualityPresets, SUPPORTED_EXTENSIONS, categoryColors,
 } from "@/lib/app-constants";
-import { formatBytes, formatDate, getCategoryFromExt, getCategoryIcon } from "@/lib/app-helpers";
+import { formatBytes, formatDate, getCategoryFromExt } from "@/lib/app-helpers";
+import { formats } from "@/lib/formats";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
+import { saveFileLocally } from "@/lib/storage";
 import JSZip from "jszip";
+import { useApp } from "@/lib/app-context";
 
-export function ConverterView({ navigate }: { navigate: (view: ViewType) => void }) {
+export function ConverterView() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [formatsData, setFormatsData] = useState<FormatsData | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
-  >({});
-  const [showBookmarkDialog, setShowBookmarkDialog] = useState(false);
+  >(() => {
+    const map: Record<string, string[]> = {};
+    for (const fmt of formats) {
+      map[fmt.ext] = fmt.targetFormats;
+    }
+    return map;
+  });
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [toasts, setToasts] = useState<
     { id: string; message: string; type: "success" | "error" }[]
@@ -50,25 +51,7 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
   const [recentConversions, setRecentConversions] = useState<
     ConversionRecord[]
   >([]);
-  const [activityLog, setActivityLog] = useState<
-    {
-      action: string;
-      timestamp: string;
-      detail?: string;
-    }[]
-  >([]);
-  const [conversionStatsSummary, setConversionStatsSummary] = useState<{
-    topPair: string;
-    topPairCount: number;
-    avgReduction: string;
-    todayCount: number;
-    totalCount: number;
-    totalInputSize: number;
-    totalOutputSize: number;
-    successRate: number;
-    uniqueFormats: number;
-  } | null>(null);
-  const [sessionConverted, setSessionConverted] = useState(0);
+  
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -78,18 +61,13 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
     current: number;
     total: number;
   } | null>(null);
-  const [checkFrom, setCheckFrom] = useState("");
-  const [checkTo, setCheckTo] = useState("");
-  const [formatCheckResult, setFormatCheckResult] = useState<boolean | null>(
-    null,
-  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
   ) => {
-    const id = Date.now().toString();
+    const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(
       () => setToasts((prev) => prev.filter((t) => t.id !== id)),
@@ -97,25 +75,29 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
     );
   };
 
-  // Check if a file extension is supported
-  const isExtensionSupported = (ext: string): boolean => {
-    return ext in targetFormatsMap && targetFormatsMap[ext].length > 0;
-  };
 
   useEffect(() => {
     fetch("/api/formats")
       .then((r) => r.json())
       .then((data) => {
+        if (!data || data.error || !data.grouped) {
+          console.error("Failed to fetch formats:", data?.error || "Unknown error");
+          return;
+        }
         setFormatsData(data);
         const map: Record<string, string[]> = {};
-        for (const group of Object.values(data.grouped) as any[]) {
+        for (const group of Object.values(data.grouped) as Array<{
+          formats: Array<{ ext: string; targetFormats: string[] }>;
+        }>) {
           for (const fmt of group.formats) {
             map[fmt.ext] = fmt.targetFormats;
           }
         }
         setTargetFormatsMap(map);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Error fetching formats:", err);
+      });
 
     fetch("/api/bookmarks")
       .then((r) => r.json())
@@ -126,73 +108,6 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
       .then((r) => r.json())
       .then((d) => setRecentConversions(d.data || []))
       .catch(() => {});
-
-    // Fetch conversion stats summary
-    fetch("/api/conversions?limit=200")
-      .then((r) => r.json())
-      .then((d) => {
-        const records: ConversionRecord[] = d.data || [];
-        if (records.length === 0) {
-          setConversionStatsSummary({
-            topPair: "N/A",
-            topPairCount: 0,
-            avgReduction: "0%",
-            todayCount: 0,
-            totalCount: 0,
-            totalInputSize: 0,
-            totalOutputSize: 0,
-            successRate: 0,
-            uniqueFormats: 0,
-          });
-          return;
-        }
-
-        // Most popular conversion pair
-        const pairMap: Record<string, number> = {};
-        records.forEach((r) => {
-          const pair = `${r.originalExt.toUpperCase()} → ${r.targetExt.toUpperCase()}`;
-          pairMap[pair] = (pairMap[pair] || 0) + 1;
-        });
-        const sortedPairs = Object.entries(pairMap).sort((a, b) => b[1] - a[1]);
-        const topPair = sortedPairs[0]?.[0] || "N/A";
-        const topPairCount = sortedPairs[0]?.[1] || 0;
-
-        // Average size reduction (completed only)
-        const completed = records.filter((r) => r.status === "completed");
-        const reductions: number[] = [];
-        completed.forEach((r) => {
-          if (r.inputSize > 0 && r.outputSize > 0) {
-            reductions.push(((r.inputSize - r.outputSize) / r.inputSize) * 100);
-          }
-        });
-        const avgReduction =
-          reductions.length > 0
-            ? `${Math.round(reductions.reduce((a, b) => a + b, 0) / reductions.length)}%`
-            : "0%";
-
-        // Conversions today
-        const today = new Date().toDateString();
-        const todayCount = records.filter(
-          (r) => new Date(r.createdAt).toDateString() === today,
-        ).length;
-
-        // Totals
-        const totalCount = records.length;
-        const totalInputSize = records.reduce((s, r) => s + (r.inputSize || 0), 0);
-        const totalOutputSize = records.reduce((s, r) => s + (r.outputSize || 0), 0);
-        const successRate = totalCount > 0 ? Math.round((completed.length / totalCount) * 100) : 0;
-
-        // Unique formats
-        const fmtSet = new Set<string>();
-        records.forEach((r) => { fmtSet.add(r.originalExt); fmtSet.add(r.targetExt); });
-        const uniqueFormats = fmtSet.size;
-
-        setConversionStatsSummary({
-          topPair, topPairCount, avgReduction, todayCount,
-          totalCount, totalInputSize, totalOutputSize, successRate, uniqueFormats,
-        });
-      })
-      .catch(() => {});
   }, []);
 
   const fetchRemoteFile = async (url: string) => {
@@ -201,17 +116,29 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
       const response = await fetch(
         `/api/fetch-url?url=${encodeURIComponent(url)}`,
       );
-      if (!response.ok) throw new Error("Failed to fetch");
+      
+      if (!response.ok) {
+        let errorMsg = "Failed to fetch remote file";
+        try {
+          const data = await response.json();
+          errorMsg = data.error || errorMsg;
+        } catch {
+          const text = await response.text().catch(() => "");
+          if (text) errorMsg = text.slice(0, 100);
+        }
+        throw new Error(errorMsg);
+      }
+
       const blob = await response.blob();
       const fileName = url.split("/").pop()?.split("?")[0] || "remote-file";
-      const file = new (window as any).File([blob], fileName, {
-        type: blob.type,
-      });
+      // Use window.File to avoid shadowing issues with lucide-react icon
+      const file = new window.File([blob], fileName, { type: blob.type });
       addFiles([file]);
       showToast("Remote file added!");
       setUrlInput("");
-    } catch {
-      showToast("Failed to fetch remote file", "error");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch remote file";
+      showToast(message, "error");
     }
   };
 
@@ -257,7 +184,7 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
             size: file.size,
             ext,
             status: "pending" as const,
-            targetFormat: targets[0] || "",
+            targetFormat: targets.find((t) => t !== ext) || targets[0] || "",
             quality: 85,
             resizeWidth: null,
             resizeHeight: null,
@@ -343,9 +270,14 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
     setFiles([]);
   };
 
-  const convertFile = async (item: FileItem, isRetry = false) => {
+  const convertFile = async (item: FileItem) => {
     if (!item.targetFormat) {
       showToast(`Please select a target format for ${item.name}`, "error");
+      return;
+    }
+
+    if (item.ext === item.targetFormat) {
+      showToast(`File is already in .${item.ext.toUpperCase()} format`, "error");
       return;
     }
 
@@ -369,33 +301,39 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
       const response = await fetch("/api/convert", {
         method: "POST",
         body: formData,
+        cache: "no-store",
+        priority: "high",
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `Conversion failed (${response.status})`,
-        );
+        let errorMsg = `Conversion failed (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {
+          // If not JSON, maybe text
+          const text = await response.text().catch(() => "");
+          if (text) errorMsg = text.slice(0, 100);
+        }
+        throw new Error(errorMsg);
       }
 
       const blob = await response.blob();
+      if (blob.size === 0) throw new Error("Received empty file from server");
+      
+      const conversionId = response.headers.get("X-Conversion-Id") || item.id;
+
+      // Save to local IndexedDB
+      await saveFileLocally(conversionId, item.name, blob, blob.type);
+
       updateFile(item.id, {
         status: "done",
         result: blob,
         endTime: Date.now(),
         outputSize: blob.size,
       });
-      setSessionConverted((c) => c + 1);
-      setActivityLog((prev) =>
-        [
-          {
-            action: "Convert",
-            timestamp: new Date().toISOString(),
-            detail: `${item.name} → ${item.targetFormat}`,
-          },
-          ...prev,
-        ].slice(0, 50),
-      );
+      // sessionConverted and activityLog tracking removed
+      // (kept for future use)
       showToast(`${item.name} converted successfully!`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Conversion failed";
@@ -421,12 +359,6 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
       );
     }
     setBatchProgress(null);
-  };
-
-  const checkFormatCompatibility = () => {
-    if (!checkFrom.trim() || !checkTo.trim() || !formatsData) return;
-    const targets = targetFormatsMap[checkFrom.trim()];
-    setFormatCheckResult(targets ? targets.includes(checkTo.trim()) : false);
   };
 
   const downloadFile = (item: FileItem) => {
@@ -493,7 +425,40 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
   const doneCount = files.filter((f) => f.status === "done").length;
   const errorCount = files.filter((f) => f.status === "error").length;
 
-  const catCount = formatsData ? Object.keys(formatsData.grouped).length : 0;
+  const allTargetFormats = (() => {
+    const all = new Set<string>();
+    files.filter((f) => f.status === "pending").forEach((f) => {
+      (targetFormatsMap[f.ext] || []).forEach((t) => all.add(t));
+    });
+    return [...all].sort();
+  })();
+
+  const groupedTargetFormats = (formatList: string[]) => {
+    const groups: Record<string, string[]> = {};
+    for (const fmt of formatList) {
+      const cat = getCategoryFromExt(fmt) || "other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(fmt);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  };
+
+  const applyUniversalFormat = (format: string) => {
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.status !== "pending") return f;
+        const targets = targetFormatsMap[f.ext] || [];
+        if (targets.includes(format)) {
+          return { ...f, targetFormat: format };
+        }
+        return f;
+      }),
+    );
+    const applicableCount = files.filter(
+      (f) => f.status === "pending" && (targetFormatsMap[f.ext] || []).includes(format),
+    ).length;
+    showToast(`Applied .${format.toUpperCase()} to ${applicableCount} file(s)`);
+  };
 
   return (
     <div className="space-y-8">
@@ -503,189 +468,52 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
           {toasts.slice(0, 5).map((t) => (
             <div
               key={t.id}
-              className={`toast-stack-item flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-sm ${
-                t.type === "success" ? "bg-emerald-600" : "bg-red-600"
+              className={`toast-stack-item flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-foreground text-sm border border-border bg-background/95 backdrop-blur-md animate-in slide-in-from-right-full duration-300 ${
+                t.type === "success" 
+                  ? "border-l-4 border-l-emerald-500" 
+                  : "border-l-4 border-l-destructive"
               }`}
             >
-              {t.type === "success" ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <AlertCircle className="w-4 h-4" />
-              )}
-              {t.message}
+              <div className={`p-1 rounded-full ${
+                t.type === "success" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"
+              }`}>
+                {t.type === "success" ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5" />
+                )}
+              </div>
+              <span className="font-medium">{t.message}</span>
             </div>
           ))}
         </div>
       )}
 
       {/* ─── Hero Section ─── */}
-      <section className="text-center py-8 sm:py-12">
-        <div className="hero-gradient relative">
-          <div className="relative z-10">
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight text-shadow-brand">
-              Convert Any File,{" "}
-              <span className="gradient-text">Any Format</span>
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-2 leading-relaxed">
-              Transform images, documents, data files, audio, and more.
-              Drop a file, pick your target format, and get results instantly.
-            </p>
-            <p className="text-xs text-muted-foreground mb-6 flex items-center justify-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-              Fast server-side conversion &bull; Free forever &bull; Files
-              auto-deleted after 30 mins &bull; 100% Private, no 3rd-party
-              sharing
-            </p>
-            {/* Category Icon Row — 7 categories */}
-            <div className="flex items-center justify-center gap-3 sm:gap-5 mb-8 flex-wrap">
-              {[
-                { cat: "image", label: "Image" },
-                { cat: "audio", label: "Audio" },
-                { cat: "document", label: "Document" },
-                { cat: "data", label: "Data" },
-                { cat: "archive", label: "Archive" },
-                { cat: "ebook", label: "Ebook" },
-                { cat: "subtitle", label: "Subtitle" },
-              ].map(({ cat, label }) => (
-                <div key={cat} className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`w-9 h-9 ${categoryColors[cat]} rounded-full flex items-center justify-center text-white`}
-                  >
-                    {getCategoryIcon(cat, "w-4 h-4")}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-medium">
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {/* Stat Badges */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {[
-                {
-                  label: `${formatsData ? formatsData.totalFormats : "40"}+ Formats`,
-                  color: "bg-emerald-500",
-                },
-                {
-                  label: `${formatsData ? formatsData.totalConversions : "200"}+ Conversions`,
-                  color: "bg-violet-500",
-                },
-                {
-                  label: `${catCount || "10"} Categories`,
-                  color: "bg-amber-500",
-                },
-                {
-                  label: "100% Free",
-                  color: "bg-sky-500",
-                },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className={`${stat.color} text-white rounded-lg px-4 py-2 text-sm font-bold`}
-                >
-                  {stat.label}
-                </div>
-              ))}
-            </div>
-          </div>
+      <section className="text-center py-6 sm:py-8">
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2 leading-tight">
+          Convert Any File,{" "}
+          <span className="gradient-text">Any Format</span>
+        </h1>
+        <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-4">
+          Drop files, pick a format, get results instantly. 132+ formats supported.
+        </p>
+        <div className="flex items-center justify-center gap-4 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-emerald-500" /> Private</span>
+          <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-500" /> Fast</span>
+          <span className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-violet-500" /> Free</span>
         </div>
       </section>
 
-      <Separator />
-
-            {/* ─── Conversion Activity Stats ─── */}
-      {conversionStatsSummary && (
-        <Card className="card-accent-emerald">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Conversion Activity</h3>
-                  <p className="text-xs text-muted-foreground">All-time stats from your history</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 rounded-full border border-emerald-200 dark:border-emerald-800">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="w-9 h-9 bg-sky-100 dark:bg-sky-900/40 rounded-lg flex items-center justify-center shrink-0">
-                  <BarChart3 className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground leading-tight">Total Conversions</div>
-                  <div className="text-lg font-bold tabular-nums">{conversionStatsSummary.totalCount.toLocaleString()}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="w-9 h-9 bg-violet-100 dark:bg-violet-900/40 rounded-lg flex items-center justify-center shrink-0">
-                  <HardDrive className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground leading-tight">Size Processed</div>
-                  <div className="text-lg font-bold tabular-nums">{formatBytes(conversionStatsSummary.totalInputSize)}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg flex items-center justify-center shrink-0">
-                  <ArrowDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground leading-tight">Space Saved</div>
-                  <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-                    {conversionStatsSummary.totalInputSize > conversionStatsSummary.totalOutputSize
-                      ? formatBytes(conversionStatsSummary.totalInputSize - conversionStatsSummary.totalOutputSize)
-                      : "0 B"}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="w-9 h-9 bg-amber-100 dark:bg-amber-900/40 rounded-lg flex items-center justify-center shrink-0">
-                  <ArrowRightLeft className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground leading-tight">Most Popular Pair</div>
-                  <div className="text-sm font-bold font-mono truncate">{conversionStatsSummary.topPair}</div>
-                  {conversionStatsSummary.topPairCount > 0 && (
-                    <div className="text-[10px] text-muted-foreground">{conversionStatsSummary.topPairCount}x used</div>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="w-9 h-9 bg-pink-100 dark:bg-pink-900/40 rounded-lg flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground leading-tight">Avg. Reduction</div>
-                  <div className="text-lg font-bold tabular-nums text-pink-600 dark:text-pink-400">{conversionStatsSummary.avgReduction}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <div className="w-9 h-9 bg-orange-100 dark:bg-orange-900/40 rounded-lg flex items-center justify-center shrink-0">
-                  <Sparkles className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground leading-tight">Converted Today</div>
-                  <div className="text-lg font-bold tabular-nums">{conversionStatsSummary.todayCount}</div>
-                  <div className="text-[10px] text-muted-foreground">{conversionStatsSummary.successRate}% success rate</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-            {/* ─── Upload Zone ─── */}
+      {/* ─── Upload Zone ─── */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           <div
-            className={`upload-zone-enhanced border-l-4 border-l-emerald-500 p-8 sm:p-12 text-center cursor-pointer relative ${
-              dragOver ? "drag-active" : ""
-            } ${!dragOver ? "dot-pattern" : ""}`}
+            className={`p-8 sm:p-10 text-center cursor-pointer relative border-2 border-dashed rounded-t-xl transition-colors ${
+              dragOver
+                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                : "border-border hover:border-emerald-400 dark:hover:border-emerald-600"
+            }`}
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(true);
@@ -706,94 +534,57 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
               }}
             />
             <div className="relative z-10">
-              <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-5 hover-scale">
-                <Upload className="w-8 h-8 text-white" />
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-colors ${
+                dragOver ? "bg-emerald-500 scale-110" : "bg-emerald-500/90"
+              }`}>
+                <Upload className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-lg font-semibold mb-1">
-                Drop files here or click to upload
+              <h3 className="text-base font-semibold mb-1">
+                {dragOver ? "Drop files to upload" : "Drop files here or click to browse"}
               </h3>
-              <p className="text-sm text-muted-foreground mb-1">
-                Only supported file formats are shown in the file picker
+              <p className="text-xs text-muted-foreground">
+                Images, documents, data, audio, archives, subtitles, fonts & more
               </p>
-              <p className="text-xs text-muted-foreground mb-5 flex items-center justify-center gap-1.5">
-                <FolderOpen className="w-3 h-3" /> Browse supported files
-                &middot; Max 50MB per file
-              </p>
-              {/* Vibrant Category-Colored Format Badges */}
-              <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
-                {formatBadgeData.map((fmt) => (
-                  <Badge
-                    key={fmt.label}
-                    className={`${
-                      categoryColors[fmt.category] || "bg-gray-500"
-                    } text-white border-0 text-xs font-semibold px-2.5 py-0.5`}
-                  >
-                    {fmt.label}
-                  </Badge>
-                ))}
-                <Badge className="bg-gray-500 text-white border-0 text-xs font-semibold px-2.5 py-0.5">
-                  +{formatsData ? formatsData.totalFormats - 9 : "40"} more
-                </Badge>
-              </div>
-              {/* Category Quick Filter Buttons */}
-              <div
-                className="flex items-center justify-center gap-2 mt-6"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {[
-                  { cat: "image", label: "Image" },
-                  { cat: "audio", label: "Audio" },
-                  { cat: "document", label: "Document" },
-                  { cat: "data", label: "Data" },
-                  { cat: "subtitle", label: "Subtitle" },
-                ].map(({ cat, label }) => (
-                  <button
-                    key={cat}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
-                      categoryBorderColors[cat] || "border-gray-500"
-                    } ${categoryLightBg[cat] || "bg-gray-50"} ${
-                      categoryTextColors[cat] || "text-gray-600"
-                    }`}
-                  >
-                    {getCategoryIcon(cat, "w-3 h-3")}
-                    {label}
-                  </button>
-                ))}
-              </div>
+            </div>
+          </div>
 
-              {/* URL Fetch Input within Upload Zone */}
-              <div
-                className="mt-8 max-w-md mx-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-2 mb-2 justify-center">
-                  <Globe className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm font-medium">Or fetch from URL</span>
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://example.com/image.png"
-                    className="flex-1 h-10 text-sm bg-background/80 backdrop-blur-sm focus-visible:ring-amber-500"
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && urlInput.trim()) {
-                        fetchRemoteFile(urlInput.trim());
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="default"
-                    className="h-10 px-6 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
-                    onClick={() => {
-                      if (urlInput.trim()) fetchRemoteFile(urlInput.trim());
-                    }}
-                    disabled={!urlInput.trim()}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Fetch
-                  </Button>
-                </div>
+          {/* ── OR Divider + URL Fetch ── */}
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute inset-x-0 top-0 flex items-center justify-center -translate-y-1/2 z-10">
+              <span className="bg-background px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                or paste a link
+              </span>
+            </div>
+            <div className="px-5 py-4 bg-muted/30 border-t border-border/40 rounded-b-xl">
+              <div className="flex items-center gap-2 max-w-lg mx-auto bg-background rounded-lg border border-border/60 px-3 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/40 focus-within:border-emerald-400 transition-all">
+                <Globe className="w-4 h-4 text-muted-foreground/60 shrink-0" />
+                <Input
+                  placeholder="https://example.com/file.png"
+                  className="flex-1 h-7 text-xs border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 placeholder:text-muted-foreground/40"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlInput.trim()) {
+                      fetchRemoteFile(urlInput.trim());
+                    }
+                  }}
+                />
+                <Button
+                  variant="default"
+                  size="sm"
+                  className={`h-7 px-4 text-[11px] font-semibold rounded-md shrink-0 transition-all ${
+                    urlInput.trim() && urlInput.includes("://")
+                      ? "bg-emerald-500 hover:bg-emerald-600 text-white opacity-100"
+                      : "bg-muted text-muted-foreground opacity-50 pointer-events-none"
+                  }`}
+                  onClick={() => {
+                    if (urlInput.trim() && urlInput.includes("://")) fetchRemoteFile(urlInput.trim());
+                  }}
+                  disabled={!urlInput.trim() || !urlInput.includes("://")}
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Fetch
+                </Button>
               </div>
             </div>
           </div>
@@ -856,118 +647,63 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
         </div>
       )}
 
-      {/* ─── Conversion Quality Presets ─── */}
-      {files.some(
-        (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
-      ) && (
-        <Card className="card-accent-violet">
+      {/* ─── PDF Tools ─── */}
+      {files.some((f) => f.ext === "pdf" && f.status === "pending") && (
+        <Card className="card-accent-rose">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center text-white">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center text-white">
+                <FileIcon className="w-4 h-4" />
               </div>
-              <h3 className="font-semibold text-sm">Quality Presets</h3>
-              <Badge variant="secondary" className="ml-auto text-xs">
-                One-click apply
-              </Badge>
+              <div>
+                <h3 className="font-semibold text-sm">PDF Tools</h3>
+                <p className="text-xs text-muted-foreground">Split PDF pages into individual images</p>
+              </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {qualityPresets.map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => applyPresetToAll(preset.quality)}
-                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-left transition-colors"
-                >
-                  <div
-                    className={`w-7 h-7 ${preset.color} rounded-md flex items-center justify-center text-white shrink-0`}
-                  >
-                    {preset.icon}
+            <div className="flex flex-wrap gap-2">
+              {files
+                .filter((f) => f.ext === "pdf" && f.status === "pending")
+                .map((pdfFile) => (
+                  <div key={pdfFile.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
+                    <span className="text-xs font-medium truncate max-w-40">{pdfFile.name}</span>
+                    {["png", "jpg", "webp"].map((fmt) => (
+                      <Button
+                        key={fmt}
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] px-2 uppercase"
+                        onClick={async () => {
+                          showToast(`Splitting ${pdfFile.name} to ${fmt.toUpperCase()} images...`);
+                          try {
+                            const fd = new FormData();
+                            fd.append("file", pdfFile.file);
+                            fd.append("targetFormat", fmt);
+                            const resp = await fetch("/api/pdf-split", { method: "POST", body: fd });
+                            if (!resp.ok) {
+                              const err = await resp.json().catch(() => ({ error: "Split failed" }));
+                              throw new Error(err.error || "Split failed");
+                            }
+                            const pageCount = resp.headers.get("X-Page-Count") || "?";
+                            const blob = await resp.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${pdfFile.name.replace(/\.pdf$/i, "")}-pages.zip`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                            showToast(`Split into ${pageCount} ${fmt.toUpperCase()} images!`);
+                          } catch (err) {
+                            const msg = err instanceof Error ? err.message : "Split failed";
+                            showToast(msg, "error");
+                          }
+                        }}
+                      >
+                        → {fmt}
+                      </Button>
+                    ))}
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold truncate">
-                      {preset.label}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {preset.quality}%
-                    </div>
-                  </div>
-                </button>
-              ))}
+                ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Image Resize Options ─── */}
-      {files.some(
-        (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
-      ) && (
-        <Card className="card-accent-sky">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white">
-                <Maximize className="w-4 h-4" />
-              </div>
-              <h3 className="font-semibold text-sm">Image Resize Options</h3>
-              <Switch
-                checked={showResize}
-                onCheckedChange={setShowResize}
-                className="ml-auto"
-              />
-            </div>
-            {showResize && (
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">W</Label>
-                  <Input
-                    type="number"
-                    placeholder="Auto"
-                    className="w-24 h-8 text-xs"
-                    onChange={(e) =>
-                      resizeAll(
-                        e.target.value ? parseInt(e.target.value) : null,
-                        null,
-                      )
-                    }
-                  />
-                </div>
-                <span className="text-muted-foreground text-xs self-center">
-                  ×
-                </span>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">H</Label>
-                  <Input
-                    type="number"
-                    placeholder="Auto"
-                    className="w-24 h-8 text-xs"
-                    onChange={(e) =>
-                      resizeAll(
-                        null,
-                        e.target.value ? parseInt(e.target.value) : null,
-                      )
-                    }
-                  />
-                </div>
-                <div className="flex gap-1.5">
-                  {[
-                    { label: "50%", w: 0.5 },
-                    { label: "75%", w: 0.75 },
-                    { label: "150%", w: 1.5 },
-                  ].map((preset) => (
-                    <Badge
-                      key={preset.label}
-                      variant="outline"
-                      className="text-[10px] cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/30"
-                      onClick={() => {
-                        resizeAll(Math.round(1920 * preset.w), null);
-                      }}
-                    >
-                      {preset.label}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
@@ -986,7 +722,27 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                   {formatBytes(files.reduce((sum, f) => sum + f.size, 0))} total
                 </span>
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {pendingCount > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <FileStack className="w-3.5 h-3.5 text-violet-500" />
+                    <Select onValueChange={applyUniversalFormat}>
+                      <SelectTrigger className="w-28 h-8 text-xs border-violet-300 dark:border-violet-700">
+                        <SelectValue placeholder="All → ..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupedTargetFormats(allTargetFormats).map(([cat, fmts]) => (
+                          <SelectGroup key={cat}>
+                            <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
+                            {fmts.map((fmt) => (
+                              <SelectItem key={fmt} value={fmt} className="text-xs uppercase">{fmt}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1040,6 +796,53 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                   <DownloadCloud className="w-3.5 h-3.5 mr-1" />
                   Download ZIP
                 </Button>
+                {doneCount >= 2 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    onClick={async () => {
+                      const filesToMerge = files.filter((f) => f.status === "done" && f.outputBlob);
+                      if (filesToMerge.length < 2) {
+                        showToast("Need at least 2 converted files to merge", "error");
+                        return;
+                      }
+                      showToast(`Merging ${filesToMerge.length} converted files into PDF...`);
+                      try {
+                        const formData = new FormData();
+                        for (const f of filesToMerge) {
+                          const fileName = `${f.name.split('.')[0]}.${f.targetFormat}`;
+                          const file = new File([f.outputBlob!], fileName, {
+                            type: f.outputBlob!.type,
+                          });
+                          formData.append("files", file);
+                        }
+                        const response = await fetch("/api/merge-pdf", {
+                          method: "POST",
+                          body: formData,
+                        });
+                        if (!response.ok) {
+                          const err = await response.json().catch(() => ({ error: "Merge failed" }));
+                          throw new Error(err.error || "Merge failed");
+                        }
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `merged-${Date.now()}.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        showToast(`Merged ${filesToMerge.length} converted files into PDF!`);
+                      } catch (err) {
+                        const msg = err instanceof Error ? err.message : "Merge failed";
+                        showToast(msg, "error");
+                      }
+                    }}
+                  >
+                    <FileStack className="w-3.5 h-3.5 mr-1" />
+                    Merge to PDF
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1056,7 +859,12 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                   <Check className="w-3.5 h-3.5 mr-1" />
                   Clear Done
                 </Button>
-                <Button variant="ghost" size="sm" onClick={clearAll}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAll}
+                  aria-label="Clear all files"
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -1066,7 +874,6 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
             <div className="max-h-[50vh] overflow-y-auto pr-2 overflow-x-hidden">
               <div className="space-y-2">
                 {files.map((item) => {
-                  const cat = getCategoryFromExt(item.ext);
                   const itemIndex = files.findIndex((f) => f.id === item.id);
                   return (
                     <div
@@ -1219,15 +1026,20 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                                 <SelectValue placeholder="Format" />
                               </SelectTrigger>
                               <SelectContent>
-                                {(targetFormatsMap[item.ext] || []).map(
-                                  (fmt) => (
-                                    <SelectItem
-                                      key={fmt}
-                                      value={fmt}
-                                      className="text-xs uppercase"
-                                    >
-                                      {fmt}
-                                    </SelectItem>
+                                {groupedTargetFormats((targetFormatsMap[item.ext] || []).filter((f) => f !== item.ext)).map(
+                                  ([cat, fmts]) => (
+                                    <SelectGroup key={cat}>
+                                      <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
+                                      {fmts.map((fmt) => (
+                                        <SelectItem
+                                          key={fmt}
+                                          value={fmt}
+                                          className="text-xs uppercase"
+                                        >
+                                          {fmt}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
                                   ),
                                 )}
                               </SelectContent>
@@ -1245,6 +1057,7 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                                       size="icon"
                                       className="h-8 w-8 hover:bg-slate-100"
                                       title="Image Settings"
+                                      aria-label="Image Settings"
                                     >
                                       <Settings className="w-4 h-4 text-slate-500" />
                                     </Button>
@@ -1256,6 +1069,7 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                                   className="h-8 w-8"
                                   onClick={() => duplicateFile(item)}
                                   title="Add another format"
+                                  aria-label="Add another format"
                                 >
                                   <Plus className="w-4 h-4 text-sky-600" />
                                 </Button>
@@ -1265,6 +1079,7 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                                   className="h-8 text-xs bg-emerald-500 hover:bg-emerald-600"
                                   onClick={() => convertFile(item)}
                                   title="Convert"
+                                  aria-label="Convert file"
                                 >
                                   <RefreshCw className="w-3.5 h-3.5 mr-1" />{" "}
                                   Convert
@@ -1326,7 +1141,7 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => convertFile(item, true)}
+                                onClick={() => convertFile(item)}
                                 title="Retry conversion"
                               >
                                 <RotateCcw className="w-4 h-4 text-amber-500" />
@@ -1443,6 +1258,122 @@ export function ConverterView({ navigate }: { navigate: (view: ViewType) => void
                 })}
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Conversion Quality Presets (below queue) ─── */}
+      {files.some(
+        (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
+      ) && (
+        <Card className="card-accent-violet">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center text-white">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <h3 className="font-semibold text-sm">Quality Presets</h3>
+              <Badge variant="secondary" className="ml-auto text-xs">
+                One-click apply
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {qualityPresets.map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => applyPresetToAll(preset.quality)}
+                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-left transition-colors"
+                >
+                  <div
+                    className={`w-7 h-7 ${preset.color} rounded-md flex items-center justify-center text-white shrink-0`}
+                  >
+                    {preset.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold truncate">
+                      {preset.label}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {preset.quality}%
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Image Resize Options (below queue) ─── */}
+      {files.some(
+        (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
+      ) && (
+        <Card className="card-accent-sky">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white">
+                <Maximize className="w-4 h-4" />
+              </div>
+              <h3 className="font-semibold text-sm">Image Resize Options</h3>
+              <Switch
+                checked={showResize}
+                onCheckedChange={setShowResize}
+                className="ml-auto"
+              />
+            </div>
+            {showResize && (
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">W</Label>
+                  <Input
+                    type="number"
+                    placeholder="Auto"
+                    className="w-24 h-8 text-xs"
+                    onChange={(e) =>
+                      resizeAll(
+                        e.target.value ? parseInt(e.target.value) : null,
+                        null,
+                      )
+                    }
+                  />
+                </div>
+                <span className="text-muted-foreground text-xs self-center">
+                  ×
+                </span>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">H</Label>
+                  <Input
+                    type="number"
+                    placeholder="Auto"
+                    className="w-24 h-8 text-xs"
+                    onChange={(e) =>
+                      resizeAll(
+                        null,
+                        e.target.value ? parseInt(e.target.value) : null,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex gap-1.5">
+                  {[
+                    { label: "50%", w: 0.5 },
+                    { label: "75%", w: 0.75 },
+                    { label: "150%", w: 1.5 },
+                  ].map((preset) => (
+                    <Badge
+                      key={preset.label}
+                      variant="outline"
+                      className="text-[10px] cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                      onClick={() => {
+                        resizeAll(Math.round(1920 * preset.w), null);
+                      }}
+                    >
+                      {preset.label}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

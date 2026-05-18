@@ -3,19 +3,14 @@
 import React, { useState, useEffect } from "react";
 import {
   Layers,
-  File,
+  File as FileIcon,
   ArrowRightLeft,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
   Info,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
+import {  Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { type FormatStatusData } from "@/lib/app-types";
@@ -32,7 +27,9 @@ export function AdminFormats() {
     fetch("/api/admin/format-status")
       .then((r) => r.json())
       .then((data) => {
-        setFormatStatus(data);
+        if (data && !data.error) {
+          setFormatStatus(data);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -84,25 +81,25 @@ export function AdminFormats() {
         {[
           {
             label: "Total Formats",
-            value: formatStatus.totalFormats,
-            icon: <File className="w-4 h-4" />,
+            value: formatStatus.totalFormats || 0,
+            icon: <FileIcon className="w-4 h-4" />,
             color: "bg-emerald-500",
           },
           {
             label: "Conversion Pairs",
-            value: formatStatus.totalPairs.toLocaleString(),
+            value: formatStatus.totalPairs?.toLocaleString() || "0",
             icon: <ArrowRightLeft className="w-4 h-4" />,
             color: "bg-violet-500",
           },
           {
             label: "Functional",
-            value: formatStatus.functionalCategories,
+            value: formatStatus.functionalCategories || 0,
             icon: <CheckCircle2 className="w-4 h-4" />,
             color: "bg-sky-500",
           },
           {
             label: "Partial",
-            value: formatStatus.partialCategories,
+            value: formatStatus.partialCategories || 0,
             icon: <AlertCircle className="w-4 h-4" />,
             color: "bg-amber-500",
           },
@@ -126,7 +123,7 @@ export function AdminFormats() {
 
       {/* Category Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {formatStatus.categories.map((cat) => (
+        {(formatStatus.categories || []).map((cat) => (
           <Card
             key={cat.category}
             className={`card-elevated border ${categoryBorderColors[cat.category]}`}
@@ -166,7 +163,7 @@ export function AdminFormats() {
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50">
                   <div className="text-xl font-bold">
-                    {cat.pairCount.toLocaleString()}
+                    {cat.pairCount?.toLocaleString() || "0"}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
                     Conv. Pairs

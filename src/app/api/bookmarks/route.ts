@@ -1,93 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
-// GET /api/bookmarks — Return all bookmarks
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json({ bookmarks: [] });
+    }
+
     const bookmarks = await db.bookmark.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ data: bookmarks });
+    return NextResponse.json({ bookmarks });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch bookmarks" }, { status: 500 });
   }
 }
 
-// POST /api/bookmarks — Create a new bookmark
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, inputExt, outputExt, category } = body as {
-      name?: string;
-      inputExt?: string;
-      outputExt?: string;
-      category?: string;
-    };
-
-    if (!name || !inputExt || !outputExt || !category) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, inputExt, outputExt, category" },
-        { status: 400 }
-      );
+    const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Use a default userId since auth is not required for this demo
-    let defaultUser = await db.user.findFirst({ where: { email: "system@local" } });
-    if (!defaultUser) {
-      defaultUser = await db.user.create({
-        data: { email: "system@local", name: "System" },
-      });
+    const { name, inputExt, outputExt, category } = await request.json();
+
+    if (!inputExt || !outputExt || !category) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const bookmark = await db.bookmark.create({
-      data: {
-        userId: defaultUser.id,
-        name,
+    const bookmark = await db.bookmark.upsert({
+      where: {
+        userId_inputExt_outputExt: {
+          userId: user.id,
+          inputExt,
+          outputExt,
+        },
+      },
+      update: {
+        name: name || `${inputExt.toUpperCase()} to ${outputExt.toUpperCase()}`,
+        category,
+      },
+      create: {
+        userId: user.id,
+        name: name || `${inputExt.toUpperCase()} to ${outputExt.toUpperCase()}`,
         inputExt,
         outputExt,
         category,
       },
     });
 
-    return NextResponse.json({ data: bookmark }, { status: 201 });
+    return NextResponse.json({ success: true, bookmark });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to save bookmark" }, { status: 500 });
   }
 }
 
-// DELETE /api/bookmarks?id=xxx — Delete a bookmark by id
 export async function DELETE(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "Missing required query param: id" },
-        { status: 400 }
-      );
+    const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const bookmark = await db.bookmark.findUnique({ where: { id } });
+    const { id } = await request.json();
 
-    if (!bookmark) {
-      return NextResponse.json(
-        { error: "Bookmark not found" },
-        { status: 404 }
-      );
-    }
+    await db.bookmark.delete({
+      where: {
+        id,
+        userId: user.id,
+      },
+    });
 
-    await db.bookmark.delete({ where: { id } });
-
-    return NextResponse.json({ success: true, id });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete bookmark" }, { status: 500 });
   }
 }

@@ -180,20 +180,26 @@ export const comparisonFeatures = [
 
 // ─── Navigation Items ─────────────────────────────────────────────────────────
 
-type NavItem =
-  | { view: ViewType; label: string; icon: React.ReactNode; href?: never }
-  | { href: string; label: string; icon: React.ReactNode; view?: never };
-
-export const navItems: NavItem[] = [
+export const navItems = [
   {
-    view: "converter" as ViewType,
+    id: "converter",
     label: "Converter",
-    icon: <ArrowRightLeft className="w-4 h-4" />,
+    icon: ArrowRightLeft,
   },
   {
-    href: "/conversions",
-    label: "Conversions",
-    icon: <LayoutGrid className="w-4 h-4" />,
+    id: "formats",
+    label: "Formats",
+    icon: LayoutGrid,
+  },
+  {
+    id: "history",
+    label: "History",
+    icon: BarChart3,
+  },
+  {
+    id: "bookmarks",
+    label: "Bookmarks",
+    icon: Folder,
   },
 ];
 

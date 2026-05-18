@@ -75,10 +75,10 @@ function LoginForm() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: "Server returned non-JSON response" }));
 
       if (!res.ok) {
-        setError(data.error || "Login failed. Check your credentials.");
+        setError(data.error || `Login failed (Status ${res.status})`);
         setLoading(false);
         return;
       }
@@ -90,8 +90,8 @@ function LoginForm() {
       }
 
       router.push(redirectTo);
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(`Network error: ${err instanceof Error ? err.message : "Could not reach server"}`);
       setLoading(false);
     }
   };

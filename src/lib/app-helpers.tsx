@@ -13,7 +13,7 @@ import {
   Type,
   FileQuestion,
   Presentation,
-  File,
+  File as FileIcon,
   FileImage,
   FileVideo,
   FileAudio,
@@ -98,7 +98,7 @@ export function getCategoryIcon(
     font: <Type className={size} />,
     other: <FileQuestion className={size} />,
   };
-  return icons[category] || <File className={size} />;
+  return icons[category] || <FileIcon className={size} />;
 }
 
 export function getCategoryIconLg(category: string): React.ReactNode {
@@ -115,5 +115,5 @@ export function getCategoryIconLg(category: string): React.ReactNode {
     font: <Type className="w-6 h-6" />,
     other: <FileQuestion className="w-6 h-6" />,
   };
-  return icons[category] || <File className="w-6 h-6" />;
+  return icons[category] || <FileIcon className="w-6 h-6" />;
 }

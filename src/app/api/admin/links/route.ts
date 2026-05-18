@@ -1,42 +1,95 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { adminLinkSchema, formatZodError } from "@/lib/admin-validation";
 
-export async function GET() {
-  const items = await prisma.link.findMany({ orderBy: { order: "asc" } });
-  return NextResponse.json(items);
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.authorized) return auth.response;
+
+  try {
+    const links = await db.link.findMany({ orderBy: { order: "asc" } });
+    return NextResponse.json({ data: links });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Server error" },
+      { status: 500 },
+    );
+  }
 }
 
-export async function POST(req: Request) {
-  const data = await req.json();
-  const item = await prisma.link.create({ data: {
-    label: data.label,
-    url: data.path,
-    group: data.location,
-    enabled: data.active ?? true,
-    order: data.order ?? 0,
-  }});
-  return NextResponse.json(item);
-}
+export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.authorized) return auth.response;
 
-export async function PUT(req: Request) {
-  const data = await req.json();
-  const { id, ...rest } = data;
-  const item = await prisma.link.update({
-    where: { id },
-    data: {
-      label: rest.label,
-      url: rest.path,
-      group: rest.location,
-      enabled: rest.active ?? true,
+  try {
+    const body = await request.json();
+    const parsed = adminLinkSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: formatZodError(parsed.error) },
+        { status: 400 },
+      );
     }
-  });
-  return NextResponse.json(item);
+    const { label, url, group, enabled, order, icon } = parsed.data;
+    const link = await db.link.create({
+      data: {
+        label,
+        url,
+        group,
+        enabled: enabled ?? true,
+        order: order ?? 0,
+        icon,
+      },
+    });
+    return NextResponse.json({ data: link }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Server error" },
+      { status: 500 },
+    );
+  }
 }
 
-export async function DELETE(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-  await prisma.link.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+export async function PUT(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.authorized) return auth.response;
+
+  try {
+    const { id, ...data } = await request.json();
+    if (!id)
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+
+    const existing = await db.link.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Link not found" }, { status: 404 });
+    }
+
+    const link = await db.link.update({ where: { id }, data });
+    return NextResponse.json({ data: link });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Server error" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.authorized) return auth.response;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id)
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+    await db.link.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Server error" },
+      { status: 500 },
+    );
+  }
 }

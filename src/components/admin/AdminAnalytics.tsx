@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { type ConversionRecord, type FormatsData } from "@/lib/app-types";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatBytes } from "@/lib/app-helpers";
 import { categoryColors } from "@/lib/app-constants";
 
@@ -39,12 +40,12 @@ export function AdminAnalytics() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/conversions?limit=200").then((r) => r.json()),
-      fetch("/api/formats").then((r) => r.json()),
+      fetch("/api/conversions?all=true&limit=200").then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch("/api/formats").then((r) => r.json()).catch(() => null),
     ])
       .then(([convData, fmtData]) => {
-        setConversions(convData.data || []);
-        setFormatsData(fmtData);
+        setConversions(Array.isArray(convData?.data) ? convData.data : []);
+        setFormatsData(fmtData && !fmtData.error ? fmtData : null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -113,7 +114,6 @@ export function AdminAnalytics() {
     dailyMap[day] = (dailyMap[day] || 0) + 1;
   });
   const dailyData = Object.entries(dailyMap).slice(-7);
-  const maxDaily = Math.max(...dailyData.map((d) => d[1]), 1);
 
   const barColors = [
     "bg-emerald-500",
@@ -237,26 +237,43 @@ export function AdminAnalytics() {
           </CardHeader>
           <CardContent className="pt-0">
             {dailyData.length > 0 ? (
-              <div className="flex items-end gap-2 h-40">
-                {dailyData.map(([day, count]) => (
-                  <div
-                    key={day}
-                    className="flex-1 flex flex-col items-center gap-1"
-                  >
-                    <span className="text-[10px] font-semibold">{count}</span>
-                    <div
-                      className="w-full bg-emerald-500 rounded-t-md"
-                      style={{
-                        height: `${(count / maxDaily) * 100}%`,
-                        minHeight: "4px",
-                      }}
-                    />
-                    <span className="text-[9px] text-muted-foreground">
-                      {day}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={dailyData.map(([day, count]) => ({ name: day, conversions: count }))} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    angle={-45}
+                    textAnchor="end"
+                    height={30}
+                    style={{ fontSize: "10px" }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    width={20}
+                    style={{ fontSize: "10px" }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.7 }}
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      fontSize: "11px",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))" }}
+                    itemStyle={{ color: "hsl(var(--foreground))" }}
+                  />
+                  <Bar
+                    dataKey="conversions"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 No data yet

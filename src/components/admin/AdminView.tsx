@@ -17,10 +17,12 @@ import { AdminLinks } from "./AdminLinks";
 import { AdminPages } from "./AdminPages";
 import { AdminAds } from "./AdminAds";
 import { AdminSettings } from "./AdminSettings";
+import { useApp } from "@/lib/app-context";
 
-export function AdminView({ navigate }: { navigate: (view: ViewType) => void }) {
+export function AdminView() {
+  const { setCurrentView: navigate } = useApp();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-  const [adminUser, setAdminUser] = useState<any>(null);
+  const [adminUser, setAdminUser] = useState<{ name: string | null; email: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -28,7 +30,7 @@ export function AdminView({ navigate }: { navigate: (view: ViewType) => void }) 
       .then((data) => {
         if (data.user) setAdminUser(data.user);
       })
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   const handleLogout = async () => {
@@ -101,7 +103,7 @@ export function AdminView({ navigate }: { navigate: (view: ViewType) => void }) 
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {activeTab === "overview" && <AdminOverview navigate={navigate} />}
+          {activeTab === "overview" && <AdminOverview />}
           {activeTab === "analytics" && <AdminAnalytics />}
           {activeTab === "users" && <AdminUsers />}
           {activeTab === "categories" && <AdminCategories />}

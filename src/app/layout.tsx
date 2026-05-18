@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import JsonLd from "@/components/json-ld";
+import { AppProvider } from "@/lib/app-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +45,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Cloud Converter Team" }],
   creator: "Cloud Converter",
   publisher: "Cloud Converter",
+  alternates: {
+    canonical: "/",
+  },
   formatDetection: {
     email: false,
     address: false,
@@ -104,7 +108,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <JsonLd />
-        {children}
+        <AppProvider>{children}</AppProvider>
         <Toaster />
       </body>
     </html>

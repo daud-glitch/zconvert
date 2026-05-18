@@ -41,8 +41,19 @@ import {
 } from "@/components/ui/dialog";
 import { formatDate } from "@/lib/app-helpers";
 
+interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  isActive: boolean;
+  avatar: string | null;
+  createdAt: string;
+  _count?: { conversions: number; bookmarks: number };
+}
+
 export function AdminUsers() {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [showAdd, setShowAdd] = useState(false);
@@ -51,37 +62,35 @@ export function AdminUsers() {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("user");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const loadUsers = useCallback(() => {
     setLoading(true);
+    setError(null);
     fetch(`/api/admin/users?page=${page}&limit=10`)
       .then((r) => r.json())
       .then((data) => {
-        setUsers(data.data || []);
-        setTotalPages(data.pagination?.totalPages || 1);
+        if (data && Array.isArray(data.data)) {
+          setUsers(data.data);
+          setTotalPages(data.pagination?.totalPages || 1);
+        } else {
+          setUsers([]);
+          setTotalPages(1);
+        }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Failed to load users";
+        setError(message);
+        setUsers([]);
+        setLoading(false);
+      });
   }, [page]);
 
   useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/admin/users?page=${page}&limit=10`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) {
-          setUsers(data.data || []);
-          setTotalPages(data.pagination?.totalPages || 1);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [page]);
+    loadUsers();
+  }, [loadUsers]);
 
   const filteredUsers = users.filter(
     (u) =>
@@ -90,22 +99,51 @@ export function AdminUsers() {
   );
 
   const addUser = async () => {
-    if (!newEmail) return;
-    await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: newEmail, name: newName, role: newRole }),
-    });
-    loadUsers();
-    setShowAdd(false);
-    setNewEmail("");
-    setNewName("");
-    setNewRole("user");
+    if (!newEmail) {
+      setError("Email is required.");
+      return;
+    }
+    if (!newEmail.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    try {
+      setError(null);
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newEmail, name: newName, role: newRole }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add user");
+      }
+      loadUsers();
+      setShowAdd(false);
+      setNewEmail("");
+      setNewName("");
+      setNewRole("user");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to add user";
+      setError(message);
+    }
   };
 
-  const deleteUser = async (id: string) => {
-    await fetch(`/api/admin/users?id=${id}`, { method: "DELETE" });
-    loadUsers();
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      setError(null);
+      const res = await fetch(`/api/admin/users?id=${deleteConfirm}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete user");
+      }
+      setDeleteConfirm(null);
+      loadUsers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete user";
+      setError(message);
+    }
   };
 
   return (
@@ -127,6 +165,12 @@ export function AdminUsers() {
           Add User
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -232,7 +276,8 @@ export function AdminUsers() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 opacity-50 group-hover:opacity-100"
-                        onClick={() => deleteUser(u.id)}
+                        onClick={() => setDeleteConfirm(u.id)}
+                        aria-label="Delete user"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -332,6 +377,26 @@ export function AdminUsers() {
               className="bg-emerald-500 hover:bg-emerald-600"
             >
               Add User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete this user? This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

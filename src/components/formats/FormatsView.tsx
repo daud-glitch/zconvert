@@ -12,12 +12,10 @@ import { type FormatsData } from "@/lib/app-types";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { getCategoryFromExt, getCategoryIcon } from "@/lib/app-helpers";
 import { Breadcrumb } from "@/components/common/Breadcrumb";
+import { useApp } from "@/lib/app-context";
 
-export function FormatsView({
-  navigate,
-}: {
-  navigate: (view: ViewType) => void;
-}) {
+export function FormatsView() {
+  const { setCurrentView: navigate } = useApp();
   const [data, setData] = useState<FormatsData | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");

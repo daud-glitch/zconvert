@@ -1,30 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 
 export async function GET(request: NextRequest) {
+  const user = await getSessionUser(request);
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
+  if (user.role !== "admin") {
+    return NextResponse.json(
+      { error: "Admin access required" },
+      { status: 403 },
+    );
+  }
+
   try {
-    const sessionCookie = request.cookies.get("session");
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const dbUser = await db.user.findUnique({
+      where: { id: user.id },
+      select: { twoFactorEnabled: true, twoFactorSecret: true },
+    });
 
-    const session = JSON.parse(sessionCookie.value);
-    if (session.role !== "admin") {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    }
-
-    const user = await db.user.findUnique({ where: { id: session.userId } });
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (user.twoFactorEnabled) {
+    if (dbUser.twoFactorEnabled) {
       return NextResponse.json({ enabled: true });
     }
 
-    const secret = speakeasy.generateSecret({ name: "CloudConverter" });
+    const secret = speakeasy.generateSecret({ name: "ZConvert" });
 
     await db.user.update({
       where: { id: user.id },
@@ -38,42 +49,67 @@ export async function GET(request: NextRequest) {
       secret: secret.base32,
       qrCode: qrCodeUrl,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to setup 2FA" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const user = await getSessionUser(request);
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
+  if (user.role !== "admin") {
+    return NextResponse.json(
+      { error: "Admin access required" },
+      { status: 403 },
+    );
+  }
+
   try {
-    const sessionCookie = request.cookies.get("session");
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    const session = JSON.parse(sessionCookie.value);
-    if (session.role !== "admin") {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    }
-
     const { token } = await request.json();
+
     if (!token) {
       return NextResponse.json({ error: "Token required" }, { status: 400 });
     }
 
-    const user = await db.user.findUnique({ where: { id: session.userId } });
-    if (!user || !user.twoFactorSecret) {
-      return NextResponse.json({ error: "2FA not setup" }, { status: 400 });
+    const dbUser = await db.user.findUnique({
+      where: { id: user.id },
+      select: { twoFactorSecret: true, twoFactorEnabled: true },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (dbUser.twoFactorEnabled) {
+      return NextResponse.json(
+        { error: "2FA already enabled" },
+        { status: 400 },
+      );
+    }
+
+    if (!dbUser.twoFactorSecret) {
+      return NextResponse.json(
+        { error: "2FA not initialized. Call GET first." },
+        { status: 400 },
+      );
     }
 
     const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: dbUser.twoFactorSecret,
       encoding: "ascii",
       token,
       window: 1,
     });
 
     if (!verified) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      return NextResponse.json({ error: "Invalid 2FA code" }, { status: 401 });
     }
 
     await db.user.update({
@@ -81,10 +117,80 @@ export async function POST(request: NextRequest) {
       data: { twoFactorEnabled: true },
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
+    return NextResponse.json({
+      success: true,
+      message: "2FA enabled successfully",
+    });
+  } catch {
     return NextResponse.json(
       { error: "Failed to verify 2FA" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await getSessionUser(request);
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
+  if (user.role !== "admin") {
+    return NextResponse.json(
+      { error: "Admin access required" },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const { token } = await request.json();
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "Token required to disable 2FA" },
+        { status: 400 },
+      );
+    }
+
+    const dbUser = await db.user.findUnique({
+      where: { id: user.id },
+      select: { twoFactorSecret: true, twoFactorEnabled: true },
+    });
+
+    if (!dbUser || !dbUser.twoFactorEnabled || !dbUser.twoFactorSecret) {
+      return NextResponse.json(
+        { error: "2FA is not enabled" },
+        { status: 400 },
+      );
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: dbUser.twoFactorSecret,
+      encoding: "ascii",
+      token,
+      window: 1,
+    });
+
+    if (!verified) {
+      return NextResponse.json({ error: "Invalid 2FA code" }, { status: 401 });
+    }
+
+    await db.user.update({
+      where: { id: user.id },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "2FA disabled successfully",
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to disable 2FA" },
       { status: 500 },
     );
   }

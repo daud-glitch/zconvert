@@ -35,8 +35,10 @@ import { type AdminStats, type FormatStatusData } from "@/lib/app-types";
 import { formatBytes, formatDate, getCategoryIcon } from "@/lib/app-helpers";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { type ViewType } from "@/lib/formats";
+import { useApp } from "@/lib/app-context";
 
-export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void }) {
+export function AdminOverview() {
+  const { setCurrentView: navigate } = useApp();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [formatStatus, setFormatStatus] = useState<FormatStatusData | null>(
     null,
@@ -44,16 +46,37 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/admin/stats").then((r) => r.json()),
-      fetch("/api/admin/format-status").then((r) => r.json()),
-    ])
-      .then(([statsData, formatData]) => {
-        setStats(statsData);
-        setFormatStatus(formatData);
+    const fetchStats = async () => {
+      try {
+        const [statsRes, formatRes] = await Promise.all([
+          fetch("/api/admin/stats"),
+          fetch("/api/admin/format-status"),
+        ]);
+
+        let statsData = {};
+        if (statsRes.ok) {
+          statsData = await statsRes.json().catch(() => ({}));
+        } else {
+          console.error(`Stats API returned ${statsRes.status}`);
+        }
+
+        let formatData = {};
+        if (formatRes.ok) {
+          formatData = await formatRes.json().catch(() => ({}));
+        } else {
+          console.error(`Format Status API returned ${formatRes.status}`);
+        }
+
+        setStats(statsData && !(statsData as any).error ? (statsData as AdminStats) : null);
+        setFormatStatus(formatData && !(formatData as any).error ? (formatData as FormatStatusData) : null);
+      } catch (err) {
+        console.error("Failed to load admin dashboard data:", err);
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }
+    };
+
+    fetchStats();
   }, []);
 
   if (loading) {
@@ -214,7 +237,7 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
               {(stats?.conversionsByCategory || []).length > 0 ? (
                 stats!.conversionsByCategory.map((item) => {
                   const maxCount = Math.max(
-                    ...stats!.conversionsByCategory.map((c) => c.count),
+                    ...(stats?.conversionsByCategory || []).map((c) => c.count),
                     1,
                   );
                   const pct = Math.round((item.count / maxCount) * 100);
@@ -327,7 +350,8 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
                 </CardTitle>
                 <CardDescription className="text-xs mt-1">
                   {formatStatus.totalFormats} formats &middot;{" "}
-                  {formatStatus.totalPairs.toLocaleString()} conversion pairs
+                  {formatStatus.totalPairs?.toLocaleString() || "0"} conversion
+                  pairs
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -348,7 +372,7 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {formatStatus.categories.map((cat) => (
+              {(formatStatus.categories || []).map((cat) => (
                 <div
                   key={cat.category}
                   className={`p-3 rounded-xl border ${categoryBorderColors[cat.category]} bg-card`}
@@ -365,7 +389,7 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
                   </div>
                   <div className="text-lg font-bold">{cat.formatCount}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    {cat.pairCount.toLocaleString()} pairs
+                    {cat.pairCount?.toLocaleString() || "0"} pairs
                   </div>
                   <Badge
                     variant="outline"
@@ -405,7 +429,7 @@ export function AdminOverview({ navigate }: { navigate: (view: ViewType) => void
         <CardContent className="pt-0">
           <div className="space-y-1 max-h-72 overflow-y-auto">
             {(stats?.recentConversions || []).length > 0 ? (
-              stats!.recentConversions.map((c) => (
+              (stats?.recentConversions || []).map((c) => (
                 <div
                   key={c.id}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/50"

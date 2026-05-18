@@ -12,6 +12,28 @@ import { parse as csvParse } from "csv-parse/sync";
 import { stringify as csvStringify } from "csv-stringify/sync";
 import he from "he";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
+import ffmpeg from "fluent-ffmpeg";
+import { PassThrough } from "stream";
+
+// Set ffmpeg and ffprobe paths lazily
+function initFfmpeg() {
+  try {
+    const ffmpegStatic = require("ffmpeg-static");
+    const ffprobeStatic = require("ffprobe-static");
+    
+    if (ffmpegStatic) {
+      ffmpeg.setFfmpegPath(ffmpegStatic);
+    }
+    if (ffprobeStatic && ffprobeStatic.path) {
+      ffmpeg.setFfprobePath(ffprobeStatic.path);
+    }
+  } catch (err) {
+    console.error("Failed to initialize ffmpeg paths:", err);
+  }
+}
+
+// Initialize paths immediately
+initFfmpeg();
 
 // ─── Format Sets ────────────────────────────────────────────────────────────
 const imageInputFormats = new Set([
@@ -55,7 +77,66 @@ const imageInputFormats = new Set([
   "fli",
   "flc",
 ]);
-const sharpOutputs = new Set([
+// Helper: encode raw RGBA pixel data to BMP format
+function encodeBmp(data: Buffer, width: number, height: number): Buffer {
+  const rowSize = Math.ceil((width * 3) / 4) * 4; // BMP rows are 4-byte aligned
+  const pixelDataSize = rowSize * height;
+  const fileSize = 14 + 40 + pixelDataSize;
+  const buf = Buffer.alloc(fileSize);
+  // BITMAPFILEHEADER
+  buf.write("BM", 0);
+  buf.writeUInt32LE(fileSize, 2);
+  buf.writeUInt32LE(14 + 40, 10);
+  // BITMAPINFOHEADER
+  buf.writeUInt32LE(40, 14);
+  buf.writeInt32LE(width, 18);
+  buf.writeInt32LE(height, 22);
+  buf.writeUInt16LE(1, 26);
+  buf.writeUInt16LE(24, 28);
+  buf.writeUInt32LE(0, 30);
+  buf.writeUInt32LE(pixelDataSize, 34);
+  // Pixel data (BGR format, bottom-up rows)
+  for (let y = 0; y < height; y++) {
+    const srcY = height - 1 - y; // BMP is bottom-up
+    for (let x = 0; x < width; x++) {
+      const srcIdx = (srcY * width + x) * 4;
+      const dstIdx = 14 + 40 + y * rowSize + x * 3;
+      buf[dstIdx] = data[srcIdx + 2];     // B
+      buf[dstIdx + 1] = data[srcIdx + 1]; // G
+      buf[dstIdx + 2] = data[srcIdx];     // R
+    }
+  }
+  return buf;
+}
+
+// Helper: encode raw RGBA pixel data to ICO format
+function encodeIco(data: Buffer, width: number, height: number): Buffer {
+  const bmpData = encodeBmp(data, width, height);
+  // ICO header: reserved(2) + type(2=1 for ICO) + count(2)
+  // ICO dir entry: w(1) h(1) colors(1) reserved(1) planes(2) bpp(2) size(4) offset(4)
+  const headerSize = 6;
+  const dirEntrySize = 16;
+  const bmpOffset = headerSize + dirEntrySize;
+  const icoSize = bmpOffset + bmpData.length;
+  const ico = Buffer.alloc(icoSize);
+  ico.writeUInt16LE(0, 0);
+  ico.writeUInt16LE(1, 2);
+  ico.writeUInt16LE(1, 4);
+  // Directory entry
+  ico.writeUInt8(width >= 256 ? 0 : width, 6);
+  ico.writeUInt8(height >= 256 ? 0 : height, 7);
+  ico.writeUInt8(0, 8);
+  ico.writeUInt8(0, 9);
+  ico.writeUInt16LE(1, 10);
+  ico.writeUInt16LE(32, 12);
+  ico.writeUInt32LE(bmpData.length, 14);
+  ico.writeUInt32LE(bmpOffset, 18);
+  bmpData.copy(ico, bmpOffset);
+  return ico;
+}
+
+
+const _sharpOutputs = new Set([
   "png",
   "jpg",
   "jpeg",
@@ -74,7 +155,6 @@ const dataFormats = new Set([
   "env",
   "feather",
   "fwf",
-  "html",
   "ini",
   "json",
   "jsonl",
@@ -96,6 +176,7 @@ const dataFormats = new Set([
 
 const docFormats = new Set([
   "pdf",
+  "doc",
   "docx",
   "txt",
   "md",
@@ -113,6 +194,17 @@ const docFormats = new Set([
   "textile",
   "eml",
   "msg",
+]);
+
+const audioFormats = new Set([
+  "mp3",
+  "wav",
+  "ogg",
+  "aac",
+  "flac",
+  "m4a",
+  "wma",
+  "opus",
 ]);
 
 const ebookFormats = new Set([
@@ -162,22 +254,27 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
-function textToPdf(text: string, title: string = "Document"): Promise<Buffer> {
-  return (async () => {
-    // Sanitize text to remove characters not supported by WinAnsiEncoding
-    const sanitizedText = text.replace(/[^\x00-\x7F]/g, "?");
+async function textToPdf(text: string, _title: string = "Document"): Promise<Buffer> {
+  // Sanitize text to remove characters not supported by WinAnsiEncoding
+  // and handle empty or very long text cases
+  const sanitizedText = (text || "[No Content]")
+    .replace(/[^\x00-\x7F]/g, "?")
+    .slice(0, 100000); // Limit text length for safety
 
+  try {
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.addPage([595.28, 841.89]); // A4
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontSize = 11;
     const margin = 50;
     const pageWidth = 595.28 - margin * 2;
+    const lineHeight = fontSize * 1.4;
+
     const lines: string[] = [];
     for (const para of sanitizedText.split("\n")) {
-      const words = para.split(" ");
+      const words = para.split(/\s+/);
       let line = "";
       for (const word of words) {
+        if (!word) continue;
         const test = line ? line + " " + word : word;
         if (font.widthOfTextAtSize(test, fontSize) > pageWidth && line) {
           lines.push(line);
@@ -186,22 +283,22 @@ function textToPdf(text: string, title: string = "Document"): Promise<Buffer> {
           line = test;
         }
       }
-      lines.push(line);
+      if (line) lines.push(line);
       lines.push(""); // paragraph break
     }
 
+    let page = pdfDoc.addPage([595.28, 841.89]); // A4
     let y = 841.89 - margin;
-    const lineHeight = fontSize * 1.4;
+
     for (const line of lines) {
-      if (y < margin) {
-        pdfDoc.addPage([595.28, 841.89]);
+      if (y < margin + lineHeight) {
+        page = pdfDoc.addPage([595.28, 841.89]);
         y = 841.89 - margin;
       }
       if (line === "") {
         y -= lineHeight * 0.5;
         continue;
       }
-      const page = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
       page.drawText(line, {
         x: margin,
         y,
@@ -211,8 +308,13 @@ function textToPdf(text: string, title: string = "Document"): Promise<Buffer> {
       });
       y -= lineHeight;
     }
-    return Buffer.from(await pdfDoc.save());
-  })();
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+  } catch (err) {
+    console.error("PDF Generation Error:", err);
+    throw new Error(`Failed to generate PDF: ${err instanceof Error ? err.message : "Unknown error"}`);
+  }
 }
 
 function htmlToText(html: string): string {
@@ -293,8 +395,8 @@ function toOrg(text: string): string {
 }
 
 function toRst(text: string): string {
-  let lines = text.split("\n");
-  let result: string[] = [];
+  const lines = text.split("\n");
+  const result: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (trimmed.startsWith("# ")) {
@@ -392,7 +494,7 @@ function parseFwf(text: string): Record<string, string>[] {
   }
   return lines.slice(1).map((line) => {
     const row: Record<string, string> = {};
-    cols.forEach((c, i) => {
+    cols.forEach((c, _i) => {
       row[header.slice(c.start, c.end).trim()] = line
         .slice(c.start, c.end)
         .trim();
@@ -472,8 +574,8 @@ function parseEnv(text: string): Record<string, string> {
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eqIdx = trimmed.indexOf("=");
     if (eqIdx > 0) {
-      let key = trimmed.slice(0, eqIdx).trim();
-      let val = trimmed
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed
         .slice(eqIdx + 1)
         .trim()
         .replace(/^["']|["']$/g, "");
@@ -511,20 +613,26 @@ interface SubtitleEntry {
 
 function parseSrt(text: string): SubtitleEntry[] {
   const entries: SubtitleEntry[] = [];
-  const blocks = text.trim().replace(/\r\n/g, "\n").split("\n\n");
+  const blocks = text.trim().replace(/\r\n/g, "\n").split(/\n\s*\n/);
   for (const block of blocks) {
-    const lines = block.split("\n");
+    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
     if (lines.length < 3) continue;
-    const index = parseInt(lines[0], 10);
-    const timeMatch = lines[1].match(
-      /(\d{2}:\d{2}:\d{2}),(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}),(\d{3})/,
+    
+    // Some SRTs might have an index line, some might not
+    let timeLineIdx = 0;
+    if (/^\d+$/.test(lines[0])) timeLineIdx = 1;
+    
+    const timeLine = lines[timeLineIdx];
+    const timeMatch = timeLine.match(
+      /(\d{1,2}:\d{2}:\d{2})[.,](\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2})[.,](\d{3})/,
     );
     if (!timeMatch) continue;
+    
     entries.push({
-      index,
-      start: `${timeMatch[1]},${timeMatch[2]}`,
-      end: `${timeMatch[3]},${timeMatch[4]}`,
-      text: lines.slice(2).join("\n"),
+      index: entries.length + 1,
+      start: `${timeMatch[1].padStart(8, "0")},${timeMatch[2]}`,
+      end: `${timeMatch[3].padStart(8, "0")},${timeMatch[4]}`,
+      text: lines.slice(timeLineIdx + 1).join("\n"),
     });
   }
   return entries;
@@ -536,24 +644,32 @@ function parseVtt(text: string): SubtitleEntry[] {
     .trim()
     .replace(/\r\n/g, "\n")
     .replace(/^WEBVTT.*\n*/m, "")
-    .split("\n\n");
+    .split(/\n\s*\n/);
+    
   for (const block of blocks) {
-    const lines = block.split("\n").filter((l) => l.trim());
+    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
     if (lines.length < 2) continue;
-    let idx = 0;
-    const first = lines[0].trim();
-    if (/^\d+$/.test(first)) idx = parseInt(first, 10);
-    const timeLine = /^\d+$/.test(first) ? lines[1] : lines[0];
+    
+    let timeLineIdx = 0;
+    if (/^\d+$/.test(lines[0]) || !lines[0].includes("-->")) timeLineIdx = 1;
+    
+    const timeLine = lines[timeLineIdx] || "";
+    // VTT times can be HH:MM:SS.mmm or MM:SS.mmm
     const timeMatch = timeLine.match(
-      /(\d{2}:\d{2}:\d{2})\.(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2})\.(\d{3})/,
+      /(?:(\d{2}):)?(\d{2}:\d{2})\.(\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}:\d{2})\.(\d{3})/,
     );
     if (!timeMatch) continue;
-    const textStart = /^\d+$/.test(first) ? 2 : 1;
+    
+    const formatTime = (h: string | undefined, ms: string, mmm: string) => {
+      const hours = h || "00";
+      return `${hours}:${ms},${mmm}`;
+    };
+
     entries.push({
-      index: idx || entries.length + 1,
-      start: `${timeMatch[1]},${timeMatch[2]}`,
-      end: `${timeMatch[3]},${timeMatch[4]}`,
-      text: lines.slice(textStart).join("\n"),
+      index: entries.length + 1,
+      start: formatTime(timeMatch[1], timeMatch[2], timeMatch[3]),
+      end: formatTime(timeMatch[4], timeMatch[5], timeMatch[6]),
+      text: lines.slice(timeLineIdx + 1).join("\n"),
     });
   }
   return entries;
@@ -695,7 +811,7 @@ async function convertImage(
 ): Promise<Buffer> {
   const target =
     outputExt.toLowerCase() === "jpeg" ? "jpg" : outputExt.toLowerCase();
-  const pipeline = sharp(input);
+  const pipeline = sharp(input, { failOn: "none" }).rotate(); // auto-rotate based on EXIF
 
   if (width && height) pipeline.resize(width, height, { fit: "fill" });
   else if (width) pipeline.resize(width, null, { fit: "inside" });
@@ -710,14 +826,25 @@ async function convertImage(
       return pipeline.webp({ quality }).toBuffer();
     case "avif":
       return pipeline.avif({ quality }).toBuffer();
-    case "bmp":
-      return pipeline.png().toBuffer();
+    case "bmp": {
+      // BMP not directly supported by sharp v0.34+, convert via raw pixels
+      const { data, info } = await pipeline
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      return encodeBmp(data, info.width, info.height);
+    }
     case "gif":
       return pipeline.gif().toBuffer();
     case "tiff":
       return pipeline.tiff().toBuffer();
-    case "ico":
-      return pipeline.resize(256, 256).png().toBuffer();
+    case "ico": {
+      // ICO format: resize to standard icon sizes and output as ICO with BMP data
+      const resized = sharp(input).resize(256, 256);
+      const { data, info } = await resized
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      return encodeIco(data, info.width, info.height);
+    }
     case "svg": {
       const pngBuf = await sharp(input).png().toBuffer();
       const b64 = pngBuf.toString("base64");
@@ -726,8 +853,35 @@ async function convertImage(
       );
     }
     case "pdf": {
-      const pngBuf = await sharp(input).png().toBuffer();
-      return textToPdf("");
+      // Use standard A4 dimensions for image-to-pdf
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage([595.28, 841.89]);
+      const { width: imgW, height: imgH } = await pipeline.metadata();
+      
+      const pngBuf = await pipeline.png().toBuffer();
+      const image = await pdfDoc.embedPng(pngBuf);
+      
+      // Calculate scaling to fit image within A4 margins
+      const margin = 50;
+      const maxWidth = 595.28 - margin * 2;
+      const maxHeight = 841.89 - margin * 2;
+      
+      let finalWidth = imgW || maxWidth;
+      let finalHeight = imgH || maxHeight;
+      
+      const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
+      finalWidth *= ratio;
+      finalHeight *= ratio;
+      
+      page.drawImage(image, {
+        x: (595.28 - finalWidth) / 2,
+        y: (841.89 - finalHeight) / 2,
+        width: finalWidth,
+        height: finalHeight,
+      });
+      
+      const pdfBytes = await pdfDoc.save();
+      return Buffer.from(pdfBytes);
     }
     default:
       return pipeline.png().toBuffer();
@@ -757,24 +911,28 @@ async function convertData(
   } else if (src === "tsv") {
     records = parseCsv(text, "\t");
   } else if (src === "yaml" || src === "yml") {
-    const parsed = jsYaml.load(text) as any;
+    const parsed: Record<string, unknown> = jsYaml.load(text) as Record<string, unknown>;
     records = Array.isArray(parsed)
       ? parsed
       : typeof parsed === "object"
         ? [parsed]
         : [{ value: parsed }];
   } else if (src === "xml") {
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      isArray: () => true,
-    });
-    const parsed = parser.parse(text);
-    const root = Object.values(parsed)[0] as any;
-    records = Array.isArray(root)
-      ? root
-      : typeof root === "object"
-        ? [root]
-        : [{ value: root }];
+    try {
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: "@_",
+        parseAttributeValue: true,
+      });
+      const parsed = parser.parse(text);
+      // Try to find the most relevant array or object in the XML
+      const root = Object.values(parsed).find(v => typeof v === "object") || parsed;
+      const data = Array.isArray(root) ? root : [root];
+      records = data.map(item => (typeof item === "object" ? item : { value: item }));
+    } catch (err) {
+      console.error("XML Parsing Error:", err);
+      records = [{ _raw: text, _error: "Failed to parse XML" }];
+    }
   } else if (src === "toml") {
     const parsed = toml.parse(text);
     records = [{ ...parsed }];
@@ -848,10 +1006,10 @@ async function convertData(
     }
     case "toml":
       return Buffer.from(
-        toml.stringify(
+        (toml.stringify as (data: Record<string, unknown>) => string)(
           records.length === 1
-            ? (records[0] as Record<string, any>)
-            : ({ items: records } as any),
+            ? (records[0] as Record<string, unknown>)
+            : { items: records },
         ),
         "utf-8",
       );
@@ -926,9 +1084,28 @@ async function convertDocument(
   inputExt: string,
   outputExt: string,
 ): Promise<Buffer> {
-  const text = input.toString("utf-8");
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
+
+  // For binary inputs (DOC, PDF, DOCX, etc.), we handle them specifically
+  if (src === "doc" || src === "pdf" || src === "docx" || src === "pptx" || src === "xlsx" || src === "odt" || src === "ods" || src === "xls" || src === "ppt") {
+    // If target is also a document/archive/etc, maybe we can do something
+    // For now, if it's binary, try to extract text if target is text-based
+    if (["txt", "md", "html", "json", "yaml", "xml", "csv", "tsv"].includes(dest)) {
+      // Very basic text extraction for binary files (fallback to strings extraction or info)
+      // For real DOC, we'd need a library. For now, we provide a placeholder.
+      const infoText = `[Binary Document: ${src.toUpperCase()}]\nSize: ${input.length} bytes\nNote: Conversion to text-based formats for legacy binary formats is limited.`;
+      return Buffer.from(infoText, "utf-8");
+    }
+    // If target is PDF, and src is binary, we'd normally use an external tool.
+    // For now, if src is already binary and target is PDF, we try to wrap it or passthrough if src is PDF.
+    if (dest === "pdf") {
+      if (src === "pdf") return input;
+      return textToPdf(`[Content from ${src.toUpperCase()} file]`);
+    }
+  }
+
+  const text = input.toString("utf-8");
 
   // Extract plain text from source
   let plainText = text;
@@ -948,7 +1125,7 @@ async function convertDocument(
     try {
       const nb = JSON.parse(text);
       plainText = (nb.cells || [])
-        .map((c: any) => (c.source || []).join(""))
+        .map((c: { source?: string[] }) => (c.source || []).join(""))
         .join("\n\n");
     } catch {
       plainText = text;
@@ -1045,13 +1222,69 @@ async function convertDocument(
       return Buffer.from(toIpynb(plainText), "utf-8");
     case "odt":
     case "docx": {
-      // Create basic document — fallback to HTML for now (real DOCX needs docx library)
       if (dest === "docx") {
-        // Use simple DOCX-like format
-        const htmlContent = wrapHtml(mdToHtml(plainText), "Document");
-        return Buffer.from(htmlContent, "utf-8");
+        const {
+          Document,
+          Paragraph,
+          TextRun,
+          HeadingLevel,
+          Packer,
+        } = await import("docx");
+
+        const doc = new Document({
+          sections: [
+            {
+              children: plainText.split(/\n\n+/).map((p) => {
+                if (p.startsWith("# ")) {
+                  return new Paragraph({
+                    text: p.slice(2),
+                    heading: HeadingLevel.HEADING_1,
+                  });
+                } else if (p.startsWith("## ")) {
+                  return new Paragraph({
+                    text: p.slice(3),
+                    heading: HeadingLevel.HEADING_2,
+                  });
+                } else if (p.startsWith("### ")) {
+                  return new Paragraph({
+                    text: p.slice(4),
+                    heading: HeadingLevel.HEADING_3,
+                  });
+                } else {
+                  return new Paragraph({
+                    children: [new TextRun(p)],
+                  });
+                }
+              }),
+            },
+          ],
+        });
+        return Buffer.from(await Packer.toBuffer(doc));
       }
-      return Buffer.from(plainText, "utf-8");
+      // ODT: real OpenDocument Text using JSZip
+      const odtZip = new JSZip();
+      odtZip.file("mimetype", "application/vnd.oasis.opendocument.text");
+      odtZip.file(
+        "META-INF/manifest.xml",
+        `<?xml version="1.0" encoding="UTF-8"?>\n<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">\n  <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/>\n  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>\n  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>\n</manifest:manifest>`,
+      );
+      const escapedText = plainText
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const paragraphs = escapedText
+        .split("\n")
+        .map((line) => `<text:p text:style-name="Standard">${line}</text:p>`)
+        .join("\n");
+      odtZip.file(
+        "content.xml",
+        `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.2">\n<office:automatic-styles><style:style style:name="Standard" style:family="paragraph"><style:paragraph-properties fo:margin-bottom="0.2cm"/><style:text-properties fo:font-size="11pt" style:font-name="Calibri"/></style:style></office:automatic-styles>\n<office:body><office:text>\n${paragraphs}\n</office:text></office:body></office:document-content>`,
+      );
+      odtZip.file(
+        "styles.xml",
+        `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" office:version="1.2"></office:document-styles>`,
+      );
+      return Buffer.from(await odtZip.generateAsync({ type: "arraybuffer" }));
     }
     case "pptx": {
       const htmlContent = wrapHtml(
@@ -1061,8 +1294,8 @@ async function convertDocument(
       return Buffer.from(htmlContent, "utf-8");
     }
     case "epub": {
-      const htmlContent = wrapHtml(mdToHtml(plainText), "Ebook");
       // Create minimal EPUB structure
+      // EPUB content (skipped - minimal ZIP structure is generated below)
       const zip = new JSZip();
       zip.file("mimetype", "application/epub+zip");
       zip.file(
@@ -1158,7 +1391,7 @@ async function convertEbook(
       // Try reading as ZIP (EPUB/CBZ are ZIP-based)
       const zip = await JSZip.loadAsync(input);
       const htmlFiles: string[] = [];
-      zip.forEach((path, file) => {
+      zip.forEach((path, _file) => {
         if (
           path.endsWith(".html") ||
           path.endsWith(".xhtml") ||
@@ -1277,7 +1510,7 @@ async function convertArchive(
   const dest = outputExt.toLowerCase();
 
   // Extract files from source
-  let files: { name: string; data: Buffer }[] = [];
+  const files: { name: string; data: Buffer }[] = [];
 
   try {
     if (
@@ -1297,9 +1530,7 @@ async function convertArchive(
         }
       }
     } else if (src === "gz") {
-      const { createGzip } = await import("zlib");
       // For .gz files, decompress
-      const { createInflateRaw } = await import("zlib");
       // Simple decompress
       const { gunzipSync } = await import("zlib");
       try {
@@ -1327,7 +1558,10 @@ async function convertArchive(
     files.push({ name: "content", data: input });
   }
 
-  if (files.length === 0) files.push({ name: "content", data: input });
+  if (files.length === 0) {
+    // If no files extracted, treat the input as a single file named 'archive_content'
+    files.push({ name: "archive_content", data: input });
+  }
 
   // Create target archive
   if (dest === "zip" || dest === "cbz") {
@@ -1393,6 +1627,100 @@ async function convertFont(
   return input;
 }
 
+// ─── Audio Converter (ffmpeg) ──────────────────────────────────────────────
+async function convertAudio(
+  input: Buffer,
+  inputExt: string,
+  outputExt: string,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    let completed = false;
+    const fail = (err: Error) => {
+      if (completed) return;
+      completed = true;
+      reject(err);
+    };
+
+    try {
+      const inputStream = new PassThrough();
+      inputStream.end(input);
+
+      const outputStream = new PassThrough();
+      const chunks: Buffer[] = [];
+
+      outputStream.on("data", (chunk) => chunks.push(chunk));
+      outputStream.on("end", () => {
+        if (completed) return;
+        const finalBuffer = Buffer.concat(chunks);
+        if (finalBuffer.length === 0) {
+          fail(new Error("Audio conversion produced empty output"));
+        } else {
+          completed = true;
+          resolve(finalBuffer);
+        }
+      });
+      outputStream.on("error", (err) => {
+        console.error("Audio Output Stream Error:", err);
+        fail(err);
+      });
+
+      // Common codec mappings for better compatibility
+      let command = ffmpeg(inputStream);
+
+      // Input format hint
+      if (inputExt) {
+        // Map some common extensions to ffmpeg format names if needed
+        let inputFormat = inputExt;
+        if (inputExt === "m4a") inputFormat = "mov"; // m4a is a mov/mp4 container
+        command = command.inputFormat(inputFormat);
+      }
+
+      let format = outputExt;
+
+      if (outputExt === "mp3") {
+        command = command.audioCodec("libmp3lame").audioBitrate("128k");
+      } else if (outputExt === "aac") {
+        command = command.audioCodec("aac").audioBitrate("128k");
+        format = "adts";
+      } else if (outputExt === "m4a") {
+        command = command.audioCodec("aac").audioBitrate("128k");
+        format = "ipod"; // 'ipod' is the format name for m4a in ffmpeg pipes
+        // fragmented mp4 is required for piping m4a/mp4
+        command = command.outputOptions("-movflags frag_keyframe+empty_moov");
+      } else if (outputExt === "ogg") {
+        command = command.audioCodec("libvorbis");
+      } else if (outputExt === "flac") {
+        command = command.audioCodec("flac");
+      } else if (outputExt === "wav") {
+        command = command.audioCodec("pcm_s16le");
+      } else if (outputExt === "opus") {
+        command = command.audioCodec("libopus");
+        format = "opus";
+      }
+
+      command
+        .toFormat(format)
+        .on("start", (cmd) => {
+          console.log("FFmpeg Audio Command:", cmd);
+        })
+        .on("progress", (progress) => {
+          if (progress.percent) {
+            console.log(`FFmpeg Audio Progress: ${progress.percent}%`);
+          }
+        })
+        .on("error", (err, stdout, stderr) => {
+          console.error("FFmpeg Audio Error:", err.message);
+          if (stderr) console.error("FFmpeg Stderr:", stderr);
+          fail(new Error(`Audio conversion failed: ${err.message}`));
+        })
+        .pipe(outputStream, { end: true });
+    } catch (err) {
+      console.error("ConvertAudio Catch Error:", err);
+      fail(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+}
+
 // ─── Main Converter Entry Point ────────────────────────────────────────────
 export async function convertFile(
   input: Buffer,
@@ -1412,6 +1740,10 @@ export async function convertFile(
   // Route to appropriate converter
   if (imageInputFormats.has(src)) {
     return convertImage(input, src, dest, quality, width, height);
+  }
+
+  if (audioFormats.has(src) && audioFormats.has(dest)) {
+    return convertAudio(input, src, dest);
   }
 
   if (
@@ -1544,6 +1876,9 @@ export function getMimeType(ext: string): string {
     f4v: "video/x-f4v",
     ogv: "video/ogg",
     ts: "video/mp2t",
+    doc: "application/msword",
+    m4a: "audio/mp4",
+    wma: "audio/x-ms-wma",
     zip: "application/zip",
     tar: "application/x-tar",
     gz: "application/gzip",

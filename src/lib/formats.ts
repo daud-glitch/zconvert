@@ -3,6 +3,7 @@ export type ViewType =
   | "formats"
   | "history"
   | "bookmarks"
+  | "profile"
   | "admin"
   | "admin-users"
   | "admin-settings";
@@ -184,6 +185,7 @@ const imgNoSelfAnimated = (self: string, extras?: string[]) => {
 // Document shared targets (cross-category: includes epub, pptx)
 const docStandard = [
   "adoc",
+  "doc",
   "docx",
   "epub",
   "html",
@@ -261,8 +263,7 @@ const presNoSelf = (self: string, extras?: string[]) => {
   return [...set].sort();
 };
 
-// Archive shared targets
-const archiveStandard = [
+export const archiveStandard = [
   "7z",
   "tar",
   "tar.bz2",
@@ -271,15 +272,7 @@ const archiveStandard = [
   "tar.zst",
   "zip",
 ] as const;
-
-const archiveNoSelf = (self: string, extras?: string[]) => {
-  const set = new Set<string>(archiveStandard);
-  set.delete(self);
-  if (extras) extras.forEach((e) => set.delete(e));
-  return [...set].sort();
-};
-
-export const formats: FormatInfo[] = [
+const allFormats: FormatInfo[] = [
   // ═══════════════════════════════════════════════════════════════════════════
   // Images
   // ═══════════════════════════════════════════════════════════════════════════
@@ -658,7 +651,7 @@ export const formats: FormatInfo[] = [
       "MP3 (MPEG Audio Layer 3) is the world's most popular digital audio format, developed by the Moving Picture Experts Group in the early 1990s. It uses psychoacoustic lossy compression to dramatically reduce file sizes while retaining audio quality that is perceptually adequate for most listeners. MP3 transformed the music industry by making digital music portable enough to share over the internet and store on devices with limited storage.",
     category: "audio",
     mimeTypes: ["audio/mpeg"],
-    targetFormats: ["wav", "ogg", "aac", "flac"],
+    targetFormats: ["wav", "ogg", "aac", "flac", "opus"],
   },
   {
     ext: "wav",
@@ -667,7 +660,7 @@ export const formats: FormatInfo[] = [
       "WAV (Waveform Audio File Format) is an uncompressed audio container format developed by Microsoft and IBM for storing raw audio data. It preserves audio at full, lossless quality with no encoding artifacts, making it the preferred format for audio production, editing, and professional archival. WAV files are larger than compressed formats like MP3, but are universally supported and suffer no quality degradation when re-encoded.",
     category: "audio",
     mimeTypes: ["audio/wav", "audio/x-wav"],
-    targetFormats: ["mp3", "ogg", "aac", "flac"],
+    targetFormats: ["mp3", "ogg", "aac", "flac", "opus"],
   },
   {
     ext: "ogg",
@@ -676,7 +669,7 @@ export const formats: FormatInfo[] = [
       "OGG Vorbis is a free, open-source lossy audio compression format developed by the Xiph.Org Foundation as a patent-unencumbered alternative to MP3. It produces audio quality comparable to MP3 and AAC at similar or smaller file sizes without any royalty or licensing requirements. OGG is widely used in open-source software, Linux distributions, web games, and applications where licensing freedom is a priority.",
     category: "audio",
     mimeTypes: ["audio/ogg"],
-    targetFormats: ["mp3", "wav", "aac", "flac"],
+    targetFormats: ["mp3", "wav", "aac", "flac", "opus"],
   },
   {
     ext: "aac",
@@ -685,7 +678,7 @@ export const formats: FormatInfo[] = [
       "AAC (Advanced Audio Coding) is a lossy audio compression format standardized by ISO/IEC and designed as a higher-quality successor to MP3. It achieves better audio fidelity than MP3 at the same bit rate by using more advanced psychoacoustic models and encoding techniques. AAC is the default audio format for iTunes, Apple Music, YouTube, and all iOS devices, and is supported natively across virtually every modern platform.",
     category: "audio",
     mimeTypes: ["audio/aac"],
-    targetFormats: ["mp3", "wav", "ogg", "flac"],
+    targetFormats: ["mp3", "wav", "ogg", "flac", "opus"],
   },
   {
     ext: "flac",
@@ -694,7 +687,34 @@ export const formats: FormatInfo[] = [
       "FLAC (Free Lossless Audio Codec) is an open-source audio format that compresses audio without any loss of quality, allowing perfect bit-for-bit reconstruction of the original recording. It typically reduces file sizes by 40-60% compared to uncompressed WAV while remaining completely lossless. FLAC is the format of choice for audiophiles, music archivists, and mastering engineers who require studio-quality audio fidelity in a manageable file size.",
     category: "audio",
     mimeTypes: ["audio/flac"],
-    targetFormats: ["mp3", "wav", "ogg", "aac"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "opus"],
+  },
+  {
+    ext: "m4a",
+    name: "M4A",
+    description:
+      "M4A is a file extension for an audio file encoded with advanced audio coding (AAC) which is a lossy compression. M4A was generally intended as the successor to MP3, which had not been originally designed for audio only but was layer III in an MPEG 1 or 2 video files. M4A stands for MPEG 4 Audio.",
+    category: "audio",
+    mimeTypes: ["audio/mp4", "audio/x-m4a"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
+  },
+  {
+    ext: "wma",
+    name: "WMA",
+    description:
+      "WMA (Windows Media Audio) is a series of audio codecs and their corresponding audio coding formats developed by Microsoft. It is a proprietary technology that forms part of the Windows Media framework. WMA consists of four distinct codecs: WMA, WMA Pro, WMA Lossless, and WMA Voice.",
+    category: "audio",
+    mimeTypes: ["audio/x-ms-wma"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
+  },
+  {
+    ext: "opus",
+    name: "OPUS",
+    description:
+      "Opus is a totally open, royalty-free, highly versatile audio codec. Opus is unmatched for interactive speech and music transmission over the Internet, but is also intended for storage and streaming applications. It is standardized by the Internet Engineering Task Force (IETF) as RFC 6716 which incorporated technology from Skype's SILK codec and Xiph.Org's CELT codec.",
+    category: "audio",
+    mimeTypes: ["audio/opus", "audio/ogg; codecs=opus"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac"],
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -708,6 +728,15 @@ export const formats: FormatInfo[] = [
     category: "document",
     mimeTypes: ["text/asciidoc"],
     targetFormats: docNoSelf("adoc"),
+  },
+  {
+    ext: "doc",
+    name: "DOC",
+    description:
+      "DOC is the legacy binary file format used by Microsoft Word for the Office 97-2003 era. It stores document content, formatting, images, and metadata in a proprietary binary structure. Although superseded by the modern XML-based DOCX format, DOC remains common in older archives and is supported for import by virtually all modern word processors and office suites.",
+    category: "document",
+    mimeTypes: ["application/msword"],
+    targetFormats: docNoSelf("doc"),
   },
   {
     ext: "docx",
@@ -1614,6 +1643,8 @@ export const formats: FormatInfo[] = [
     targetFormats: ["eml"],
   },
 ];
+
+export const formats: FormatInfo[] = allFormats;
 
 export function getFormatByExt(ext: string): FormatInfo | undefined {
   return formats.find((f) => f.ext === ext.toLowerCase());

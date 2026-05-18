@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MainApp } from "@/app/page";
+import MainApp from "@/components/pages/HomeClient";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,14 +26,14 @@ export default function AdminSecretPage() {
         body: JSON.stringify({ email, password, isAdminLogin: true }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: "Invalid response from server" }));
       if (res.ok && data.success) {
         setIsAuthenticated(true);
       } else {
-        setError(data.error || "Invalid credentials");
+        setError(data.error || `Error ${res.status}: Login failed`);
       }
     } catch (err) {
-      setError("Network error occurred. Please try again.");
+      setError(`Network error: ${err instanceof Error ? err.message : "Connection failed"}`);
     } finally {
       setLoading(false);
     }
