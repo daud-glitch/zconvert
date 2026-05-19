@@ -1,5 +1,8 @@
 import sharp from "sharp";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import mammoth from "mammoth";
+import * as pdfParse from "pdf-parse";
+import PptxGenJS from "pptxgenjs";
 import * as XLSX from "xlsx";
 import archiver from "archiver";
 import JSZip from "jszip";
@@ -258,6 +261,9 @@ async function textToPdf(text: string, _title: string = "Document"): Promise<Buf
   // Sanitize text to remove characters not supported by WinAnsiEncoding
   // and handle empty or very long text cases
   const sanitizedText = (text || "[No Content]")
+    // Remove control characters except \n, \r, \t
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+    // Replace remaining non-ASCII characters with ?
     .replace(/[^\x00-\x7F]/g, "?")
     .slice(0, 100000); // Limit text length for safety
 
@@ -1078,6 +1084,46 @@ async function convertData(
   }
 }
 
+// ─── Document Text Extraction ──────────────────────────────────────────
+async function extractDocumentText(
+  input: Buffer,
+  inputExt: string,
+): Promise<string> {
+  const src = inputExt.toLowerCase();
+
+  if (src === "docx") {
+    try {
+      const result = await mammoth.extractRawText({ buffer: input });
+      return result.value || "Document content";
+    } catch (err) {
+      console.error("DOCX extraction error:", err);
+      return "[Error extracting DOCX content]";
+    }
+  }
+
+  if (src === "pdf") {
+    try {
+      const data = await pdfParse(input);
+      return data.text || "[PDF with no text content]";
+    } catch (err) {
+      console.error("PDF extraction error:", err);
+      return "[Error extracting PDF content]";
+    }
+  }
+
+  if (src === "doc") {
+    const text = input.toString("latin1");
+    const cleaned = text
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, " ")
+      .replace(/\s{3,}/g, "\n")
+      .replace(/[^\x20-\x7E\n]/g, "")
+      .trim();
+    return cleaned || "[Binary DOC content]";
+  }
+
+  return "";
+}
+
 // ─── Document Converter ────────────────────────────────────────────────────
 async function convertDocument(
   input: Buffer,
@@ -1087,58 +1133,64 @@ async function convertDocument(
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
 
-  // For binary inputs (DOC, PDF, DOCX, etc.), we handle them specifically
-  if (src === "doc" || src === "pdf" || src === "docx" || src === "pptx" || src === "xlsx" || src === "odt" || src === "ods" || src === "xls" || src === "ppt") {
-    // If target is also a document/archive/etc, maybe we can do something
-    // For now, if it's binary, try to extract text if target is text-based
-    if (["txt", "md", "html", "json", "yaml", "xml", "csv", "tsv"].includes(dest)) {
-      // Very basic text extraction for binary files (fallback to strings extraction or info)
-      // For real DOC, we'd need a library. For now, we provide a placeholder.
-      const infoText = `[Binary Document: ${src.toUpperCase()}]\nSize: ${input.length} bytes\nNote: Conversion to text-based formats for legacy binary formats is limited.`;
-      return Buffer.from(infoText, "utf-8");
-    }
-    // If target is PDF, and src is binary, we'd normally use an external tool.
-    // For now, if src is already binary and target is PDF, we try to wrap it or passthrough if src is PDF.
-    if (dest === "pdf") {
-      if (src === "pdf") return input;
-      return textToPdf(`[Content from ${src.toUpperCase()} file]`);
-    }
-  }
-
-  const text = input.toString("utf-8");
-
-  // Extract plain text from source
-  let plainText = text;
-  if (src === "html" || src === "htm") {
-    plainText = htmlToText(text);
-  } else if (src === "md") {
-    plainText = text; // MD is already plain-ish
-  } else if (src === "pdf") {
-    plainText = stripHtml(text); // PDF text extraction (basic)
-  } else if (src === "eml" || src === "msg") {
-    // Extract body from email
-    const bodyMatch =
-      text.match(/<body[^>]*>([\s\S]*?)<\/body>/i) ||
-      text.match(/\n\n([\s\S]*)$/);
-    plainText = bodyMatch ? htmlToText(bodyMatch[1] || bodyMatch[0]) : text;
-  } else if (src === "ipynb") {
-    try {
-      const nb = JSON.parse(text);
-      plainText = (nb.cells || [])
-        .map((c: { source?: string[] }) => (c.source || []).join(""))
-        .join("\n\n");
-    } catch {
-      plainText = text;
-    }
+  // Extract text from binary document formats first
+  let plainText = "";
+  if (src === "docx" || src === "pdf" || src === "doc") {
+    plainText = await extractDocumentText(input, src);
   } else if (
-    src === "json" ||
-    src === "xml" ||
-    src === "yaml" ||
-    src === "toml"
+    src === "xlsx" ||
+    src === "xls" ||
+    src === "odt" ||
+    src === "ods"
   ) {
-    plainText = text; // structured data as-is
+    // For spreadsheet formats, try to extract basic text representation
+    if (src === "xlsx" || src === "xls") {
+      try {
+        const wb = XLSX.read(input, { type: "buffer" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws);
+        plainText = JSON.stringify(data, null, 2);
+      } catch {
+        plainText = "[Error reading spreadsheet]";
+      }
+    } else {
+      plainText = "[Binary spreadsheet content]";
+    }
+  } else if (src === "pptx" || src === "ppt") {
+    // Use presentation text extractor
+    plainText = await extractPresentationText(input, src);
   } else {
-    plainText = stripHtml(text);
+    // Text-based formats
+    const text = input.toString("utf-8");
+
+    if (src === "html" || src === "htm") {
+      plainText = htmlToText(text);
+    } else if (src === "md") {
+      plainText = text;
+    } else if (src === "eml" || src === "msg") {
+      const bodyMatch =
+        text.match(/<body[^>]*>([\s\S]*?)<\/body>/i) ||
+        text.match(/\n\n([\s\S]*)$/);
+      plainText = bodyMatch ? htmlToText(bodyMatch[1] || bodyMatch[0]) : text;
+    } else if (src === "ipynb") {
+      try {
+        const nb = JSON.parse(text);
+        plainText = (nb.cells || [])
+          .map((c: { source?: string[] }) => (c.source || []).join(""))
+          .join("\n\n");
+      } catch {
+        plainText = text;
+      }
+    } else if (
+      src === "json" ||
+      src === "xml" ||
+      src === "yaml" ||
+      src === "toml"
+    ) {
+      plainText = text;
+    } else {
+      plainText = stripHtml(text);
+    }
   }
 
   // Convert to target format
@@ -1146,16 +1198,15 @@ async function convertDocument(
     case "txt":
       return Buffer.from(plainText, "utf-8");
     case "md":
-      if (src === "html" || src === "htm" || src === "eml" || src === "msg")
-        return Buffer.from(htmlToText(text), "utf-8");
       return Buffer.from(plainText, "utf-8");
     case "html":
     case "htm":
       if (src === "md")
-        return Buffer.from(wrapHtml(mdToHtml(text), "Document"), "utf-8");
+        return Buffer.from(wrapHtml(mdToHtml(plainText), "Document"), "utf-8");
       if (src === "rst")
         return Buffer.from(wrapHtml(mdToHtml(plainText), "Document"), "utf-8");
-      if (src === "html" || src === "htm") return Buffer.from(text, "utf-8");
+      if (src === "html" || src === "htm")
+        return Buffer.from(plainText, "utf-8");
       return Buffer.from(
         wrapHtml(
           plainText
@@ -1286,16 +1337,10 @@ async function convertDocument(
       );
       return Buffer.from(await odtZip.generateAsync({ type: "arraybuffer" }));
     }
-    case "pptx": {
-      const htmlContent = wrapHtml(
-        `<h1>Presentation</h1><p>${plainText.replace(/\n/g, "</p><p>")}</p>`,
-        "Presentation",
-      );
-      return Buffer.from(htmlContent, "utf-8");
-    }
+    case "pptx":
+      return createPptxFromText(plainText);
     case "epub": {
       // Create minimal EPUB structure
-      // EPUB content (skipped - minimal ZIP structure is generated below)
       const zip = new JSZip();
       zip.file("mimetype", "application/epub+zip");
       zip.file(
@@ -1450,6 +1495,112 @@ async function convertEbook(
   return input;
 }
 
+// ─── PPTX Generator from Text ──────────────────────────────────────────────
+function createPptxFromText(text: string): Buffer {
+  const pres = new PptxGenJS();
+  pres.defineLayout({
+    name: "LAYOUT1",
+    master: "MASTER1",
+  });
+
+  const slide = pres.addSlide();
+  slide.background = { color: "FFFFFF" };
+
+  // Title
+  slide.addText("Converted Presentation", {
+    x: 0.5,
+    y: 0.5,
+    w: 9,
+    h: 0.75,
+    fontSize: 28,
+    bold: true,
+    color: "1f4788",
+  });
+
+  // Content
+  const lines = text.split("\n").slice(0, 20); // First 20 lines
+  let yPos = 1.5;
+  for (const line of lines) {
+    if (yPos > 6.5) break; // Stop if exceeding slide height
+    slide.addText(line || " ", {
+      x: 0.5,
+      y: yPos,
+      w: 9,
+      h: 0.5,
+      fontSize: 12,
+      color: "1a1a1a",
+    });
+    yPos += 0.5;
+  }
+
+  return Buffer.from(pres.write({ outputType: "arraybuffer" }));
+}
+async function extractPresentationText(
+  input: Buffer,
+  inputExt: string,
+): Promise<string> {
+  const src = inputExt.toLowerCase();
+  const zipFormats = new Set(["pptx", "ppsx", "potx", "pptm", "odp"]);
+
+  if (zipFormats.has(src)) {
+    try {
+      const zip = await JSZip.loadAsync(input);
+      const slideTexts: string[] = [];
+
+      if (src === "odp") {
+        const contentXml = await zip.file("content.xml")?.async("string");
+        if (contentXml) {
+          const cleaned = contentXml
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&[a-zA-Z]+;/g, (m) => he.decode(m))
+            .replace(/\s+/g, " ")
+            .trim();
+          if (cleaned) slideTexts.push(cleaned);
+        }
+      } else {
+        const slideFiles: string[] = [];
+        zip.forEach((path) => {
+          if (/^ppt\/slides\/slide\d+\.xml$/i.test(path)) {
+            slideFiles.push(path);
+          }
+        });
+        slideFiles.sort((a, b) => {
+          const numA = parseInt(a.match(/slide(\d+)/i)?.[1] || "0", 10);
+          const numB = parseInt(b.match(/slide(\d+)/i)?.[1] || "0", 10);
+          return numA - numB;
+        });
+
+        for (const slidePath of slideFiles) {
+          const xml = await zip.file(slidePath)?.async("string");
+          if (!xml) continue;
+          const textContent = xml
+            .replace(/<a:t>([^<]*)<\/a:t>/g, "$1 ")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&[a-zA-Z]+;/g, (m) => he.decode(m))
+            .replace(/\s+/g, " ")
+            .trim();
+          if (textContent) slideTexts.push(textContent);
+        }
+      }
+
+      if (slideTexts.length > 0) {
+        return slideTexts.join("\n\n");
+      }
+    } catch {
+      // Fall through to plaintext extraction
+    }
+  }
+
+  // Legacy binary formats (ppt, pps, pot, key) — best-effort text extraction
+  const raw = input.toString("latin1");
+  const extracted = raw
+    .replace(/[\x00-\x1F\x7F-\x9F]/g, " ")
+    .replace(/\s{3,}/g, "\n")
+    .replace(/[^\x20-\x7E\n]/g, "")
+    .trim();
+  return extracted || "Presentation content";
+}
+
 // ─── Presentation Converter ───────────────────────────────────────────────
 async function convertPresentation(
   input: Buffer,
@@ -1457,18 +1608,17 @@ async function convertPresentation(
   outputExt: string,
   quality: number = 85,
 ): Promise<Buffer> {
+  const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
 
-  let text = "";
-  try {
-    text = input
-      .toString("utf-8")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&[^;]+;/g, " ")
-      .trim();
-  } catch {
-    text = "Presentation content";
+  // Presentation-to-presentation: passthrough for same-family binary formats
+  const zipPresFormats = new Set(["pptx", "ppsx", "potx", "pptm"]);
+  if (zipPresFormats.has(src) && zipPresFormats.has(dest)) {
+    return input;
   }
+  if (src === "odp" && dest === "odp") return input;
+
+  const text = await extractPresentationText(input, inputExt);
 
   if (
     [
@@ -1493,8 +1643,56 @@ async function convertPresentation(
   }
 
   if (dest === "jpeg" || dest === "jpg" || dest === "png") {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="100%" height="100%" fill="#f8f9fa"/><text x="640" y="360" text-anchor="middle" dominant-baseline="middle" font-family="system-ui" font-size="24" fill="#333">${text.slice(0, 200)}</text></svg>`;
+    const safeText = text
+      .slice(0, 200)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="100%" height="100%" fill="#f8f9fa"/><text x="640" y="360" text-anchor="middle" dominant-baseline="middle" font-family="system-ui" font-size="24" fill="#333">${safeText}</text></svg>`;
     return convertImage(Buffer.from(svg), "svg", dest, quality);
+  }
+
+  // For pptx output from non-pptx source, generate a basic PPTX
+  if (dest === "pptx") {
+    const pptxZip = new JSZip();
+    pptxZip.file("[Content_Types].xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/><Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>'
+    );
+    pptxZip.file("_rels/.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>'
+    );
+    pptxZip.file("ppt/_rels/presentation.xml.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>'
+    );
+    pptxZip.file("ppt/presentation.xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>'
+    );
+    const escapedXml = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    pptxZip.file("ppt/slides/slide1.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="457200"/><a:ext cx="8229600" cy="5486400"/></a:xfrm><a:prstGeom prst="rect"/></p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:t>${escapedXml}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
+    );
+    return Buffer.from(await pptxZip.generateAsync({ type: "arraybuffer" }));
+  }
+
+  // For ODP output, generate a basic ODP
+  if (dest === "odp") {
+    const odpZip = new JSZip();
+    odpZip.file("mimetype", "application/vnd.oasis.opendocument.presentation");
+    odpZip.file("META-INF/manifest.xml",
+      '<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.presentation"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/></manifest:manifest>'
+    );
+    const escapedXml = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    odpZip.file("content.xml",
+      `<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" office:version="1.2"><office:body><office:presentation><draw:page draw:name="Slide1"><draw:frame draw:text-style-name="P1" presentation:style-name="pr1" draw:layer="layout"><draw:text-box><text:p>${escapedXml}</text:p></draw:text-box></draw:frame></draw:page></office:presentation></office:body></office:document-content>`
+    );
+    return Buffer.from(await odpZip.generateAsync({ type: "arraybuffer" }));
   }
 
   return input;
@@ -1524,7 +1722,8 @@ async function convertArchive(
       src === "ods"
     ) {
       const zip = await JSZip.loadAsync(input);
-      for (const [path, file] of Object.entries(zip.files)) {
+      const entries = Object.entries(zip.files);
+      for (const [path, file] of entries) {
         if (!file.dir) {
           files.push({ name: path, data: await file.async("nodebuffer") });
         }
