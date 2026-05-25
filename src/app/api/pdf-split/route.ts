@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFDocument } from "pdf-lib";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/auth";
 import JSZip from "jszip";
 
@@ -43,75 +42,74 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    const baseName = file.name.replace(/\.pdf$/i, "");
+    const zip = new JSZip();
 
-    let srcPdf: PDFDocument;
+    if (targetFormat === "pdf") {
+      const { PDFDocument } = await import("pdf-lib");
+      let srcPdf;
+      try {
+        srcPdf = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      } catch {
+        return NextResponse.json(
+          { error: "Failed to parse PDF file" },
+          { status: 422 },
+        );
+      }
+      const pageCount = srcPdf.getPageCount();
+      if (pageCount === 0) {
+        return NextResponse.json({ error: "PDF has no pages" }, { status: 422 });
+      }
+      for (let i = 0; i < pageCount; i++) {
+        const singlePagePdf = await PDFDocument.create();
+        const [copiedPage] = await singlePagePdf.copyPages(srcPdf, [i]);
+        singlePagePdf.addPage(copiedPage);
+        const pdfBytes = await singlePagePdf.save();
+        const pageName = `${baseName}-page-${String(i + 1).padStart(3, "0")}`;
+        zip.file(`${pageName}.pdf`, pdfBytes);
+      }
+      const zipBuffer = Buffer.from(
+        await zip.generateAsync({ type: "arraybuffer" }),
+      );
+      const resp = new NextResponse(zipBuffer as unknown as BodyInit, {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition": `attachment; filename="${baseName}-pages.zip"`,
+          "Content-Length": String(zipBuffer.length),
+          "X-Content-Type-Options": "nosniff",
+          "X-Page-Count": String(pageCount),
+          "Cache-Control": "no-store",
+        },
+      });
+      Object.entries(rateLimitHeaders(rl)).forEach(([k, v]) => {
+        if (v) resp.headers.set(k, v);
+      });
+      return resp;
+    }
+
+    let zipResult;
     try {
-      srcPdf = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      const { buildPdfPageImagesZip } = await import("@/lib/pdf-utils");
+      zipResult = await buildPdfPageImagesZip(
+        buffer,
+        targetFormat,
+        90,
+        baseName,
+      );
     } catch {
       return NextResponse.json(
-        { error: "Failed to parse PDF file" },
+        { error: "Failed to render PDF pages" },
         { status: 422 },
       );
     }
 
-    const pageCount = srcPdf.getPageCount();
-    if (pageCount === 0) {
-      return NextResponse.json({ error: "PDF has no pages" }, { status: 422 });
-    }
-
-    const zip = new JSZip();
-    const baseName = file.name.replace(/\.pdf$/i, "");
-
-    for (let i = 0; i < pageCount; i++) {
-      const singlePagePdf = await PDFDocument.create();
-      const [copiedPage] = await singlePagePdf.copyPages(srcPdf, [i]);
-      singlePagePdf.addPage(copiedPage);
-
-      const pdfBytes = await singlePagePdf.save();
-      const pageName = `${baseName}-page-${String(i + 1).padStart(3, "0")}`;
-
-      if (targetFormat === "pdf") {
-        zip.file(`${pageName}.pdf`, pdfBytes);
-      } else {
-        try {
-          const sharp = (await import("sharp")).default;
-          const pngBuf = await sharp(Buffer.from(pdfBytes), {
-            density: 150,
-            failOn: "none",
-          })
-            .png()
-            .toBuffer();
-
-          if (targetFormat === "png") {
-            zip.file(`${pageName}.png`, pngBuf);
-          } else if (targetFormat === "jpg" || targetFormat === "jpeg") {
-            const jpgBuf = await sharp(pngBuf).jpeg({ quality: 90 }).toBuffer();
-            zip.file(`${pageName}.jpg`, jpgBuf);
-          } else if (targetFormat === "webp") {
-            const webpBuf = await sharp(pngBuf)
-              .webp({ quality: 90 })
-              .toBuffer();
-            zip.file(`${pageName}.webp`, webpBuf);
-          } else {
-            zip.file(`${pageName}.png`, pngBuf);
-          }
-        } catch {
-          zip.file(`${pageName}.pdf`, pdfBytes);
-        }
-      }
-    }
-
-    const zipBuffer = Buffer.from(
-      await zip.generateAsync({ type: "arraybuffer" }),
-    );
-
-    const resp = new NextResponse(zipBuffer as unknown as BodyInit, {
+    const resp = new NextResponse(zipResult.zip as unknown as BodyInit, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${baseName}-pages.zip"`,
-        "Content-Length": String(zipBuffer.length),
+        "Content-Length": String(zipResult.zip.length),
         "X-Content-Type-Options": "nosniff",
-        "X-Page-Count": String(pageCount),
+        "X-Page-Count": String(zipResult.pageCount),
         "Cache-Control": "no-store",
       },
     });

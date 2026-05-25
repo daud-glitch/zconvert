@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser(request);
     if (!user) {
-      return NextResponse.json({ bookmarks: [] });
+      return NextResponse.json({ data: [] });
     }
 
     const bookmarks = await db.bookmark.findMany({
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ bookmarks });
+    return NextResponse.json({ data: bookmarks });
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch bookmarks" }, { status: 500 });
   }

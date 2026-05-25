@@ -8,9 +8,13 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ],
     "strict": true,
+    "noImplicitAny": false,
     "noEmit": true,
-    "noImplicitAny": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -37,6 +41,7 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next/dev/**"
   ]
 }

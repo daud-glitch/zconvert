@@ -8,7 +8,7 @@ import {
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
-  Timer, X, Zap, FileStack,
+  Timer, X, Zap, FileStack, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,15 +21,52 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 import { type FileItem, type ConversionRecord, type BookmarkRecord, type FormatsData } from "@/lib/app-types";
+import { readJsonResponse } from "@/lib/http-json";
+import { readApiError } from "@/lib/api-errors";
 import {
-  qualityPresets, SUPPORTED_EXTENSIONS, categoryColors,
+  qualityPresets,
+  SUPPORTED_EXTENSIONS,
+  categoryColors,
+  DOWNLOAD_BRAND_PREFIX,
+  bulkZipDownloadFilename,
 } from "@/lib/app-constants";
-import { formatBytes, formatDate, getCategoryFromExt } from "@/lib/app-helpers";
-import { formats } from "@/lib/formats";
+import {
+  formatBytes,
+  formatDate,
+  getCategoryFromExt,
+  getConvertApiPath,
+} from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
+import { ConverterHero } from "@/components/converter/ConverterHero";
 import { saveFileLocally } from "@/lib/storage";
-import JSZip from "jszip";
 import { useApp } from "@/lib/app-context";
+import {
+  audioUnavailableMessage,
+  formatMaxUploadLabel,
+  getClientMaxUploadBytes,
+  normalizePayloadError,
+  payloadTooLargeMessage,
+} from "@/lib/upload-limits";
+
+const MAX_UPLOAD_BYTES = getClientMaxUploadBytes();
+const AUDIO_CONVERSION_ENABLED =
+  process.env.NEXT_PUBLIC_AUDIO_ENABLED !== "0" ||
+  Boolean(process.env.NEXT_PUBLIC_CONVERT_API_URL?.trim());
+
+function getMergeSourceBlob(item: FileItem): Blob | null {
+  if (item.outputPackage === "zip" || item.targetFormat !== "pdf") return null;
+  if (item.status === "done" && item.result) return item.result;
+  if (item.ext === "pdf") return item.file;
+  return null;
+}
+
+function mergeOutputFileName(item: FileItem): string {
+  const baseName = item.name.replace(/\.[^/.]+$/, "");
+  if (item.ext === "pdf" && item.targetFormat === "pdf") {
+    return item.name.toLowerCase().endsWith(".pdf") ? item.name : `${baseName}.pdf`;
+  }
+  return `${baseName}.${item.targetFormat}`;
+}
 
 export function ConverterView() {
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -37,13 +74,7 @@ export function ConverterView() {
   const [dragOver, setDragOver] = useState(false);
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
-  >(() => {
-    const map: Record<string, string[]> = {};
-    for (const fmt of formats) {
-      map[fmt.ext] = fmt.targetFormats;
-    }
-    return map;
-  });
+  >({});
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [toasts, setToasts] = useState<
     { id: string; message: string; type: "success" | "error" }[]
@@ -56,6 +87,7 @@ export function ConverterView() {
   const [previewName, setPreviewName] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [urlInput, setUrlInput] = useState("");
+  const [urlFetching, setUrlFetching] = useState(false);
   const [showResize, setShowResize] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{
     current: number;
@@ -78,7 +110,7 @@ export function ConverterView() {
 
   useEffect(() => {
     fetch("/api/formats")
-      .then((r) => r.json())
+      .then((r) => readJsonResponse<FormatsData & { error?: string }>(r))
       .then((data) => {
         if (!data || data.error || !data.grouped) {
           console.error("Failed to fetch formats:", data?.error || "Unknown error");
@@ -100,17 +132,22 @@ export function ConverterView() {
       });
 
     fetch("/api/bookmarks")
-      .then((r) => r.json())
+      .then((r) => readJsonResponse<{ data?: BookmarkRecord[] }>(r))
       .then((data) => setBookmarks(data.data || []))
       .catch(() => {});
 
     fetch("/api/conversions?limit=5")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return { data: [] as ConversionRecord[] };
+        return readJsonResponse<{ data?: ConversionRecord[] }>(r);
+      })
       .then((d) => setRecentConversions(d.data || []))
       .catch(() => {});
   }, []);
 
   const fetchRemoteFile = async (url: string) => {
+    if (urlFetching) return;
+    setUrlFetching(true);
     try {
       showToast("Fetching remote file...");
       const response = await fetch(
@@ -118,13 +155,13 @@ export function ConverterView() {
       );
       
       if (!response.ok) {
-        let errorMsg = "Failed to fetch remote file";
+        const text = await response.text().catch(() => "");
+        let errorMsg = `Failed to fetch remote file (${response.status})`;
         try {
-          const data = await response.json();
+          const data = JSON.parse(text) as { error?: string };
           errorMsg = data.error || errorMsg;
         } catch {
-          const text = await response.text().catch(() => "");
-          if (text) errorMsg = text.slice(0, 100);
+          if (text.trim()) errorMsg = text.trim().slice(0, 120);
         }
         throw new Error(errorMsg);
       }
@@ -139,8 +176,13 @@ export function ConverterView() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to fetch remote file";
       showToast(message, "error");
+    } finally {
+      setUrlFetching(false);
     }
   };
+
+  const urlReady =
+    urlInput.trim().length > 0 && urlInput.includes("://");
 
   const addFiles = (newFiles: FileList | File[]) => {
     const fileArray = Array.from(newFiles);
@@ -161,11 +203,17 @@ export function ConverterView() {
 
       const supported: FileItem[] = [];
       const unsupported: string[] = [];
+      const tooLarge: string[] = [];
 
       fileArray.forEach((file) => {
         if (supported.length >= spaceLeft) return;
 
         const name = file.name;
+
+        if (file.size > MAX_UPLOAD_BYTES) {
+          tooLarge.push(name);
+          return;
+        }
         const dotIdx = name.lastIndexOf(".");
         const ext = dotIdx >= 0 ? name.slice(dotIdx + 1).toLowerCase() : "";
         const targets = targetFormatsMap[ext] || [];
@@ -184,7 +232,10 @@ export function ConverterView() {
             size: file.size,
             ext,
             status: "pending" as const,
-            targetFormat: targets.find((t) => t !== ext) || targets[0] || "",
+            targetFormat:
+              ext === "pdf" && targets.includes("pdf")
+                ? "pdf"
+                : targets.find((t) => t !== ext) || targets[0] || "",
             quality: 85,
             resizeWidth: null,
             resizeHeight: null,
@@ -196,6 +247,15 @@ export function ConverterView() {
           unsupported.push(ext ? `.${ext}` : name);
         }
       });
+
+      if (tooLarge.length > 0) {
+        showToast(
+          tooLarge.length === 1
+            ? `${tooLarge[0]}: ${payloadTooLargeMessage(fileArray.find((f) => f.name === tooLarge[0])?.size ?? MAX_UPLOAD_BYTES + 1)}`
+            : `${tooLarge.length} files exceed the ${formatMaxUploadLabel()} limit.`,
+          "error",
+        );
+      }
 
       if (unsupported.length > 0) {
         showToast(
@@ -277,7 +337,37 @@ export function ConverterView() {
     }
 
     if (item.ext === item.targetFormat) {
+      if (item.ext === "pdf") {
+        updateFile(item.id, {
+          status: "done",
+          result: item.file,
+          endTime: Date.now(),
+          outputSize: item.file.size,
+          outputPackage: undefined,
+          pageCount: undefined,
+        });
+        showToast(`${item.name} ready to merge as PDF`);
+        return;
+      }
       showToast(`File is already in .${item.ext.toUpperCase()} format`, "error");
+      return;
+    }
+
+    if (item.file.size > MAX_UPLOAD_BYTES) {
+      const msg = payloadTooLargeMessage(item.file.size);
+      updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
+      showToast(msg, "error");
+      return;
+    }
+
+    if (
+      !AUDIO_CONVERSION_ENABLED &&
+      (getCategoryFromExt(item.ext) === "audio" ||
+        getCategoryFromExt(item.targetFormat) === "audio")
+    ) {
+      const msg = audioUnavailableMessage();
+      updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
+      showToast(msg, "error");
       return;
     }
 
@@ -298,7 +388,7 @@ export function ConverterView() {
       if (item.resizeHeight)
         formData.append("height", String(item.resizeHeight));
 
-      const response = await fetch("/api/convert", {
+      const response = await fetch(getConvertApiPath(item.ext), {
         method: "POST",
         body: formData,
         cache: "no-store",
@@ -306,22 +396,21 @@ export function ConverterView() {
       });
 
       if (!response.ok) {
-        let errorMsg = `Conversion failed (${response.status})`;
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch {
-          // If not JSON, maybe text
-          const text = await response.text().catch(() => "");
-          if (text) errorMsg = text.slice(0, 100);
-        }
-        throw new Error(errorMsg);
+        throw new Error(
+          await readApiError(response, `Conversion failed (${response.status})`),
+        );
       }
 
       const blob = await response.blob();
       if (blob.size === 0) throw new Error("Received empty file from server");
-      
+
       const conversionId = response.headers.get("X-Conversion-Id") || item.id;
+      const outputPackage =
+        response.headers.get("X-Output-Package") === "zip" ? "zip" : undefined;
+      const pageCountHeader = response.headers.get("X-Page-Count");
+      const pageCount = pageCountHeader
+        ? parseInt(pageCountHeader, 10)
+        : undefined;
 
       // Save to local IndexedDB
       await saveFileLocally(conversionId, item.name, blob, blob.type);
@@ -331,12 +420,20 @@ export function ConverterView() {
         result: blob,
         endTime: Date.now(),
         outputSize: blob.size,
+        outputPackage,
+        pageCount: Number.isFinite(pageCount) ? pageCount : undefined,
       });
-      // sessionConverted and activityLog tracking removed
-      // (kept for future use)
-      showToast(`${item.name} converted successfully!`);
+      if (outputPackage === "zip" && pageCount) {
+        showToast(
+          `${item.name}: ${pageCount} pages saved as ZIP (${item.targetFormat.toUpperCase()})`,
+        );
+      } else {
+        showToast(`${item.name} converted successfully!`);
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Conversion failed";
+      const message = normalizePayloadError(
+        err instanceof Error ? err.message : "Conversion failed",
+      );
       updateFile(item.id, {
         status: "error",
         error: message,
@@ -367,10 +464,17 @@ export function ConverterView() {
     const url = URL.createObjectURL(item.result);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${baseName}.${item.targetFormat}`;
+    a.download =
+      item.outputPackage === "zip"
+        ? `${baseName}-pages.zip`
+        : `${baseName}.${item.targetFormat}`;
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const pdfRasterTargets = new Set([
+    "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "ico", "avif",
+  ]);
 
   const downloadAll = () => {
     files.filter((f) => f.status === "done").forEach(downloadFile);
@@ -394,7 +498,7 @@ export function ConverterView() {
         }),
       });
       const res = await fetch("/api/bookmarks");
-      const data = await res.json();
+      const data = await readJsonResponse<{ data?: BookmarkRecord[] }>(res);
       setBookmarks(data.data || []);
       showToast("Bookmark saved!");
     } catch {
@@ -423,6 +527,7 @@ export function ConverterView() {
 
   const pendingCount = files.filter((f) => f.status === "pending").length;
   const doneCount = files.filter((f) => f.status === "done").length;
+  const mergeableCount = files.filter((f) => getMergeSourceBlob(f) !== null).length;
   const errorCount = files.filter((f) => f.status === "error").length;
 
   const allTargetFormats = (() => {
@@ -468,7 +573,7 @@ export function ConverterView() {
           {toasts.slice(0, 5).map((t) => (
             <div
               key={t.id}
-              className={`toast-stack-item flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-foreground text-sm border border-border bg-background/95 backdrop-blur-md animate-in slide-in-from-right-full duration-300 ${
+              className={`toast-stack-item flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-foreground text-sm border border-border bg-background ${
                 t.type === "success" 
                   ? "border-l-4 border-l-emerald-500" 
                   : "border-l-4 border-l-destructive"
@@ -489,30 +594,26 @@ export function ConverterView() {
         </div>
       )}
 
-      {/* ─── Hero Section ─── */}
-      <section className="text-center py-6 sm:py-8">
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2 leading-tight">
-          Convert Any File,{" "}
-          <span className="gradient-text">Any Format</span>
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-4">
-          Drop files, pick a format, get results instantly. 132+ formats supported.
-        </p>
-        <div className="flex items-center justify-center gap-4 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-emerald-500" /> Private</span>
-          <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-500" /> Fast</span>
-          <span className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-violet-500" /> Free</span>
-        </div>
-      </section>
+      <ConverterHero
+        totalFormats={formatsData?.totalFormats}
+        totalConversionPairs={formatsData?.totalConversions}
+        categoryCount={
+          formatsData
+            ? Object.values(formatsData.categoryCounts).filter((n) => n > 0)
+                .length
+            : undefined
+        }
+        onUploadClick={() => fileInputRef.current?.click()}
+      />
 
       {/* ─── Upload Zone ─── */}
-      <Card className="overflow-hidden">
+      <Card className="card-elevated overflow-hidden border-border/60 shadow-md -mt-2 sm:-mt-4">
         <CardContent className="p-0">
           <div
-            className={`p-8 sm:p-10 text-center cursor-pointer relative border-2 border-dashed rounded-t-xl transition-colors ${
+            className={`upload-zone-enhanced p-8 sm:p-12 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
               dragOver
-                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
-                : "border-border hover:border-emerald-400 dark:hover:border-emerald-600"
+                ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25"
+                : "border-border/80"
             }`}
             onDragOver={(e) => {
               e.preventDefault();
@@ -534,56 +635,86 @@ export function ConverterView() {
               }}
             />
             <div className="relative z-10">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-colors ${
-                dragOver ? "bg-emerald-500 scale-110" : "bg-emerald-500/90"
-              }`}>
-                <Upload className="w-7 h-7 text-white" />
+              <div
+                className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg ${
+                  dragOver
+                    ? "bg-emerald-500 shadow-emerald-500/40"
+                    : "bg-emerald-500 shadow-emerald-500/30"
+                }`}
+              >
+                <Upload className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-base font-semibold mb-1">
+              <h3 className="text-lg font-semibold mb-1.5">
                 {dragOver ? "Drop files to upload" : "Drop files here or click to browse"}
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 Images, documents, data, audio, archives, subtitles, fonts & more
+              </p>
+              <p className="text-[11px] text-muted-foreground/70 mt-2">
+                Up to 20 files · {formatMaxUploadLabel()} each · Ctrl+U to browse
               </p>
             </div>
           </div>
 
-          {/* ── OR Divider + URL Fetch ── */}
+          {/* ── URL import (~40% prominence vs upload) ── */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <div className="absolute inset-x-0 top-0 flex items-center justify-center -translate-y-1/2 z-10">
-              <span className="bg-background px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <span className="rounded-full border border-emerald-500/25 bg-background px-3.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90 shadow-sm dark:text-emerald-300/90">
                 or paste a link
               </span>
             </div>
-            <div className="px-5 py-4 bg-muted/30 border-t border-border/40 rounded-b-xl">
-              <div className="flex items-center gap-2 max-w-lg mx-auto bg-background rounded-lg border border-border/60 px-3 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/40 focus-within:border-emerald-400 transition-all">
-                <Globe className="w-4 h-4 text-muted-foreground/60 shrink-0" />
+            <div className="rounded-b-2xl border-t border-emerald-500/10 bg-emerald-500/[0.04] px-5 py-5 dark:bg-emerald-500/[0.06]">
+              <div
+                className={`mx-auto flex max-w-2xl items-center gap-2.5 rounded-xl border bg-background px-3 py-2 shadow-sm transition-all focus-within:ring-2 focus-within:ring-emerald-500/25 ${
+                  urlReady ? "border-emerald-400/50" : "border-border/80"
+                }`}
+              >
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    urlReady
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                  aria-hidden
+                >
+                  <Globe className="h-4 w-4" />
+                </div>
                 <Input
+                  type="url"
+                  inputMode="url"
                   placeholder="https://example.com/file.png"
-                  className="flex-1 h-7 text-xs border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 placeholder:text-muted-foreground/40"
+                  aria-label="File URL to import"
+                  className="h-9 flex-1 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && urlInput.trim()) {
+                    if (e.key === "Enter" && urlReady) {
                       fetchRemoteFile(urlInput.trim());
                     }
                   }}
+                  disabled={urlFetching}
                 />
                 <Button
-                  variant="default"
+                  type="button"
                   size="sm"
-                  className={`h-7 px-4 text-[11px] font-semibold rounded-md shrink-0 transition-all ${
-                    urlInput.trim() && urlInput.includes("://")
-                      ? "bg-emerald-500 hover:bg-emerald-600 text-white opacity-100"
-                      : "bg-muted text-muted-foreground opacity-50 pointer-events-none"
+                  className={`h-9 shrink-0 rounded-lg px-3.5 text-xs font-semibold ${
+                    urlReady
+                      ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+                      : "bg-muted text-muted-foreground"
                   }`}
                   onClick={() => {
-                    if (urlInput.trim() && urlInput.includes("://")) fetchRemoteFile(urlInput.trim());
+                    if (urlReady) fetchRemoteFile(urlInput.trim());
                   }}
-                  disabled={!urlInput.trim() || !urlInput.includes("://")}
+                  disabled={!urlReady || urlFetching}
                 >
-                  <Download className="w-3 h-3 mr-1" />
-                  Fetch
+                  {urlFetching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <DownloadCloud className="mr-1 h-3.5 w-3.5" />
+                      Fetch
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -657,7 +788,9 @@ export function ConverterView() {
               </div>
               <div>
                 <h3 className="font-semibold text-sm">PDF Tools</h3>
-                <p className="text-xs text-muted-foreground">Split PDF pages into individual images</p>
+                <p className="text-xs text-muted-foreground">
+                  Each page becomes a separate image in a ZIP. Converting to PNG, JPG, or WebP does the same for multi-page PDFs.
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -771,6 +904,7 @@ export function ConverterView() {
                     if (doneFiles.length === 0) return;
                     showToast(`Creating ZIP with ${doneFiles.length} files...`);
                     try {
+                      const { default: JSZip } = await import("jszip");
                       const zip = new JSZip();
                       for (const f of doneFiles) {
                         const baseName = f.name.replace(/\.[^/.]+$/, "");
@@ -781,7 +915,9 @@ export function ConverterView() {
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
                       a.href = url;
-                      a.download = `transmute-${Date.now()}.zip`;
+                      a.download = bulkZipDownloadFilename(
+                        doneFiles.map((f) => f.name),
+                      );
                       a.click();
                       URL.revokeObjectURL(url);
                       showToast(
@@ -796,24 +932,27 @@ export function ConverterView() {
                   <DownloadCloud className="w-3.5 h-3.5 mr-1" />
                   Download ZIP
                 </Button>
-                {doneCount >= 2 && (
+                {mergeableCount >= 2 && (
                   <Button
                     variant="outline"
                     size="sm"
                     className="border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                     onClick={async () => {
-                      const filesToMerge = files.filter((f) => f.status === "done" && f.outputBlob);
+                      const filesToMerge = files.filter(
+                        (f) => getMergeSourceBlob(f) !== null,
+                      );
                       if (filesToMerge.length < 2) {
-                        showToast("Need at least 2 converted files to merge", "error");
+                        showToast("Need at least 2 PDF files to merge", "error");
                         return;
                       }
-                      showToast(`Merging ${filesToMerge.length} converted files into PDF...`);
+                      showToast(`Merging ${filesToMerge.length} files into PDF...`);
                       try {
                         const formData = new FormData();
                         for (const f of filesToMerge) {
-                          const fileName = `${f.name.split('.')[0]}.${f.targetFormat}`;
-                          const file = new File([f.outputBlob!], fileName, {
-                            type: f.outputBlob!.type,
+                          const source = getMergeSourceBlob(f)!;
+                          const fileName = mergeOutputFileName(f);
+                          const file = new File([source], fileName, {
+                            type: source.type || "application/pdf",
                           });
                           formData.append("files", file);
                         }
@@ -826,13 +965,16 @@ export function ConverterView() {
                           throw new Error(err.error || "Merge failed");
                         }
                         const blob = await response.blob();
+                        if (blob.size === 0) {
+                          throw new Error("Received empty merged PDF");
+                        }
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = `merged-${Date.now()}.pdf`;
+                        a.download = `${DOWNLOAD_BRAND_PREFIX}-${filesToMerge[0].name.replace(/\.[^/.]+$/, "").replace(/[^\w.\-]+/g, "_")}-merged.pdf`;
                         a.click();
                         URL.revokeObjectURL(url);
-                        showToast(`Merged ${filesToMerge.length} converted files into PDF!`);
+                        showToast(`Merged ${filesToMerge.length} files into PDF!`);
                       } catch (err) {
                         const msg = err instanceof Error ? err.message : "Merge failed";
                         showToast(msg, "error");
@@ -1014,6 +1156,8 @@ export function ConverterView() {
                                     status: "pending",
                                     result: undefined,
                                     outputSize: undefined,
+                                    outputPackage: undefined,
+                                    pageCount: undefined,
                                     endTime: undefined,
                                   });
                                 } else {
@@ -1026,7 +1170,11 @@ export function ConverterView() {
                                 <SelectValue placeholder="Format" />
                               </SelectTrigger>
                               <SelectContent>
-                                {groupedTargetFormats((targetFormatsMap[item.ext] || []).filter((f) => f !== item.ext)).map(
+                                {groupedTargetFormats(
+                                  (targetFormatsMap[item.ext] || []).filter(
+                                    (f) => item.ext === "pdf" || f !== item.ext,
+                                  ),
+                                ).map(
                                   ([cat, fmts]) => (
                                     <SelectGroup key={cat}>
                                       <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
@@ -1044,6 +1192,24 @@ export function ConverterView() {
                                 )}
                               </SelectContent>
                             </Select>
+                            {item.ext === "pdf" &&
+                              pdfRasterTargets.has(item.targetFormat) &&
+                              item.status === "pending" && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] whitespace-nowrap border-rose-300 text-rose-700 dark:text-rose-300"
+                                >
+                                  Multi-page → ZIP
+                                </Badge>
+                              )}
+                            {item.status === "done" && item.outputPackage === "zip" && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[9px] whitespace-nowrap"
+                              >
+                                {item.pageCount ?? "?"} pages ZIP
+                              </Badge>
+                            )}
                           </div>
 
                           {/* Actions */}
@@ -1102,10 +1268,11 @@ export function ConverterView() {
                                 >
                                   <Download className="w-4 h-4 text-emerald-600" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
+                                {item.outputPackage !== "zip" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
                                   onClick={() => {
                                     if (item.result) {
                                       const url = URL.createObjectURL(
@@ -1122,9 +1289,10 @@ export function ConverterView() {
                                     }
                                   }}
                                   title="Preview"
-                                >
-                                  <Eye className="w-4 h-4 text-sky-500" />
-                                </Button>
+                                  >
+                                    <Eye className="w-4 h-4 text-sky-500" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"

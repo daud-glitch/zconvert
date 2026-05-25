@@ -23,6 +23,22 @@ import {
 } from "lucide-react";
 import { type ViewType } from "@/lib/formats";
 
+/** Prefix for bulk ZIP downloads (e.g. cloudconverter.tech-report.zip). */
+export const DOWNLOAD_BRAND_PREFIX = "cloudconverter.tech";
+
+/** Build a branded ZIP filename: cloudconverter.tech-{name}.zip */
+export function bulkZipDownloadFilename(fileNames: string[]): string {
+  const sanitize = (s: string) =>
+    s.replace(/[^\w.\-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "files";
+  const firstBase = sanitize(
+    (fileNames[0] || "files").replace(/\.[^/.]+$/, ""),
+  );
+  if (fileNames.length <= 1) {
+    return `${DOWNLOAD_BRAND_PREFIX}-${firstBase}.zip`;
+  }
+  return `${DOWNLOAD_BRAND_PREFIX}-${firstBase}-and-${fileNames.length - 1}-more.zip`;
+}
+
 // ─── Quality Presets ─────────────────────────────────────────────────────────
 
 export const qualityPresets = [

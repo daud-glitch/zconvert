@@ -79,6 +79,8 @@ export function getCategoryFromExt(ext: string): string {
   return map[ext] || "other";
 }
 
+export { getConvertApiPath, usesRemoteConvertWorker } from "@/lib/convert-api-url";
+
 // ─── Category Icons ───────────────────────────────────────────────────────────
 
 export function getCategoryIcon(

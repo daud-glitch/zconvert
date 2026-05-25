@@ -148,7 +148,7 @@ export default function ConversionsClient() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Accent bar */}
-      <div className="h-1 bg-gradient-to-r from-emerald-500 via-violet-500 to-amber-500" />
+      <div className="h-1 bg-emerald-500" />
 
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border">
@@ -211,7 +211,7 @@ export default function ConversionsClient() {
         <div className="mb-8">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3">
             All{" "}
-            <span className="bg-gradient-to-r from-emerald-500 to-violet-500 bg-clip-text text-transparent">
+            <span className="text-emerald-600 dark:text-emerald-400">
               Conversions
             </span>
           </h1>

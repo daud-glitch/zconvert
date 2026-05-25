@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bookmark, Trash2, ArrowRightLeft, Search, Plus, ExternalLink, Lock } from "lucide-react";
 import { useApp } from "@/lib/app-context";
 import { type BookmarkRecord } from "@/lib/app-types";
+import { readJsonResponse } from "@/lib/http-json";
 import { getCategoryIcon, getCategoryFromExt } from "@/lib/app-helpers";
 import { categoryColors, categoryLightBg, categoryTextColors, categoryBorderColors } from "@/lib/app-constants";
 import { Input } from "@/components/ui/input";
@@ -27,8 +28,11 @@ export function BookmarksView() {
       setIsLoading(true);
       const res = await fetch("/api/bookmarks");
       if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      setBookmarks(data.bookmarks || []);
+      const data = await readJsonResponse<{
+        data?: BookmarkRecord[];
+        bookmarks?: BookmarkRecord[];
+      }>(res);
+      setBookmarks(data.data || data.bookmarks || []);
     } catch (err) {
       console.error("Failed to fetch bookmarks:", err);
     } finally {

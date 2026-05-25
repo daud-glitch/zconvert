@@ -4,6 +4,11 @@ import type { NextRequest } from "next/server";
 // Routes that don't require authentication
 const publicRoutes = [
   "/api/convert",
+  "/api/convert/image",
+  "/api/convert/data",
+  "/api/convert/archive",
+  "/api/convert/document",
+  "/api/convert/other",
   "/api/formats",
   "/api/bookmarks",
   "/api/auth/login",
@@ -14,6 +19,8 @@ const publicRoutes = [
   "/api/fetch-url",
   "/api/merge-pdf",
   "/api/pdf-split",
+  "/api/ready",
+  "/api/health",
   "/login",
   "/",
 ];
@@ -21,8 +28,29 @@ const publicRoutes = [
 // Routes that require admin role
 const adminRoutes = ["/api/admin"];
 
+function corsPreflightResponse(): NextResponse {
+  const origin = process.env.ALLOWED_ORIGIN || "*";
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (
+    request.method === "OPTIONS" &&
+    pathname.startsWith("/api/convert")
+  ) {
+    return corsPreflightResponse();
+  }
+
   const sessionCookie = request.cookies.get("session");
 
   // Allow public routes

@@ -16,6 +16,9 @@ export interface FileItem {
   startTime?: number;
   endTime?: number;
   outputSize?: number;
+  /** Set when a multi-page PDF was converted to per-page images in a ZIP. */
+  outputPackage?: "zip";
+  pageCount?: number;
 }
 
 export interface ConversionRecord {

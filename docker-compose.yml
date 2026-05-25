@@ -1,0 +1,19 @@
+services:
+  zconvert-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DOCKER_BUILD: "1"
+    environment:
+      DOCKER_BUILD: "1"
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      MAX_UPLOAD_SIZE_MB: "100"
+      # Vercel site URL (no trailing slash) — CORS for browser uploads
+      ALLOWED_ORIGIN: "${ALLOWED_ORIGIN:-*}"
+      DATABASE_URL: "${DATABASE_URL:-}"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

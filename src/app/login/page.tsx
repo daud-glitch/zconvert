@@ -107,7 +107,7 @@ function LoginForm() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Top accent bar */}
-      <div className="h-1 w-full bg-linear-to-r from-emerald-500 via-sky-500 to-violet-500" />
+      <div className="h-1 w-full bg-emerald-500" />
 
       {/* Back link */}
       <div className="p-4">

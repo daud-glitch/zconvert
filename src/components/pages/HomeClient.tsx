@@ -116,10 +116,10 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
       {/* ── Top Accent Line ─────────────────────────────────────────── */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-violet-500 to-amber-500 fixed top-0 left-0 z-[100]" />
+      <div className="h-1.5 w-full bg-emerald-500 fixed top-0 left-0 z-[100]" />
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="sticky top-1.5 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-1.5 z-50 w-full border-b border-border/40 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -131,7 +131,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 <RefreshCw className="w-6 h-6 text-white" />
               </div>
               <div>
-                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-500 to-emerald-600 bg-clip-text text-transparent">
+                <span className="text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
                   Cloud Converter
                 </span>
                 <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70">
@@ -150,9 +150,9 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                     key={item.id}
                     variant={isActive ? "secondary" : "ghost"}
                     size="sm"
-                    className={`gap-2 h-9 px-4 rounded-full transition-all ${
+                    className={`gap-2 h-9 px-4 rounded-full ${
                       isActive
-                        ? "bg-secondary text-secondary-foreground shadow-sm"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shadow-sm ring-1 ring-emerald-500/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     }`}
                     onClick={() => toggleView(item.id as ViewType)}
@@ -295,7 +295,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
 
       {/* ── Main Content ───────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col relative">
-        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-1 flex flex-col">
           {currentView === "converter" && <ConverterView />}
           {currentView === "formats" && <FormatsView />}
           {currentView === "history" && <HistoryView />}
@@ -438,9 +438,9 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
 
       {/* ── Overlays ───────────────────────────────────────────────── */}
       <AuthDialog
-        open={authDialogOpen}
-        onOpenChange={setAuthDialogOpen}
-        mode={authMode}
+        isOpen={authDialogOpen}
+        onClose={() => setAuthDialogOpen(false)}
+        initialMode={authMode}
       />
 
       {/* Shortcuts Overlay */}

@@ -96,77 +96,26 @@ export const categoryMeta: Record<
 };
 
 // ─── Shared target arrays ────────────────────────────────────────────────────
-const imgStandard = [
-  "apng",
+/** Targets the image converter can actually produce (sharp / pdf-lib). */
+const imgOutputSupported = [
   "avif",
-  "blp",
   "bmp",
-  "dds",
-  "dib",
-  "eps",
+  "cur",
   "gif",
-  "heic",
-  "heif",
-  "icns",
   "ico",
-  "jp2",
   "jpeg",
-  "jxl",
-  "mpo",
-  "msp",
-  "pbm",
-  "pcx",
+  "jpg",
   "pdf",
-  "pfm",
-  "pgm",
   "png",
-  "pnm",
-  "ppm",
-  "qoi",
-  "sgi",
-  "tga",
+  "svg",
   "tiff",
+  "tif",
   "webp",
-  "xbm",
 ] as const;
 
-const imgAnimated = [
-  "apng",
-  "asf",
-  "avif",
-  "blp",
-  "bmp",
-  "dds",
-  "dib",
-  "eps",
-  "f4v",
-  "gif",
-  "heic",
-  "heif",
-  "icns",
-  "ico",
-  "jp2",
-  "jpeg",
-  "jxl",
-  "mpo",
-  "msp",
-  "ogv",
-  "pbm",
-  "pcx",
-  "pdf",
-  "pfm",
-  "pgm",
-  "png",
-  "pnm",
-  "ppm",
-  "qoi",
-  "sgi",
-  "tga",
-  "tiff",
-  "ts",
-  "webp",
-  "xbm",
-] as const;
+const imgStandard = [...imgOutputSupported];
+
+const imgAnimated = [...imgOutputSupported];
 
 const imgNoSelf = (self: string, extras?: string[]) => {
   const set = new Set<string>(imgStandard);
@@ -182,10 +131,84 @@ const imgNoSelfAnimated = (self: string, extras?: string[]) => {
   return [...set].sort();
 };
 
-// Document shared targets (cross-category: includes epub, pptx)
-const docStandard = [
+// Document outputs the server can produce (text/PDF/Office/XML — not legacy .doc or spreadsheets)
+const docOutputSupported = [
   "adoc",
+  "csv",
   "doc",
+  "docx",
+  "epub",
+  "html",
+  "ipynb",
+  "json",
+  "md",
+  "muse",
+  "odt",
+  "opml",
+  "org",
+  "pdf",
+  "pptx",
+  "rst",
+  "rtf",
+  "tex",
+  "textile",
+  "tsv",
+  "txt",
+  "xml",
+  "yaml",
+] as const;
+
+const docStandard = [...docOutputSupported];
+
+/** PDF → document + raster image targets (images use pdf-parse screenshots). */
+const pdfOutputTargets = [
+  "pdf",
+  ...docOutputSupported.filter((f) => f !== "pdf"),
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+  "bmp",
+  "tiff",
+  "tif",
+] as const;
+
+const docNoSelf = (self: string, extras?: string[]) => {
+  const set = new Set<string>(docStandard);
+  set.delete(self);
+  if (extras) extras.forEach((e) => set.delete(e));
+  return [...set].sort();
+};
+
+// Data outputs the server can produce (tabular/text/spreadsheet — not binary columnar DB formats)
+const dataOutputSupported = [
+  "csv",
+  "env",
+  "fwf",
+  "html",
+  "ini",
+  "json",
+  "jsonl",
+  "md",
+  "ods",
+  "pdf",
+  "toml",
+  "tsv",
+  "txt",
+  "xls",
+  "xlsx",
+  "xml",
+  "yaml",
+  "yml",
+  "parquet",
+] as const;
+
+const dataStandard = [...dataOutputSupported];
+
+/** Ebook text/document outputs. */
+const ebookOutputSupported = [
+  "adoc",
   "docx",
   "epub",
   "html",
@@ -204,38 +227,11 @@ const docStandard = [
   "txt",
 ] as const;
 
-const docNoSelf = (self: string, extras?: string[]) => {
-  const set = new Set<string>(docStandard);
+const ebookNoSelf = (self: string) => {
+  const set = new Set<string>(ebookOutputSupported);
   set.delete(self);
-  if (extras) extras.forEach((e) => set.delete(e));
   return [...set].sort();
 };
-
-// Data shared targets (cross-category: includes html)
-const dataStandard = [
-  "csv",
-  "dta",
-  "env",
-  "feather",
-  "fwf",
-  "html",
-  "ini",
-  "json",
-  "jsonl",
-  "ods",
-  "orc",
-  "parquet",
-  "sav",
-  "sqlite",
-  "toml",
-  "toon",
-  "tsv",
-  "xls",
-  "xlsx",
-  "xpt",
-  "xml",
-  "yaml",
-] as const;
 
 const dataNoSelf = (self: string, extras?: string[]) => {
   const set = new Set<string>(dataStandard);
@@ -244,17 +240,19 @@ const dataNoSelf = (self: string, extras?: string[]) => {
   return [...set].sort();
 };
 
-// Presentation shared targets
-const presStandard = [
+// Presentation outputs the server can produce
+const presOutputSupported = [
   "html",
   "jpeg",
+  "jpg",
   "odp",
   "pdf",
   "png",
-  "ppt",
   "pptx",
   "txt",
 ] as const;
+
+const presStandard = [...presOutputSupported];
 
 const presNoSelf = (self: string, extras?: string[]) => {
   const set = new Set<string>(presStandard);
@@ -263,8 +261,11 @@ const presNoSelf = (self: string, extras?: string[]) => {
   return [...set].sort();
 };
 
-export const archiveStandard = [
+/** Archive outputs supported in-process (7z/rar/xz/zst need external tools). */
+export const archiveOutputSupported = [
   "7z",
+  "rar",
+  "cbz",
   "tar",
   "tar.bz2",
   "tar.gz",
@@ -272,6 +273,15 @@ export const archiveStandard = [
   "tar.zst",
   "zip",
 ] as const;
+
+export const archiveStandard = [...archiveOutputSupported];
+
+const archiveNoSelf = (self: string) => {
+  const set = new Set<string>(archiveStandard);
+  set.delete(self);
+  return [...set].sort();
+};
+
 const allFormats: FormatInfo[] = [
   // ═══════════════════════════════════════════════════════════════════════════
   // Images
@@ -594,7 +604,7 @@ const allFormats: FormatInfo[] = [
       "TGS is the animated sticker format used by the Telegram messaging application, based on the Lottie animation format (JSON vector animation) compressed with gzip. It produces smooth, scalable vector animations at very small file sizes, making them ideal for messaging apps where bandwidth and storage efficiency are important. TGS stickers look crisp at any resolution since they are based on vector paths rather than raster pixels.",
     category: "image",
     mimeTypes: ["application/x-tgsticker"],
-    targetFormats: ["apng", "gif", "json", "webp"],
+    targetFormats: ["gif", "png", "webp"],
   },
   {
     ext: "tiff",
@@ -736,7 +746,7 @@ const allFormats: FormatInfo[] = [
       "DOC is the legacy binary file format used by Microsoft Word for the Office 97-2003 era. It stores document content, formatting, images, and metadata in a proprietary binary structure. Although superseded by the modern XML-based DOCX format, DOC remains common in older archives and is supported for import by virtually all modern word processors and office suites.",
     category: "document",
     mimeTypes: ["application/msword"],
-    targetFormats: docNoSelf("doc"),
+    targetFormats: docNoSelf("doc", ["doc"]),
   },
   {
     ext: "docx",
@@ -756,40 +766,7 @@ const allFormats: FormatInfo[] = [
       "HTML (HyperText Markup Language) is the standard markup language for creating web pages and web applications, maintained by the W3C. It defines the structure and content of documents using elements and tags, working alongside CSS for visual styling and JavaScript for interactivity. HTML is rendered by web browsers into the visual pages users see, and is the universal output format for documents published on the internet.",
     category: "document",
     mimeTypes: ["text/html"],
-    targetFormats: [
-      "adoc",
-      "csv",
-      "docx",
-      "env",
-      "epub",
-      "feather",
-      "ini",
-      "ipynb",
-      "json",
-      "jsonl",
-      "md",
-      "muse",
-      "ods",
-      "odt",
-      "opml",
-      "orc",
-      "org",
-      "parquet",
-      "pdf",
-      "pptx",
-      "rst",
-      "rtf",
-      "sqlite",
-      "tex",
-      "textile",
-      "toml",
-      "toon",
-      "tsv",
-      "txt",
-      "xlsx",
-      "xml",
-      "yaml",
-    ],
+    targetFormats: docNoSelf("html"),
   },
   {
     ext: "ipynb",
@@ -852,37 +829,7 @@ const allFormats: FormatInfo[] = [
       "PDF (Portable Document Format) was created by Adobe in 1992 and has become the worldwide standard for sharing documents with precisely fixed layouts. It preserves fonts, images, vector graphics, and formatting identically across every operating system, device, and printer. PDF supports digital signatures, encryption, interactive forms, and embedded multimedia, making it essential for official documents, contracts, reports, and professional publications.",
     category: "document",
     mimeTypes: ["application/pdf"],
-    targetFormats: [
-      "avif",
-      "azw3",
-      "bmp",
-      "cbz",
-      "dib",
-      "epub",
-      "fb2",
-      "gif",
-      "html",
-      "ico",
-      "jp2",
-      "jpeg",
-      "jxl",
-      "lrf",
-      "md",
-      "mobi",
-      "pbm",
-      "pcx",
-      "pdb",
-      "pgm",
-      "png",
-      "pnm",
-      "ppm",
-      "sgi",
-      "snb",
-      "tga",
-      "tiff",
-      "txt",
-      "webp",
-    ],
+    targetFormats: [...pdfOutputTargets],
   },
   {
     ext: "rst",
@@ -1184,15 +1131,7 @@ const allFormats: FormatInfo[] = [
       "7Z is a high-compression archive format associated with the free, open-source 7-Zip archiver. It uses the LZMA and LZMA2 compression algorithms to achieve significantly better compression ratios than ZIP and RAR, often reducing file sizes by 30-70% more than competing formats. 7Z supports AES-256 encryption, solid compression, multi-volume archives, and can handle files of virtually any size.",
     category: "archive",
     mimeTypes: ["application/x-7z-compressed"],
-    targetFormats: [
-      "cb7",
-      "tar",
-      "tar.bz2",
-      "tar.gz",
-      "tar.xz",
-      "tar.zst",
-      "zip",
-    ],
+    targetFormats: archiveNoSelf("7z"),
   },
   {
     ext: "rar",
@@ -1201,16 +1140,7 @@ const allFormats: FormatInfo[] = [
       "RAR (Roshal Archive) is a proprietary archive format developed by Eugene Roshal that supports high-compression ratios, strong encryption, archive splitting across multiple volumes, and built-in recovery records for repairing damaged archives. It uses a specialized compression algorithm that often outperforms ZIP for many file types. RAR archives are widely used for distributing large software packages and are commonly encountered in file-sharing communities.",
     category: "archive",
     mimeTypes: ["application/vnd.rar", "application/x-rar-compressed"],
-    targetFormats: [
-      "7z",
-      "cbr",
-      "tar",
-      "tar.bz2",
-      "tar.gz",
-      "tar.xz",
-      "tar.zst",
-      "zip",
-    ],
+    targetFormats: archiveNoSelf("rar"),
   },
   {
     ext: "tar",
@@ -1219,7 +1149,7 @@ const allFormats: FormatInfo[] = [
       "TAR (Tape ARchive) is a Unix file archiving format that bundles multiple files and directories into a single file while preserving file permissions, ownership, timestamps, and symbolic links. Crucially, TAR performs no compression by itself and is almost always paired with a compression tool such as gzip, bzip2, or xz. TAR is the foundational packaging format for software distribution, backups, and data transfer throughout the Unix and Linux ecosystem.",
     category: "archive",
     mimeTypes: ["application/x-tar"],
-    targetFormats: ["7z", "tar.bz2", "tar.gz", "tar.xz", "tar.zst", "zip"],
+    targetFormats: archiveNoSelf("tar"),
   },
   {
     ext: "tar.bz2",
@@ -1228,7 +1158,7 @@ const allFormats: FormatInfo[] = [
       "TAR.BZ2 is a TAR archive compressed with the bzip2 algorithm, combining Unix-style file bundling with high-quality block-sorting compression. Bzip2 generally achieves better compression ratios than gzip, particularly for text-heavy content like source code, at the cost of somewhat slower processing. TAR.BZ2 files are a common distribution format for open-source software tarballs throughout the Linux and Unix ecosystem.",
     category: "archive",
     mimeTypes: ["application/x-bzip2", "application/x-tar-bz2"],
-    targetFormats: ["7z", "tar", "tar.gz", "tar.xz", "tar.zst", "zip"],
+    targetFormats: archiveNoSelf("tar.bz2"),
   },
   {
     ext: "tar.gz",
@@ -1237,7 +1167,7 @@ const allFormats: FormatInfo[] = [
       "TAR.GZ (also known as TGZ) is a TAR archive compressed with the gzip algorithm, and is the most prevalent archive format in the Unix and Linux world. It offers a good balance between compression speed and ratio and is universally available on all Unix-like systems without additional tools. TAR.GZ is the standard format for distributing open-source software source code and is understood by virtually every developer and system administrator.",
     category: "archive",
     mimeTypes: ["application/gzip", "application/x-tar-gz"],
-    targetFormats: ["7z", "tar", "tar.bz2", "tar.xz", "tar.zst", "zip"],
+    targetFormats: archiveNoSelf("tar.gz"),
   },
   {
     ext: "tar.xz",
@@ -1246,7 +1176,7 @@ const allFormats: FormatInfo[] = [
       "TAR.XZ is a TAR archive compressed with the XZ compression algorithm, which uses LZMA2 to achieve excellent compression ratios that often surpass bzip2. It is the preferred distribution format for many major Linux distributions including Arch Linux and Fedora due to its superior space savings. The trade-off is slower compression speed compared to gzip, though decompression performance is reasonably fast on modern hardware.",
     category: "archive",
     mimeTypes: ["application/x-xz", "application/x-tar-xz"],
-    targetFormats: ["7z", "tar", "tar.bz2", "tar.gz", "tar.zst", "zip"],
+    targetFormats: archiveNoSelf("tar.xz"),
   },
   {
     ext: "tar.zst",
@@ -1255,7 +1185,7 @@ const allFormats: FormatInfo[] = [
       "TAR.ZST is a TAR archive compressed with the Zstandard (Zstd) algorithm, developed by Facebook to deliver the best balance of compression ratio and speed. Zstd matches or exceeds bzip2 compression ratios while compressing many times faster, making it excellent for both archival and real-time use cases. TAR.ZST is rapidly gaining adoption in modern Linux distributions, package managers, and developer toolchains as a superior alternative.",
     category: "archive",
     mimeTypes: ["application/zstd", "application/x-tar-zst"],
-    targetFormats: ["7z", "tar", "tar.gz", "tar.bz2", "tar.xz", "zip"],
+    targetFormats: archiveNoSelf("tar.zst"),
   },
   {
     ext: "zip",
@@ -1264,15 +1194,7 @@ const allFormats: FormatInfo[] = [
       "ZIP is the most widely used archive format, invented in 1989 by Phil Katz, that compresses and packages multiple files into a single container using the DEFLATE algorithm. It supports individual file compression with optional password protection and is natively supported on Windows, macOS, and Linux without additional software. ZIP is the universal standard for distributing files, software installers, and document packages due to its ubiquitous support.",
     category: "archive",
     mimeTypes: ["application/zip", "application/x-zip-compressed"],
-    targetFormats: [
-      "7z",
-      "cbz",
-      "tar",
-      "tar.bz2",
-      "tar.gz",
-      "tar.xz",
-      "tar.zst",
-    ],
+    targetFormats: archiveNoSelf("zip"),
   },
   {
     ext: "gz",
@@ -1281,15 +1203,7 @@ const allFormats: FormatInfo[] = [
       "GZ (Gzip) is a single-file compression format using the DEFLATE algorithm, the most common compression tool on Unix-like systems. It typically reduces text file sizes by 60-70% and is extremely fast to decompress, making it ideal for web content compression and log archiving. GZ is also the compression component of the widely-used TAR.GZ combined archive format that powers open-source software distribution.",
     category: "archive",
     mimeTypes: ["application/gzip"],
-    targetFormats: [
-      "7z",
-      "tar",
-      "tar.bz2",
-      "tar.gz",
-      "tar.xz",
-      "tar.zst",
-      "zip",
-    ],
+    targetFormats: archiveNoSelf("gz"),
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1302,7 +1216,7 @@ const allFormats: FormatInfo[] = [
       "AZW3 (also known as KF8 or Kindle Format 8) is Amazon's modern ebook format used on Kindle e-readers, the Kindle app, and Fire tablets. It represents a significant upgrade over the older MOBI format by supporting HTML5, CSS3, and embedded fonts for richer typography and more precise layout control. AZW3 is Amazon's current standard for Kindle publishing and is used for all new Kindle Direct Publishing titles.",
     category: "ebook",
     mimeTypes: ["application/vnd.amazon.ebook"],
-    targetFormats: ["epub", "fb2", "lrf", "mobi", "pdb", "pdf", "snb"],
+    targetFormats: ebookNoSelf("azw3"),
   },
   {
     ext: "cb7",
@@ -1311,7 +1225,7 @@ const allFormats: FormatInfo[] = [
       "CB7 is a comic book archive format that stores sequentially named comic page images inside a 7-Zip compressed container. It is part of the CB* family of formats (CBZ, CBR, CB7) used by comic book readers such as CDisplayEx and Comical. CB7 typically achieves better compression than CBZ (ZIP-based) or CBR (RAR-based), making it efficient for storing high-resolution comic scans.",
     category: "ebook",
     mimeTypes: ["application/x-cb7"],
-    targetFormats: ["cbr", "cbz", "epub", "mobi", "pdf"],
+    targetFormats: ebookNoSelf("cb7"),
   },
   {
     ext: "cbr",
@@ -1320,7 +1234,7 @@ const allFormats: FormatInfo[] = [
       "CBR (Comic Book RAR) is a comic book archive format that packages sequentially named page images inside a RAR compressed archive with the .cbr extension. It is one of the most widely used formats among digital comic collectors and is supported by popular e-reader apps like Moon+ Reader, ComicRack, and Chunky. CBR files are opened by comic readers that display the images in sequence, recreating the page-by-page reading experience.",
     category: "ebook",
     mimeTypes: ["application/x-cbr"],
-    targetFormats: ["7z", "cb7", "cbz", "epub", "mobi", "pdf"],
+    targetFormats: ebookNoSelf("cbr"),
   },
   {
     ext: "cbz",
@@ -1329,7 +1243,7 @@ const allFormats: FormatInfo[] = [
       "CBZ (Comic Book ZIP) is a comic book archive format that packages page images in a standard ZIP archive with the .cbz extension, making it easy to create without specialized software. It is similar to CBR but uses the open ZIP format rather than the proprietary RAR format, improving compatibility with e-reader devices and applications. CBZ is supported by Kindle, Kobo, and most dedicated comic reader applications.",
     category: "ebook",
     mimeTypes: ["application/x-cbz"],
-    targetFormats: ["7z", "cb7", "cbr", "epub", "mobi", "pdf"],
+    targetFormats: ebookNoSelf("cbz"),
   },
   {
     ext: "epub",
@@ -1338,30 +1252,7 @@ const allFormats: FormatInfo[] = [
       "EPUB (Electronic Publication) is the most widely adopted open standard ebook format, developed by the IDPF and now maintained by the W3C. It packages HTML, CSS, fonts, and images into a single ZIP-based container, allowing text to reflow and adapt to different screen sizes, font sizes, and user preferences. EPUB is supported by virtually all e-readers except Amazon Kindle devices, and is the preferred format for accessible, standards-compliant digital books.",
     category: "ebook",
     mimeTypes: ["application/epub+zip"],
-    targetFormats: [
-      "adoc",
-      "azw3",
-      "docx",
-      "fb2",
-      "html",
-      "ipynb",
-      "lrf",
-      "md",
-      "mobi",
-      "muse",
-      "odt",
-      "opml",
-      "org",
-      "pdb",
-      "pdf",
-      "pptx",
-      "rst",
-      "rtf",
-      "snb",
-      "tex",
-      "textile",
-      "txt",
-    ],
+    targetFormats: ebookNoSelf("epub"),
   },
   {
     ext: "fb2",
@@ -1370,30 +1261,7 @@ const allFormats: FormatInfo[] = [
       "FictionBook 2.0 (FB2) is an open XML-based ebook format particularly popular in Russia and Eastern Europe, where it became a dominant format for digital literature. It stores the entire book as structured XML with semantic markup for chapters, titles, annotations, author info, cover image, and metadata. FB2's clean single-file XML structure makes conversion to other ebook formats straightforward, and it is well-supported by e-reading software in Russian-speaking regions.",
     category: "ebook",
     mimeTypes: ["application/x-fb2"],
-    targetFormats: [
-      "adoc",
-      "azw3",
-      "docx",
-      "epub",
-      "html",
-      "ipynb",
-      "lrf",
-      "md",
-      "mobi",
-      "muse",
-      "odt",
-      "opml",
-      "org",
-      "pdb",
-      "pdf",
-      "pptx",
-      "rst",
-      "rtf",
-      "snb",
-      "tex",
-      "textile",
-      "txt",
-    ],
+    targetFormats: ebookNoSelf("fb2"),
   },
   {
     ext: "lrf",
@@ -1402,7 +1270,7 @@ const allFormats: FormatInfo[] = [
       "LRF is a proprietary ebook format developed by Sony specifically for their Reader series of e-ink devices (PRS-xxx lineup). It stores ebook content along with layout information optimized for Sony's display dimensions and rendering engine. Although Sony's Reader platform has been discontinued, existing LRF files can be converted to modern formats like EPUB using tools such as Calibre, preserving the content for current devices.",
     category: "ebook",
     mimeTypes: ["application/x-lrf"],
-    targetFormats: ["azw3", "epub", "fb2", "mobi", "pdb", "pdf", "snb"],
+    targetFormats: ebookNoSelf("lrf"),
   },
   {
     ext: "mobi",
@@ -1411,7 +1279,7 @@ const allFormats: FormatInfo[] = [
       "MOBI (Mobipocket eBook) is an ebook format originally developed by Mobipocket SA and later acquired by Amazon to power the original Kindle format. It supports reflowable text, embedded images, tables, and basic interactivity and is the ancestor of Amazon's modern AZW3/KF8 format. While newer Kindle devices use AZW3 natively, MOBI remains a widely supported conversion target and is used as an interchange format in ebook tools like Calibre.",
     category: "ebook",
     mimeTypes: ["application/x-mobipocket-ebook"],
-    targetFormats: ["azw3", "epub", "fb2", "lrf", "mobi", "pdb", "pdf", "snb"],
+    targetFormats: ebookNoSelf("mobi"),
   },
   {
     ext: "pdb",
@@ -1420,7 +1288,7 @@ const allFormats: FormatInfo[] = [
       "PDB (Palm Database eBook) was the native application and ebook file format for Palm OS handheld devices and early smartphones. In the ebook context, it refers to the eReader and Plucker ebook formats stored within PDB containers, which were popular during the Palm Pilot era. PDB ebooks are no longer in common use but can be converted to modern formats like EPUB to preserve content from older digital book collections.",
     category: "ebook",
     mimeTypes: ["application/x-pdb"],
-    targetFormats: ["azw3", "epub", "fb2", "lrf", "mobi", "pdf", "snb"],
+    targetFormats: ebookNoSelf("pdb"),
   },
   {
     ext: "snb",
@@ -1429,7 +1297,7 @@ const allFormats: FormatInfo[] = [
       "SNB (Shanda Bambook) is a proprietary ebook format developed by Shanda Literature for the Bambook e-reader device, popular in mainland China. It includes Chinese-language typography optimizations and DRM protection for content purchased from the Shanda Reading platform. SNB files can be converted to standard formats like EPUB or MOBI using conversion tools, allowing content to be read on more widely available modern devices.",
     category: "ebook",
     mimeTypes: ["application/x-snb"],
-    targetFormats: ["epub", "mobi", "pdf", "txt"],
+    targetFormats: ebookNoSelf("snb"),
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1631,7 +1499,7 @@ const allFormats: FormatInfo[] = [
       "Draw.io (now Diagrams.net) is a free, open-source diagramming application, and its .drawio format stores diagrams as XML preserving all shapes, connectors, styles, and layer information. It supports flowcharts, network diagrams, UML, entity-relationship diagrams, org charts, and hundreds of other diagram types. Draw.io files integrate directly with Google Drive, Confluence, Jira, and VS Code, and can be exported to PNG, SVG, and PDF.",
     category: "other",
     mimeTypes: ["application/x-drawio"],
-    targetFormats: ["jpeg", "pdf", "png", "svg"],
+    targetFormats: ["html", "md", "pdf", "png", "svg", "txt"],
   },
   {
     ext: "p7m",
@@ -1640,7 +1508,7 @@ const allFormats: FormatInfo[] = [
       "P7M is a file format based on CMS (Cryptographic Message Syntax, RFC 5652) used for storing digitally signed or encrypted documents. It wraps the original file — most commonly a PDF or XML — together with one or more cryptographic digital signatures that can be verified to confirm the document's authenticity and integrity. P7M is widely used across Europe for legally binding electronic signatures compliant with the eIDAS regulation, and is required by Italian public administrations for official document exchange.",
     category: "other",
     mimeTypes: ["application/pkcs7-mime", "application/x-pkcs7-mime"],
-    targetFormats: ["eml"],
+    targetFormats: ["html", "pdf", "txt"],
   },
 ];
 
@@ -1648,6 +1516,17 @@ export const formats: FormatInfo[] = allFormats;
 
 export function getFormatByExt(ext: string): FormatInfo | undefined {
   return formats.find((f) => f.ext === ext.toLowerCase());
+}
+
+/** Whether the UI/API lists this source→target pair as supported. */
+export function isConversionPairListed(
+  sourceExt: string,
+  targetExt: string,
+): boolean {
+  const src = getFormatByExt(sourceExt);
+  const tgt = targetExt.toLowerCase().replace(/^\./, "");
+  if (!src || !tgt || src.ext === tgt) return false;
+  return src.targetFormats.includes(tgt);
 }
 
 export function getFormatsByCategory(category: FormatCategory): FormatInfo[] {

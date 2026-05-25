@@ -1,128 +1,273 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
-
-export type ViewType =
-  | "converter"
-  | "formats"
-  | "history"
-  | "bookmarks"
-  | "profile"
-  | "admin"
-  | "admin-users"
-  | "admin-settings";
-
-export interface AuthUser {
+export type AppUser = {
   id: string;
   email: string;
-  name: string | null;
-  role: string;
-}
+  name?: string | null;
+  role?: string | null;
+  avatar?: string | null;
+  twoFactorEnabled?: boolean;
+};
 
-interface AppState {
-  currentView: ViewType;
-  setCurrentView: (view: ViewType) => void;
-  currentUser: AuthUser | null;
+type AuthResult = {
+  success: boolean;
+  error?: string;
+  user?: AppUser | null;
+  requiresTwoFactor?: boolean;
+};
+
+type ApiEnvelope = {
+  success?: boolean;
+  data?: unknown;
+  error?: string | { message?: string; code?: string } | null;
+  user?: unknown;
+  requiresTwoFactor?: boolean;
+  twoFactorRequired?: boolean;
+};
+
+type AppContextValue = {
+  user: AppUser | null;
+  currentUser: AppUser | null;
+  setUser: Dispatch<SetStateAction<AppUser | null>>;
+  currentView: string;
+  setCurrentView: Dispatch<SetStateAction<string>>;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; requires2FA?: boolean }>;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  login: (
+    email: string,
+    password: string,
+    twoFactorCode?: string,
+  ) => Promise<AuthResult>;
+  signup: (
+    name: string,
+    email: string,
+    password: string,
+  ) => Promise<AuthResult>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+};
+
+const noop = () => {};
+const asyncOk = async (): Promise<void> => {};
+const defaultAuthResult: AuthResult = { success: false, error: "Not initialized" };
+
+const defaultContextValue: AppContextValue = {
+  user: null,
+  currentUser: null,
+  setUser: noop as Dispatch<SetStateAction<AppUser | null>>,
+  currentView: "home",
+  setCurrentView: noop as Dispatch<SetStateAction<string>>,
+  loading: true,
+  isLoading: true,
+  isAuthenticated: false,
+  isAdmin: false,
+  login: async () => defaultAuthResult,
+  signup: async () => defaultAuthResult,
+  logout: asyncOk,
+  refreshUser: asyncOk,
+};
+
+const AppContext = createContext<AppContextValue>(defaultContextValue);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-const AppContext = createContext<AppState>({
-  currentView: "converter",
-  setCurrentView: () => {},
-  currentUser: null,
-  loading: true,
-  login: async () => ({ success: false, error: "Not initialized" }),
-  logout: async () => {},
-  refreshUser: async () => {},
-});
+function asUser(value: unknown): AppUser | null {
+  if (!isRecord(value) || typeof value.email !== "string") return null;
+
+  return {
+    id: typeof value.id === "string" ? value.id : value.email,
+    email: value.email,
+    name: typeof value.name === "string" ? value.name : null,
+    role: typeof value.role === "string" ? value.role : "user",
+    avatar: typeof value.avatar === "string" ? value.avatar : null,
+    twoFactorEnabled:
+      typeof value.twoFactorEnabled === "boolean"
+        ? value.twoFactorEnabled
+        : false,
+  };
+}
+
+function getEnvelopeUser(payload: unknown): AppUser | null {
+  if (!isRecord(payload)) return null;
+
+  const directUser = asUser(payload.user);
+  if (directUser) return directUser;
+
+  const data = payload.data;
+  if (isRecord(data)) {
+    const nestedUser = asUser(data.user);
+    if (nestedUser) return nestedUser;
+  }
+
+  return asUser(data);
+}
+
+function getErrorMessage(payload: unknown, fallback: string): string {
+  if (!isRecord(payload)) return fallback;
+
+  const error = payload.error;
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") {
+    return error.message;
+  }
+  if (typeof payload.message === "string") return payload.message;
+
+  return fallback;
+}
+
+async function readJson(res: Response): Promise<ApiEnvelope> {
+  try {
+    return (await res.json()) as ApiEnvelope;
+  } catch {
+    return {};
+  }
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [currentView, setCurrentView] = useState<ViewType>("converter");
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [currentView, setCurrentView] = useState("home");
   const [loading, setLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
-      const data = await res.json();
-      setCurrentUser(data.user || null);
+      const payload = await readJson(res);
+
+      if (!res.ok || payload.success === false) {
+        setUser(null);
+        return;
+      }
+
+      setUser(getEnvelopeUser(payload));
     } catch {
-      setCurrentUser(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        setCurrentUser(data.user || null);
-      } catch {
-        setCurrentUser(null);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  const login = useCallback(async (email: string, password: string) => {
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data.requires2FA) {
-          return { success: false, requires2FA: true };
-        }
-        return { success: false, error: data.error || "Login failed" };
-      }
-
-      await refreshUser();
-      return { success: true };
-    } catch {
-      return { success: false, error: "Network error" };
-    }
+    void refreshUser();
   }, [refreshUser]);
+
+  const login = useCallback(
+    async (
+      email: string,
+      password: string,
+      twoFactorCode?: string,
+    ): Promise<AuthResult> => {
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, twoFactorCode }),
+        });
+        const payload = await readJson(res);
+        const requiresTwoFactor = Boolean(
+          payload.requiresTwoFactor || payload.twoFactorRequired,
+        );
+
+        if (!res.ok || payload.success === false) {
+          return {
+            success: false,
+            error: getErrorMessage(payload, "Login failed"),
+            requiresTwoFactor,
+          };
+        }
+
+        const nextUser = getEnvelopeUser(payload);
+        setUser(nextUser);
+
+        return { success: true, user: nextUser, requiresTwoFactor };
+      } catch {
+        return { success: false, error: "Network error" };
+      }
+    },
+    [],
+  );
+
+  const signup = useCallback(
+    async (
+      name: string,
+      email: string,
+      password: string,
+    ): Promise<AuthResult> => {
+      try {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+        const payload = await readJson(res);
+
+        if (!res.ok || payload.success === false) {
+          return {
+            success: false,
+            error: getErrorMessage(payload, "Signup failed"),
+          };
+        }
+
+        const nextUser = getEnvelopeUser(payload);
+        setUser(nextUser);
+
+        return { success: true, user: nextUser };
+      } catch {
+        return { success: false, error: "Network error" };
+      }
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
-      // Ignore errors on logout
+      // Swallow logout transport errors and still clear local session state.
+    } finally {
+      setUser(null);
     }
-    setCurrentUser(null);
   }, []);
 
-  return (
-    <AppContext.Provider
-      value={{
-        currentView,
-        setCurrentView,
-        currentUser,
-        loading,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+  const value = useMemo<AppContextValue>(
+    () => ({
+      user,
+      currentUser: user,
+      setUser,
+      currentView,
+      setCurrentView,
+      loading,
+      isLoading: loading,
+      isAuthenticated: Boolean(user),
+      isAdmin: user?.role === "admin",
+      login,
+      signup,
+      logout,
+      refreshUser,
+    }),
+    [currentView, loading, login, logout, refreshUser, signup, user],
   );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
   return useContext(AppContext);
 }
 
-export { AppContext };
+export const useAppContext = useApp;

@@ -114,7 +114,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
   if (!format) {
     return (
       <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <div className="h-1 bg-gradient-to-r from-emerald-500 via-violet-500 to-amber-500" />
+        <div className="h-1 bg-emerald-500" />
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-8">
           <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center text-4xl">
             ❓
@@ -139,7 +139,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Accent bar */}
-      <div className="h-1 bg-gradient-to-r from-emerald-500 via-violet-500 to-amber-500" />
+      <div className="h-1 bg-emerald-500" />
 
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border">

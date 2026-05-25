@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getOptionalDb } from "@/lib/db";
 
 export interface AuthUser {
   id: string;
@@ -30,9 +30,14 @@ export async function getSessionUser(
     return null;
   }
 
+  const prisma = getOptionalDb();
+  if (!prisma) {
+    return null;
+  }
+
   let session;
   try {
-    session = await db.session.findUnique({
+    session = await prisma.session.findUnique({
       where: { token },
       include: { user: true },
     });
@@ -47,7 +52,7 @@ export async function getSessionUser(
 
   try {
     if (new Date(session.expiresAt) < new Date()) {
-      await db.session.delete({ where: { id: session.id } }).catch(() => {});
+      await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
       return null;
     }
   } catch {
@@ -120,39 +125,4 @@ export async function requireAuth(
   return { authorized: true, user };
 }
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-export function checkRateLimit(
-  identifier: string,
-  limit: number = 60,
-  windowMs: number = 60_000,
-): { allowed: boolean; remaining: number; resetIn: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(identifier);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(identifier, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1, resetIn: windowMs };
-  }
-
-  if (entry.count >= limit) {
-    return { allowed: false, remaining: 0, resetIn: entry.resetAt - now };
-  }
-
-  entry.count++;
-  return {
-    allowed: true,
-    remaining: limit - entry.count,
-    resetIn: entry.resetAt - now,
-  };
-}
-
-export function rateLimitHeaders(result: ReturnType<typeof checkRateLimit>) {
-  return {
-    "X-RateLimit-Remaining": String(result.remaining),
-    "X-RateLimit-Reset": String(Math.ceil(result.resetIn / 1000)),
-    "Retry-After": result.allowed
-      ? undefined
-      : String(Math.ceil(result.resetIn / 1000)),
-  };
-}
+export { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";

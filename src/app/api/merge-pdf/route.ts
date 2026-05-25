@@ -9,6 +9,15 @@ export const dynamic = "force-dynamic";
 
 const MAX_TOTAL_SIZE = 200 * 1024 * 1024;
 
+function isPdfBytes(buffer: Buffer): boolean {
+  return buffer.length >= 5 && buffer.subarray(0, 5).toString() === "%PDF-";
+}
+
+function fileExtension(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const ip =
@@ -50,12 +59,18 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const ext = fileExtension(file.name);
+      const treatAsPdf =
+        ext === "pdf" ||
+        file.type === "application/pdf" ||
+        isPdfBytes(buffer);
 
       try {
-        if (ext === "pdf") {
+        if (treatAsPdf) {
           const srcPdf = await PDFDocument.load(buffer, {
             ignoreEncryption: true,
+            updateMetadata: false,
+            throwOnInvalidObject: false,
           });
           const pages = await mergedPdf.copyPages(
             srcPdf,
@@ -176,7 +191,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/octet-stream",
         "X-Original-Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="merged-${Date.now()}.pdf"`,
+        "Content-Disposition": `attachment; filename="cloudconverter.tech-merged-${Date.now()}.pdf"`,
         "Content-Length": String(resultBuffer.length),
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store",

@@ -7,7 +7,8 @@ import {
   type FormatCategory,
 } from "@/lib/formats";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getOptionalDb } from "@/lib/db";
+import { parseStoredJsonArray } from "@/lib/http-json";
 
 /** Attach rate limit headers to any response. */
 function withRateLimit(
@@ -39,16 +40,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to get categories from DB first
-    let dbCategories = await db.category.findMany({
-      where: { enabled: true },
-      include: {
-        formats: {
+    // Try DB categories; fall back to static formats when Prisma is unavailable
+    let dbCategories: Awaited<
+      ReturnType<NonNullable<ReturnType<typeof getOptionalDb>>["category"]["findMany"]>
+    > = [];
+    const prisma = getOptionalDb();
+    if (prisma) {
+      try {
+        dbCategories = await prisma.category.findMany({
           where: { enabled: true },
-        },
-      },
-      orderBy: { order: "asc" },
-    }).catch(() => []);
+          include: {
+            formats: {
+              where: { enabled: true },
+            },
+          },
+          orderBy: { order: "asc" },
+        });
+      } catch (err) {
+        console.warn("[api/formats] DB query failed, using static formats:", err);
+      }
+    }
 
     const categoryCounts = getCategoryCount();
     const grouped: Record<string, any> = {};
@@ -68,8 +79,8 @@ export async function GET(request: NextRequest) {
             name: f.name,
             description: f.description,
             category: cat.name,
-            mimeTypes: JSON.parse(f.mimeTypes),
-            targetFormats: JSON.parse(f.targetFormats),
+            mimeTypes: parseStoredJsonArray(f.mimeTypes),
+            targetFormats: parseStoredJsonArray(f.targetFormats),
           })),
           count: cat.formats.length,
         };

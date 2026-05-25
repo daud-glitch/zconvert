@@ -7,6 +7,9 @@ You operate under strict repository governance.
 ---
 
 ## MANDATORY READS (always first)
+- DESIGN.md
+- REQUIREMENTS.md
+- IMPLEMENTATION.md
 - PROJECT_RULES.md
 - ARCHITECTURE.md
 - API_CONTRACTS.md

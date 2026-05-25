@@ -1,0 +1,21 @@
+/** Raster formats produced from PDF page screenshots (no heavy deps). */
+export const PDF_RASTER_TARGETS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+  "bmp",
+  "tiff",
+  "tif",
+  "ico",
+  "avif",
+]);
+
+export function isPdfRasterTarget(ext: string): boolean {
+  return PDF_RASTER_TARGETS.has(ext.toLowerCase().replace(/^\./, ""));
+}
+
+export type PdfRasterConvertResult =
+  | { type: "single"; data: Buffer }
+  | { type: "zip"; data: Buffer; pageCount: number };

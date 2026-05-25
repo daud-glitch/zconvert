@@ -13,6 +13,7 @@ import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { getCategoryFromExt, getCategoryIcon } from "@/lib/app-helpers";
 import { Breadcrumb } from "@/components/common/Breadcrumb";
 import { useApp } from "@/lib/app-context";
+import { readJsonResponse } from "@/lib/http-json";
 
 export function FormatsView() {
   const { setCurrentView: navigate } = useApp();
@@ -22,9 +23,9 @@ export function FormatsView() {
 
   useEffect(() => {
     fetch("/api/formats")
-      .then((r) => r.json())
+      .then((r) => readJsonResponse<FormatsData>(r))
       .then(setData)
-      .catch(() => {});
+      .catch((err) => console.error("Failed to load formats:", err));
   }, []);
 
   if (!data) {

@@ -1,7 +1,29 @@
 import sharp from "sharp";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import mammoth from "mammoth";
-import * as pdfParse from "pdf-parse";
+import { isPdfRasterTarget } from "@/lib/pdf-raster-targets";
+import { decodeImageToPng } from "@/lib/image-decode";
+import { formats } from "@/lib/formats";
+import {
+  convertViaLibreOffice,
+  createRarWithToolchain,
+  type ArchiveEntry,
+} from "@/lib/external-toolchain";
+import {
+  extractArchiveEntries,
+  extractDocText,
+  extractDrawioContent,
+  extractFb2Text,
+  extractMsgText,
+  extractP7mContent,
+  packTo7zip,
+  readBinaryDataRecords,
+  writeParquetBuffer,
+} from "@/lib/format-readers";
 import PptxGenJS from "pptxgenjs";
 import * as XLSX from "xlsx";
 import archiver from "archiver";
@@ -15,71 +37,29 @@ import { parse as csvParse } from "csv-parse/sync";
 import { stringify as csvStringify } from "csv-stringify/sync";
 import he from "he";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
-import ffmpeg from "fluent-ffmpeg";
 import { PassThrough } from "stream";
+import type Ffmpeg from "fluent-ffmpeg";
 
-// Set ffmpeg and ffprobe paths lazily
-function initFfmpeg() {
+/** Load ffmpeg only for audio routes (keeps serverless bundle smaller on Vercel). */
+async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
+  const ffmpegMod = await import("fluent-ffmpeg");
+  const ffmpeg = ffmpegMod.default;
   try {
-    const ffmpegStatic = require("ffmpeg-static");
-    const ffprobeStatic = require("ffprobe-static");
-    
+    const ffmpegStatic = require("ffmpeg-static") as string | undefined;
     if (ffmpegStatic) {
       ffmpeg.setFfmpegPath(ffmpegStatic);
     }
-    if (ffprobeStatic && ffprobeStatic.path) {
-      ffmpeg.setFfprobePath(ffprobeStatic.path);
-    }
   } catch (err) {
-    console.error("Failed to initialize ffmpeg paths:", err);
+    console.error("Failed to set ffmpeg path:", err);
   }
+  return ffmpeg as any;
 }
 
-// Initialize paths immediately
-initFfmpeg();
-
 // ─── Format Sets ────────────────────────────────────────────────────────────
-const imageInputFormats = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "webp",
-  "avif",
-  "bmp",
-  "gif",
-  "tiff",
-  "ico",
-  "heic",
-  "psd",
-  "apng",
-  "blp",
-  "cur",
-  "dds",
-  "dib",
-  "eps",
-  "heif",
-  "icns",
-  "jp2",
-  "jxl",
-  "mpo",
-  "msp",
-  "pbm",
-  "pcx",
-  "pfm",
-  "pgm",
-  "pnm",
-  "ppm",
-  "qoi",
-  "sgi",
-  "svg",
-  "tga",
-  "tgs",
-  "xbm",
-  "xpm",
-  "dcx",
-  "fli",
-  "flc",
-]);
+/** All image formats listed in formats.ts (39 UI entries). */
+export const imageInputFormats = new Set(
+  formats.filter((f) => f.category === "image").map((f) => f.ext),
+);
 // Helper: encode raw RGBA pixel data to BMP format
 function encodeBmp(data: Buffer, width: number, height: number): Buffer {
   const rowSize = Math.ceil((width * 3) / 4) * 4; // BMP rows are 4-byte aligned
@@ -138,8 +118,40 @@ function encodeIco(data: Buffer, width: number, height: number): Buffer {
   return ico;
 }
 
+/** Decode 24-bit BMP (from ICO payload) to RGBA for sharp. */
+function decodeBmpToRgba(bmp: Buffer): {
+  data: Buffer;
+  width: number;
+  height: number;
+} {
+  if (bmp.length < 54 || bmp.toString("ascii", 0, 2) !== "BM") {
+    throw new Error("Invalid BMP data in icon");
+  }
+  const pixelOffset = bmp.readUInt32LE(10);
+  const width = bmp.readInt32LE(18);
+  const height = Math.abs(bmp.readInt32LE(22));
+  const bpp = bmp.readUInt16LE(28);
+  if (bpp !== 24) throw new Error("Only 24-bit BMP icons are supported");
 
-const _sharpOutputs = new Set([
+  const rowSize = Math.ceil((width * 3) / 4) * 4;
+  const rgba = Buffer.alloc(width * height * 4);
+
+  for (let y = 0; y < height; y++) {
+    const srcY = height - 1 - y;
+    for (let x = 0; x < width; x++) {
+      const srcIdx = pixelOffset + srcY * rowSize + x * 3;
+      const dstIdx = (y * width + x) * 4;
+      rgba[dstIdx] = bmp[srcIdx + 2];
+      rgba[dstIdx + 1] = bmp[srcIdx + 1];
+      rgba[dstIdx + 2] = bmp[srcIdx];
+      rgba[dstIdx + 3] = 255;
+    }
+  }
+  return { data: rgba, width, height };
+}
+
+/** Formats convertImage can encode (must match formats.ts imgOutputSupported). */
+export const imageOutputFormats = new Set([
   "png",
   "jpg",
   "jpeg",
@@ -148,9 +160,26 @@ const _sharpOutputs = new Set([
   "bmp",
   "gif",
   "tiff",
+  "tif",
   "ico",
+  "cur",
   "pdf",
+  "svg",
 ]);
+
+function wrapIcoAsCur(ico: Buffer): Buffer {
+  const cur = Buffer.from(ico);
+  cur.writeUInt16LE(2, 2);
+  return cur;
+}
+
+/** Prepare input bytes for sharp (delegates to image-decode for exotic formats). */
+async function normalizeImageInput(
+  input: Buffer,
+  inputExt: string,
+): Promise<Buffer> {
+  return decodeImageToPng(input, inputExt);
+}
 
 const dataFormats = new Set([
   "csv",
@@ -174,8 +203,104 @@ const dataFormats = new Set([
   "xpt",
   "xml",
   "yaml",
+  "yml",
   "vcf",
 ]);
+
+/** Data outputs the converter actually produces (must match formats.ts dataOutputSupported). */
+export const dataOutputFormats = new Set([
+  "csv",
+  "tsv",
+  "json",
+  "jsonl",
+  "yaml",
+  "yml",
+  "xml",
+  "html",
+  "ini",
+  "toml",
+  "env",
+  "xlsx",
+  "xls",
+  "ods",
+  "vcf",
+  "fwf",
+  "pdf",
+  "txt",
+  "md",
+  "parquet",
+]);
+
+const dataBinaryReadableFormats = new Set([
+  "dta",
+  "feather",
+  "parquet",
+  "sav",
+  "sqlite",
+]);
+
+const dataBinaryUnsupportedFormats = new Set(["orc", "toon", "xpt"]);
+
+/** Subtitle outputs (must match formats.ts subtitle targets). */
+export const subtitleOutputFormats = new Set([
+  "srt",
+  "vtt",
+  "ass",
+  "ssa",
+  "sub",
+  "mpl",
+]);
+
+/** Archive outputs the converter actually produces. */
+export const archiveOutputFormats = new Set([
+  "zip",
+  "cbz",
+  "tar",
+  "tar.gz",
+  "tar.bz2",
+  "tar.xz",
+  "tar.zst",
+  "7z",
+  "rar",
+]);
+
+/** Presentation outputs (must match formats.ts presOutputSupported). */
+export const presentationOutputFormats = new Set([
+  "html",
+  "htm",
+  "jpeg",
+  "jpg",
+  "png",
+  "odp",
+  "pdf",
+  "pptx",
+  "txt",
+]);
+
+/** Ebook text/document outputs (binary Kindle/Sony formats are not generated). */
+export const ebookOutputFormats = new Set([
+  "txt",
+  "md",
+  "html",
+  "htm",
+  "pdf",
+  "epub",
+  "docx",
+  "odt",
+  "rtf",
+  "tex",
+  "textile",
+  "adoc",
+  "org",
+  "rst",
+  "opml",
+  "muse",
+  "ipynb",
+  "pptx",
+]);
+
+/** Font outputs (must match formats.ts font targets). */
+export const fontOutputFormats = new Set(["otf", "ttf", "woff", "woff2"]);
 
 const docFormats = new Set([
   "pdf",
@@ -197,6 +322,34 @@ const docFormats = new Set([
   "textile",
   "eml",
   "msg",
+]);
+
+/** Document outputs the converter actually produces (must match formats.ts docOutputSupported). */
+export const docOutputFormats = new Set([
+  "doc",
+  "txt",
+  "md",
+  "html",
+  "htm",
+  "pdf",
+  "docx",
+  "odt",
+  "rtf",
+  "tex",
+  "textile",
+  "adoc",
+  "org",
+  "rst",
+  "opml",
+  "muse",
+  "ipynb",
+  "epub",
+  "pptx",
+  "json",
+  "yaml",
+  "xml",
+  "csv",
+  "tsv",
 ]);
 
 const audioFormats = new Set([
@@ -257,19 +410,17 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
-async function textToPdf(text: string, _title: string = "Document"): Promise<Buffer> {
-  // Sanitize text to remove characters not supported by WinAnsiEncoding
-  // and handle empty or very long text cases
+export async function textToPdf(text: string, _title: string = "Document"): Promise<Buffer> {
   const sanitizedText = (text || "[No Content]")
-    // Remove control characters except \n, \r, \t
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
-    // Replace remaining non-ASCII characters with ?
-    .replace(/[^\x00-\x7F]/g, "?")
-    .slice(0, 100000); // Limit text length for safety
+    .slice(0, 100000);
 
   try {
     const pdfDoc = await PDFDocument.create();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    pdfDoc.registerFontkit(fontkit);
+    const { loadPdfUnicodeFontBytes } = await import("@/lib/pdf-utils");
+    const fontBytes = await loadPdfUnicodeFontBytes();
+    const font = await pdfDoc.embedFont(fontBytes);
     const fontSize = 11;
     const margin = 50;
     const pageWidth = 595.28 - margin * 2;
@@ -609,6 +760,75 @@ function toJsonl(data: Record<string, unknown>[]): string {
   return data.map((d) => JSON.stringify(d)).join("\n");
 }
 
+function parseYamlRecords(text: string): Record<string, unknown>[] {
+  const parsed: unknown = jsYaml.load(text);
+  if (Array.isArray(parsed)) {
+    return parsed as Record<string, unknown>[];
+  }
+  if (parsed && typeof parsed === "object") {
+    const obj = parsed as Record<string, unknown>;
+    const arrayKey = Object.keys(obj).find((k) => Array.isArray(obj[k]));
+    if (arrayKey) {
+      return obj[arrayKey] as Record<string, unknown>[];
+    }
+    return [obj];
+  }
+  return [{ value: parsed }];
+}
+
+function recordsFromXmlNode(node: unknown): Record<string, unknown>[] {
+  if (Array.isArray(node)) {
+    return node.map((item) =>
+      typeof item === "object" && item !== null
+        ? (item as Record<string, unknown>)
+        : { value: item },
+    );
+  }
+  if (node && typeof node === "object") {
+    const obj = node as Record<string, unknown>;
+    const arrayKey = Object.keys(obj).find((k) => Array.isArray(obj[k]));
+    if (arrayKey) {
+      const arr = obj[arrayKey] as unknown[];
+      return arr.map((item) =>
+        typeof item === "object" && item !== null
+          ? (item as Record<string, unknown>)
+          : { value: item },
+      );
+    }
+    return [obj];
+  }
+  return [{ value: node }];
+}
+
+function xmlToRecords(parsed: unknown): Record<string, unknown>[] {
+  if (!parsed || typeof parsed !== "object") {
+    return [{ value: parsed }];
+  }
+  const obj = parsed as Record<string, unknown>;
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith("?") || key === "#text") continue;
+    if (value !== null && typeof value === "object") {
+      const records = recordsFromXmlNode(value);
+      if (records.length > 0 && !(records.length === 1 && "@_version" in records[0])) {
+        return records;
+      }
+    }
+  }
+  return recordsFromXmlNode(parsed);
+}
+
+function recordsToMarkdownTable(records: Record<string, unknown>[]): string {
+  if (!records.length) return "";
+  const headers = Object.keys(records[0]);
+  const headerRow = `| ${headers.join(" | ")} |`;
+  const sep = `| ${headers.map(() => "---").join(" | ")} |`;
+  const rows = records.map(
+    (r) =>
+      `| ${headers.map((h) => String(r[h] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`,
+  );
+  return [headerRow, sep, ...rows].join("\n");
+}
+
 // ─── Subtitle Parsers ───────────────────────────────────────────────────────
 interface SubtitleEntry {
   index: number;
@@ -816,81 +1036,100 @@ async function convertImage(
   height?: number | null,
 ): Promise<Buffer> {
   const target =
-    outputExt.toLowerCase() === "jpeg" ? "jpg" : outputExt.toLowerCase();
-  const pipeline = sharp(input, { failOn: "none" }).rotate(); // auto-rotate based on EXIF
+    outputExt.toLowerCase() === "jpeg"
+      ? "jpg"
+      : outputExt.toLowerCase() === "tif"
+        ? "tiff"
+        : outputExt.toLowerCase();
 
-  if (width && height) pipeline.resize(width, height, { fit: "fill" });
-  else if (width) pipeline.resize(width, null, { fit: "inside" });
-  else if (height) pipeline.resize(null, height, { fit: "inside" });
+  if (!imageOutputFormats.has(target)) {
+    throw new Error(
+      `Image output .${outputExt.toUpperCase()} is not supported. Supported: ${[...imageOutputFormats].sort().join(", ")}`,
+    );
+  }
 
-  switch (target) {
-    case "png":
-      return pipeline.png().toBuffer();
-    case "jpg":
-      return pipeline.jpeg({ quality }).toBuffer();
-    case "webp":
-      return pipeline.webp({ quality }).toBuffer();
-    case "avif":
-      return pipeline.avif({ quality }).toBuffer();
-    case "bmp": {
-      // BMP not directly supported by sharp v0.34+, convert via raw pixels
-      const { data, info } = await pipeline
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      return encodeBmp(data, info.width, info.height);
+  const prepared = await normalizeImageInput(input, inputExt);
+  const density = inputExt.toLowerCase() === "svg" ? 300 : undefined;
+  let pipeline = sharp(prepared, { failOn: "none", density }).rotate();
+
+  if (width && height) pipeline = pipeline.resize(width, height, { fit: "fill" });
+  else if (width) pipeline = pipeline.resize(width, null, { fit: "inside" });
+  else if (height) pipeline = pipeline.resize(null, height, { fit: "inside" });
+
+  try {
+    switch (target) {
+      case "png":
+        return pipeline.png().toBuffer();
+      case "jpg":
+        return pipeline.jpeg({ quality }).toBuffer();
+      case "webp":
+        return pipeline.webp({ quality }).toBuffer();
+      case "avif":
+        return pipeline.avif({ quality }).toBuffer();
+      case "bmp": {
+        const { data, info } = await pipeline
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        return encodeBmp(data, info.width, info.height);
+      }
+      case "gif":
+        return pipeline.gif().toBuffer();
+      case "tiff":
+        return pipeline.tiff().toBuffer();
+      case "ico":
+      case "cur": {
+        const { data, info } = await pipeline
+          .resize(32, 32, {
+            fit: "contain",
+            background: { r: 255, g: 255, b: 255, alpha: 0 },
+          })
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const ico = encodeIco(data, info.width, info.height);
+        return target === "cur" ? wrapIcoAsCur(ico) : ico;
+      }
+      case "svg": {
+        const pngBuf = await pipeline.png().toBuffer();
+        const meta = await sharp(pngBuf).metadata();
+        const w = meta.width || 1;
+        const h = meta.height || 1;
+        const b64 = pngBuf.toString("base64");
+        return Buffer.from(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><image width="${w}" height="${h}" href="data:image/png;base64,${b64}"/></svg>`,
+        );
+      }
+      case "pdf": {
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage([595.28, 841.89]);
+        const { width: imgW, height: imgH } = await pipeline.metadata();
+        const pngBuf = await pipeline.png().toBuffer();
+        const image = await pdfDoc.embedPng(pngBuf);
+        const margin = 50;
+        const maxWidth = 595.28 - margin * 2;
+        const maxHeight = 841.89 - margin * 2;
+        let finalWidth = imgW || maxWidth;
+        let finalHeight = imgH || maxHeight;
+        const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
+        finalWidth *= ratio;
+        finalHeight *= ratio;
+        page.drawImage(image, {
+          x: (595.28 - finalWidth) / 2,
+          y: (841.89 - finalHeight) / 2,
+          width: finalWidth,
+          height: finalHeight,
+        });
+        return Buffer.from(await pdfDoc.save());
+      }
+      default:
+        throw new Error(`Unsupported image output: ${target}`);
     }
-    case "gif":
-      return pipeline.gif().toBuffer();
-    case "tiff":
-      return pipeline.tiff().toBuffer();
-    case "ico": {
-      // ICO format: resize to standard icon sizes and output as ICO with BMP data
-      const resized = sharp(input).resize(256, 256);
-      const { data, info } = await resized
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      return encodeIco(data, info.width, info.height);
-    }
-    case "svg": {
-      const pngBuf = await sharp(input).png().toBuffer();
-      const b64 = pngBuf.toString("base64");
-      return Buffer.from(
-        `<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,${b64}"/></svg>`,
-      );
-    }
-    case "pdf": {
-      // Use standard A4 dimensions for image-to-pdf
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage([595.28, 841.89]);
-      const { width: imgW, height: imgH } = await pipeline.metadata();
-      
-      const pngBuf = await pipeline.png().toBuffer();
-      const image = await pdfDoc.embedPng(pngBuf);
-      
-      // Calculate scaling to fit image within A4 margins
-      const margin = 50;
-      const maxWidth = 595.28 - margin * 2;
-      const maxHeight = 841.89 - margin * 2;
-      
-      let finalWidth = imgW || maxWidth;
-      let finalHeight = imgH || maxHeight;
-      
-      const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
-      finalWidth *= ratio;
-      finalHeight *= ratio;
-      
-      page.drawImage(image, {
-        x: (595.28 - finalWidth) / 2,
-        y: (841.89 - finalHeight) / 2,
-        width: finalWidth,
-        height: finalHeight,
-      });
-      
-      const pdfBytes = await pdfDoc.save();
-      return Buffer.from(pdfBytes);
-    }
-    default:
-      return pipeline.png().toBuffer();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to convert ${inputExt.toUpperCase()} to ${outputExt.toUpperCase()}: ${msg}`,
+    );
   }
 }
 
@@ -902,7 +1141,20 @@ async function convertData(
 ): Promise<Buffer> {
   const text = input.toString("utf-8");
   const src = inputExt.toLowerCase();
-  const dest = outputExt.toLowerCase();
+  const dest =
+    outputExt.toLowerCase() === "htm" ? "html" : outputExt.toLowerCase();
+
+  if (!dataOutputFormats.has(dest)) {
+    throw new Error(
+      `Data output .${outputExt.toUpperCase()} is not supported. Supported: ${[...dataOutputFormats].sort().join(", ")}`,
+    );
+  }
+
+  if (dataBinaryUnsupportedFormats.has(src)) {
+    throw new Error(
+      `Reading ${src.toUpperCase()} files is not supported. Try JSON, CSV, TSV, YAML, XML, or XLSX.`,
+    );
+  }
 
   // Parse source into array of records
   let records: Record<string, unknown>[] = [];
@@ -917,27 +1169,21 @@ async function convertData(
   } else if (src === "tsv") {
     records = parseCsv(text, "\t");
   } else if (src === "yaml" || src === "yml") {
-    const parsed: Record<string, unknown> = jsYaml.load(text) as Record<string, unknown>;
-    records = Array.isArray(parsed)
-      ? parsed
-      : typeof parsed === "object"
-        ? [parsed]
-        : [{ value: parsed }];
+    records = parseYamlRecords(text);
   } else if (src === "xml") {
     try {
       const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: "@_",
         parseAttributeValue: true,
+        ignoreDeclaration: true,
       });
-      const parsed = parser.parse(text);
-      // Try to find the most relevant array or object in the XML
-      const root = Object.values(parsed).find(v => typeof v === "object") || parsed;
-      const data = Array.isArray(root) ? root : [root];
-      records = data.map(item => (typeof item === "object" ? item : { value: item }));
+      records = xmlToRecords(parser.parse(text));
     } catch (err) {
       console.error("XML Parsing Error:", err);
-      records = [{ _raw: text, _error: "Failed to parse XML" }];
+      throw new Error(
+        `Failed to parse XML: ${err instanceof Error ? err.message : "invalid XML"}`,
+      );
     }
   } else if (src === "toml") {
     const parsed = toml.parse(text);
@@ -962,22 +1208,17 @@ async function convertData(
     try {
       const wb = XLSX.read(input, { type: "buffer" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      records = XLSX.utils.sheet_to_json(ws);
-    } catch {
-      records = [{ _raw: "[binary spreadsheet data]", _format: src }];
+      records = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
+      if (!records.length) {
+        throw new Error("Spreadsheet has no data rows");
+      }
+    } catch (err) {
+      throw new Error(
+        `Failed to read ${src.toUpperCase()}: ${err instanceof Error ? err.message : "invalid spreadsheet"}`,
+      );
     }
-  } else if (
-    src === "dta" ||
-    src === "sav" ||
-    src === "xpt" ||
-    src === "feather" ||
-    src === "orc" ||
-    src === "parquet" ||
-    src === "sqlite" ||
-    src === "toon"
-  ) {
-    // Binary formats — attempt XLSX read as fallback, otherwise wrap raw
-    records = [{ _raw: text, _format: src }];
+  } else if (dataBinaryReadableFormats.has(src)) {
+    records = await readBinaryDataRecords(input, src);
   } else {
     records = [{ content: text }];
   }
@@ -1068,19 +1309,42 @@ async function convertData(
     }
     case "vcf":
       return Buffer.from(toVcf(records as Record<string, string>[]), "utf-8");
-    case "fwf":
-    case "dta":
-    case "sav":
-    case "xpt":
-    case "feather":
-    case "orc":
+    case "fwf": {
+      if (!records.length) return Buffer.from("", "utf-8");
+      const keys = Object.keys(records[0]);
+      const widths = keys.map((k) =>
+        Math.max(k.length, ...records.map((r) => String(r[k] ?? "").length)),
+      );
+      const header = keys
+        .map((k, i) => k.padEnd(widths[i] + 2))
+        .join("")
+        .trimEnd();
+      const rows = records.map((r) =>
+        keys
+          .map((k, i) => String(r[k] ?? "").padEnd(widths[i] + 2))
+          .join("")
+          .trimEnd(),
+      );
+      return Buffer.from([header, ...rows].join("\n"), "utf-8");
+    }
+    case "txt":
+      return Buffer.from(
+        toCsv(records) || JSON.stringify(records, null, 2),
+        "utf-8",
+      );
+    case "md":
+      return Buffer.from(recordsToMarkdownTable(records), "utf-8");
+    case "pdf":
+      return textToPdf(
+        toCsv(records) || JSON.stringify(records, null, 2),
+        "Data",
+      );
     case "parquet":
-    case "sqlite":
-    case "toon":
-      // Binary output — fall back to CSV
-      return Buffer.from(toCsv(records), "utf-8");
+      return writeParquetBuffer(records);
     default:
-      return Buffer.from(JSON.stringify(records, null, 2), "utf-8");
+      throw new Error(
+        `Data conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not implemented`,
+      );
   }
 }
 
@@ -1101,24 +1365,50 @@ async function extractDocumentText(
     }
   }
 
-  if (src === "pdf") {
+  if (src === "doc") {
     try {
-      const data = await pdfParse(input);
-      return data.text || "[PDF with no text content]";
+      return (await extractDocText(input)) || "[Empty DOC document]";
     } catch (err) {
-      console.error("PDF extraction error:", err);
-      return "[Error extracting PDF content]";
+      console.error("DOC extraction error:", err);
+      return "[Error extracting DOC content]";
     }
   }
 
-  if (src === "doc") {
-    const text = input.toString("latin1");
-    const cleaned = text
-      .replace(/[\x00-\x1F\x7F-\x9F]/g, " ")
-      .replace(/\s{3,}/g, "\n")
-      .replace(/[^\x20-\x7E\n]/g, "")
-      .trim();
-    return cleaned || "[Binary DOC content]";
+  if (src === "msg") {
+    try {
+      return await extractMsgText(input);
+    } catch (err) {
+      console.error("MSG extraction error:", err);
+      return "[Error extracting MSG content]";
+    }
+  }
+
+  if (src === "pdf") {
+    const { extractPdfText } = await import("@/lib/pdf-utils");
+    return extractPdfText(input);
+  }
+
+  if (src === "odt") {
+    try {
+      const zip = await JSZip.loadAsync(input);
+      const contentXml = await zip.file("content.xml")?.async("string");
+      if (!contentXml) return "[Empty ODT document]";
+      const text = contentXml
+        .replace(/<text:line-break\/>/g, "\n")
+        .replace(/<text:p[^>]*>/g, "\n")
+        .replace(/<text:span[^>]*>/g, "")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      return text || "[ODT with no text content]";
+    } catch (err) {
+      console.error("ODT extraction error:", err);
+      return "[Error extracting ODT content]";
+    }
   }
 
   return "";
@@ -1131,19 +1421,34 @@ async function convertDocument(
   outputExt: string,
 ): Promise<Buffer> {
   const src = inputExt.toLowerCase();
-  const dest = outputExt.toLowerCase();
+  const dest =
+    outputExt.toLowerCase() === "htm" ? "html" : outputExt.toLowerCase();
+
+  if (!docOutputFormats.has(dest)) {
+    throw new Error(
+      `Document output .${outputExt.toUpperCase()} is not supported. Supported: ${[...docOutputFormats].sort().join(", ")}`,
+    );
+  }
+
+  if (dest === "doc") {
+    const docxBuffer = await convertDocument(input, inputExt, "docx");
+    const viaLibreOffice = await convertViaLibreOffice(
+      docxBuffer,
+      "docx",
+      "doc",
+      "MS Word 97",
+    );
+    if (viaLibreOffice) return viaLibreOffice;
+    throw new Error(
+      "DOC conversion requires LibreOffice. Set SOFFICE_BIN to enable.",
+    );
+  }
 
   // Extract text from binary document formats first
   let plainText = "";
-  if (src === "docx" || src === "pdf" || src === "doc") {
+  if (src === "docx" || src === "pdf" || src === "doc" || src === "odt") {
     plainText = await extractDocumentText(input, src);
-  } else if (
-    src === "xlsx" ||
-    src === "xls" ||
-    src === "odt" ||
-    src === "ods"
-  ) {
-    // For spreadsheet formats, try to extract basic text representation
+  } else if (src === "xlsx" || src === "xls" || src === "ods") {
     if (src === "xlsx" || src === "xls") {
       try {
         const wb = XLSX.read(input, { type: "buffer" });
@@ -1160,14 +1465,15 @@ async function convertDocument(
     // Use presentation text extractor
     plainText = await extractPresentationText(input, src);
   } else {
-    // Text-based formats
     const text = input.toString("utf-8");
 
     if (src === "html" || src === "htm") {
-      plainText = htmlToText(text);
+      plainText = dest === "html" ? text : htmlToText(text);
     } else if (src === "md") {
       plainText = text;
-    } else if (src === "eml" || src === "msg") {
+    } else if (src === "msg") {
+      plainText = await extractMsgText(input);
+    } else if (src === "eml") {
       const bodyMatch =
         text.match(/<body[^>]*>([\s\S]*?)<\/body>/i) ||
         text.match(/\n\n([\s\S]*)$/);
@@ -1198,15 +1504,20 @@ async function convertDocument(
     case "txt":
       return Buffer.from(plainText, "utf-8");
     case "md":
+      if (src === "html" || src === "htm") {
+        return Buffer.from(htmlToText(input.toString("utf-8")), "utf-8");
+      }
       return Buffer.from(plainText, "utf-8");
     case "html":
-    case "htm":
-      if (src === "md")
+      if (src === "md") {
         return Buffer.from(wrapHtml(mdToHtml(plainText), "Document"), "utf-8");
-      if (src === "rst")
+      }
+      if (src === "rst") {
         return Buffer.from(wrapHtml(mdToHtml(plainText), "Document"), "utf-8");
-      if (src === "html" || src === "htm")
-        return Buffer.from(plainText, "utf-8");
+      }
+      if (src === "html" || src === "htm") {
+        return Buffer.from(input.toString("utf-8"), "utf-8");
+      }
       return Buffer.from(
         wrapHtml(
           plainText
@@ -1362,7 +1673,9 @@ async function convertDocument(
       return Buffer.from(await zip.generateAsync({ type: "arraybuffer" }));
     }
     default:
-      return Buffer.from(plainText, "utf-8");
+      throw new Error(
+        `Document conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not implemented`,
+      );
   }
 }
 
@@ -1375,6 +1688,12 @@ async function convertSubtitle(
   const text = input.toString("utf-8");
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
+
+  if (!subtitleOutputFormats.has(dest)) {
+    throw new Error(
+      `Subtitle output .${outputExt.toUpperCase()} is not supported. Supported: ${[...subtitleOutputFormats].sort().join(", ")}`,
+    );
+  }
 
   // Parse source
   let entries: SubtitleEntry[] = [];
@@ -1416,7 +1735,9 @@ async function convertSubtitle(
     case "mpl":
       return Buffer.from(toMpl(entries), "utf-8");
     default:
-      return Buffer.from(toSrt(entries), "utf-8");
+      throw new Error(
+        `Subtitle conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not implemented`,
+      );
   }
 }
 
@@ -1427,12 +1748,21 @@ async function convertEbook(
   outputExt: string,
 ): Promise<Buffer> {
   const src = inputExt.toLowerCase();
-  const dest = outputExt.toLowerCase();
+  const dest =
+    outputExt.toLowerCase() === "htm" ? "html" : outputExt.toLowerCase();
+
+  if (!ebookOutputFormats.has(dest)) {
+    throw new Error(
+      `Ebook output .${outputExt.toUpperCase()} is not supported. Supported: ${[...ebookOutputFormats].sort().join(", ")}`,
+    );
+  }
 
   // Try to extract text from ebook
   let text = "";
   try {
-    if (src === "epub" || src === "cbz" || src === "cb7" || src === "cbr") {
+    if (src === "fb2") {
+    text = await extractFb2Text(input);
+  } else if (src === "epub" || src === "cbz" || src === "cb7" || src === "cbr") {
       // Try reading as ZIP (EPUB/CBZ are ZIP-based)
       const zip = await JSZip.loadAsync(input);
       const htmlFiles: string[] = [];
@@ -1463,45 +1793,14 @@ async function convertEbook(
       .trim();
   }
 
-  // Route to document converter for text-based outputs
-  if (
-    [
-      "txt",
-      "md",
-      "html",
-      "pdf",
-      "rtf",
-      "tex",
-      "textile",
-      "json",
-      "adoc",
-      "org",
-      "rst",
-      "opml",
-      "muse",
-      "docx",
-      "odt",
-    ].includes(dest)
-  ) {
-    return convertDocument(Buffer.from(text, "utf-8"), "md", dest);
-  }
-
-  // For ebook-to-ebook binary conversions, wrap in EPUB
-  if (dest === "epub") {
-    return convertDocument(Buffer.from(text, "utf-8"), "md", "epub");
-  }
-
-  // Pass through for other binary ebook formats
-  return input;
+  const plain = text.trim() || "Ebook content";
+  return convertDocument(Buffer.from(plain, "utf-8"), "md", dest);
 }
 
 // ─── PPTX Generator from Text ──────────────────────────────────────────────
-function createPptxFromText(text: string): Buffer {
+async function createPptxFromText(text: string): Promise<Buffer> {
   const pres = new PptxGenJS();
-  pres.defineLayout({
-    name: "LAYOUT1",
-    master: "MASTER1",
-  });
+  pres.defineLayout({ name: "LAYOUT_16x9", width: 10, height: 5.625 });
 
   const slide = pres.addSlide();
   slide.background = { color: "FFFFFF" };
@@ -1533,7 +1832,8 @@ function createPptxFromText(text: string): Buffer {
     yPos += 0.5;
   }
 
-  return Buffer.from(pres.write({ outputType: "arraybuffer" }));
+  const out = await pres.write({ outputType: "arraybuffer" });
+  return Buffer.from(out as ArrayBuffer);
 }
 async function extractPresentationText(
   input: Buffer,
@@ -1609,7 +1909,14 @@ async function convertPresentation(
   quality: number = 85,
 ): Promise<Buffer> {
   const src = inputExt.toLowerCase();
-  const dest = outputExt.toLowerCase();
+  const dest =
+    outputExt.toLowerCase() === "htm" ? "html" : outputExt.toLowerCase();
+
+  if (!presentationOutputFormats.has(dest)) {
+    throw new Error(
+      `Presentation output .${outputExt.toUpperCase()} is not supported. Supported: ${[...presentationOutputFormats].sort().join(", ")}`,
+    );
+  }
 
   // Presentation-to-presentation: passthrough for same-family binary formats
   const zipPresFormats = new Set(["pptx", "ppsx", "potx", "pptm"]);
@@ -1695,7 +2002,9 @@ async function convertPresentation(
     return Buffer.from(await odpZip.generateAsync({ type: "arraybuffer" }));
   }
 
-  return input;
+  throw new Error(
+    `Presentation conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not implemented`,
+  );
 }
 
 // ─── Archive Converter ─────────────────────────────────────────────────────
@@ -1707,60 +2016,65 @@ async function convertArchive(
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
 
-  // Extract files from source
-  const files: { name: string; data: Buffer }[] = [];
+  if (!archiveOutputFormats.has(dest)) {
+    throw new Error(
+      `Archive output .${outputExt.toUpperCase()} is not supported. Supported: ${[...archiveOutputFormats].sort().join(", ")}`,
+    );
+  }
 
+  let files: ArchiveEntry[] = [];
   try {
-    if (
-      src === "zip" ||
-      src === "cbz" ||
-      src === "epub" ||
-      src === "docx" ||
-      src === "pptx" ||
-      src === "xlsx" ||
-      src === "odt" ||
-      src === "ods"
-    ) {
-      const zip = await JSZip.loadAsync(input);
-      const entries = Object.entries(zip.files);
-      for (const [path, file] of entries) {
-        if (!file.dir) {
-          files.push({ name: path, data: await file.async("nodebuffer") });
-        }
-      }
-    } else if (src === "gz") {
-      // For .gz files, decompress
-      // Simple decompress
-      const { gunzipSync } = await import("zlib");
-      try {
-        const decompressed = gunzipSync(input);
-        const name = inputExt.replace(/\..+$/, "") || "file";
-        files.push({ name, data: decompressed });
-      } catch {
-        files.push({ name: "content", data: input });
-      }
-    } else if (
-      src === "tar.gz" ||
-      src === "tar.bz2" ||
-      src === "tar.xz" ||
-      src === "tar.zst"
-    ) {
-      // For compressed tars, just store the raw content
-      files.push({ name: "content", data: input });
-    } else if (src === "tar") {
-      // Basic tar parsing — simplified
-      files.push({ name: "content", data: input });
-    } else {
-      files.push({ name: "content", data: input });
-    }
-  } catch {
-    files.push({ name: "content", data: input });
+    files = await extractArchiveEntries(input, src);
+  } catch (err) {
+    throw new Error(
+      `Failed to extract ${src.toUpperCase()} archive: ${err instanceof Error ? err.message : "unknown error"}`,
+    );
   }
 
   if (files.length === 0) {
-    // If no files extracted, treat the input as a single file named 'archive_content'
     files.push({ name: "archive_content", data: input });
   }
+
+  if (dest === "7z") {
+    return packTo7zip(files);
+  }
+
+  if (dest === "rar") {
+    const rarBuffer = await createRarWithToolchain(files);
+    if (rarBuffer) return rarBuffer;
+    throw new Error(
+      "RAR conversion requires external RAR CLI. Set RAR_BIN to enable.",
+    );
+  }
+
+  const buildTarBuffer = async (): Promise<Buffer> => {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const archive = archiver("tar");
+      archive.on("data", (chunk: Buffer) => chunks.push(chunk));
+      archive.on("end", () => resolve(Buffer.concat(chunks)));
+      archive.on("error", reject);
+      for (const f of files) archive.append(f.data, { name: f.name });
+      archive.finalize();
+    });
+  };
+
+  const compressTarWith7zip = async (
+    tarBuffer: Buffer,
+    archiveName: string,
+  ): Promise<Buffer> => {
+    const { pack } = await import("7zip-min");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-tar-"));
+    const tarPath = path.join(tmp, "archive.tar");
+    const outPath = path.join(tmp, archiveName);
+    try {
+      await fs.writeFile(tarPath, tarBuffer);
+      await pack(tarPath, outPath);
+      return await fs.readFile(outPath);
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+    }
+  };
 
   // Create target archive
   if (dest === "zip" || dest === "cbz") {
@@ -1769,17 +2083,14 @@ async function convertArchive(
     return Buffer.from(await zip.generateAsync({ type: "arraybuffer" }));
   }
 
-  if (dest === "tar" || dest === "tar.gz" || dest === "tar.bz2") {
-    // Use archiver for tar formats
+  if (dest === "tar") {
+    return buildTarBuffer();
+  }
+
+  if (dest === "tar.gz") {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      const archive = archiver(
-        dest === "tar.gz" ? "tar" : dest === "tar.bz2" ? "tar" : "tar",
-        {
-          gzip: dest === "tar.gz",
-          gzipOptions: { level: 9 },
-        },
-      );
+      const archive = archiver("tar", { gzip: true, gzipOptions: { level: 9 } });
       archive.on("data", (chunk: Buffer) => chunks.push(chunk));
       archive.on("end", () => resolve(Buffer.concat(chunks)));
       archive.on("error", reject);
@@ -1788,10 +2099,26 @@ async function convertArchive(
     });
   }
 
-  // For 7z, rar, tar.xz, tar.zst — fall back to ZIP
-  const zip = new JSZip();
-  for (const f of files) zip.file(f.name, f.data);
-  return Buffer.from(await zip.generateAsync({ type: "arraybuffer" }));
+  if (dest === "tar.bz2" || dest === "tar.xz") {
+    const tarBuffer = await buildTarBuffer();
+    return compressTarWith7zip(tarBuffer, `archive.${dest}`);
+  }
+
+  if (dest === "tar.zst") {
+    const tarBuffer = await buildTarBuffer();
+    const zlib = await import("node:zlib");
+    const zstdCompressSync = (
+      zlib as unknown as { zstdCompressSync?: (value: Buffer) => Buffer }
+    ).zstdCompressSync;
+    if (typeof zstdCompressSync !== "function") {
+      throw new Error("Zstandard compression is not available on this runtime");
+    }
+    return Buffer.from(zstdCompressSync(tarBuffer));
+  }
+
+  throw new Error(
+    `Archive conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not implemented`,
+  );
 }
 
 // ─── Font Converter ────────────────────────────────────────────────────────
@@ -1802,6 +2129,12 @@ async function convertFont(
 ): Promise<Buffer> {
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
+
+  if (!fontOutputFormats.has(dest)) {
+    throw new Error(
+      `Font output .${outputExt.toUpperCase()} is not supported. Supported: ${[...fontOutputFormats].sort().join(", ")}`,
+    );
+  }
 
   // For WOFF2 conversions, try wawoff2
   if (dest === "woff2") {
@@ -1832,6 +2165,21 @@ async function convertAudio(
   inputExt: string,
   outputExt: string,
 ): Promise<Buffer> {
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Audio conversion is not available on the cloud deployment (server size limits). Use a self-hosted install for audio.",
+    );
+  }
+
+  const dest = outputExt.toLowerCase();
+  if (!audioFormats.has(dest)) {
+    throw new Error(
+      `Audio output .${outputExt.toUpperCase()} is not supported. Supported: ${[...audioFormats].sort().join(", ")}`,
+    );
+  }
+
+  const ffmpeg = await getFfmpegCommand();
+
   return new Promise((resolve, reject) => {
     let completed = false;
     const fail = (err: Error) => {
@@ -1864,13 +2212,14 @@ async function convertAudio(
       });
 
       // Common codec mappings for better compatibility
-      let command = ffmpeg(inputStream);
+      let command = ffmpeg(inputStream as any);
 
       // Input format hint
       if (inputExt) {
         // Map some common extensions to ffmpeg format names if needed
         let inputFormat = inputExt;
-        if (inputExt === "m4a") inputFormat = "mov"; // m4a is a mov/mp4 container
+        if (inputExt === "m4a") inputFormat = "mov";
+        else if (inputExt === "wma") inputFormat = "asf";
         command = command.inputFormat(inputFormat);
       }
 
@@ -1920,6 +2269,69 @@ async function convertAudio(
   });
 }
 
+function sniffEmbeddedExt(buf: Buffer): string {
+  if (buf.length >= 4 && buf.slice(0, 4).toString() === "%PDF") return "pdf";
+  if (buf.length >= 2 && buf[0] === 0x50 && buf[1] === 0x4b) return "zip";
+  const head = buf.toString("utf-8", 0, Math.min(200, buf.length));
+  if (head.includes("<html") || head.includes("<!DOCTYPE")) return "html";
+  if (head.trim().startsWith("{")) return "json";
+  return "txt";
+}
+
+async function convertDrawio(
+  input: Buffer,
+  outputExt: string,
+  quality: number = 85,
+): Promise<Buffer> {
+  const dest =
+    outputExt.toLowerCase() === "htm" ? "html" : outputExt.toLowerCase();
+  const allowed = new Set([
+    "png",
+    "jpg",
+    "jpeg",
+    "pdf",
+    "html",
+    "txt",
+    "md",
+    "svg",
+  ]);
+  if (!allowed.has(dest)) {
+    throw new Error(
+      `DrawIO output .${outputExt.toUpperCase()} is not supported. Supported: png, pdf, html, txt, md, svg`,
+    );
+  }
+  const { text, png } = await extractDrawioContent(input);
+  if ((dest === "png" || dest === "jpg" || dest === "jpeg") && png) {
+    return convertImage(png, "png", dest === "jpeg" ? "jpg" : dest, quality);
+  }
+  if (dest === "svg") {
+    const labels = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const lines = labels
+      .map((l, i) => `<text x="20" y="${24 + i * 22}" font-size="14">${l.replace(/</g, "&lt;")}</text>`)
+      .join("");
+    return Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${Math.max(200, labels.length * 24)}">${lines}</svg>`,
+      "utf-8",
+    );
+  }
+  return convertDocument(Buffer.from(text, "utf-8"), "md", dest);
+}
+
+async function convertP7m(
+  input: Buffer,
+  outputExt: string,
+  quality: number = 85,
+  width?: number | null,
+  height?: number | null,
+): Promise<Buffer> {
+  const inner = await extractP7mContent(input);
+  const innerExt = sniffEmbeddedExt(inner);
+  return convertFile(inner, innerExt, outputExt, quality, width, height);
+}
+
 // ─── Main Converter Entry Point ────────────────────────────────────────────
 export async function convertFile(
   input: Buffer,
@@ -1933,7 +2345,13 @@ export async function convertFile(
   const dest = outputExt.toLowerCase().replace(/^\./, "");
 
   if (src === dest) {
-    throw new Error("Source and target formats are the same");
+    return input;
+  }
+
+  if (src === "pdf" && isPdfRasterTarget(dest)) {
+    const { convertPdfToRasterOutput } = await import("@/lib/pdf-utils");
+    const out = await convertPdfToRasterOutput(input, dest, quality);
+    return out.data;
   }
 
   // Route to appropriate converter
@@ -1973,7 +2391,12 @@ export async function convertFile(
     return convertEbook(input, src, dest);
   }
   if (ebookFormats.has(dest) && (docFormats.has(src) || dataFormats.has(src))) {
-    return convertDocument(input, src, "epub");
+    if (dest === "epub") {
+      return convertDocument(input, src, "epub");
+    }
+    throw new Error(
+      `Document to ${dest.toUpperCase()} is not supported. Try EPUB, PDF, or DOCX.`,
+    );
   }
 
   if (presFormats.has(src)) {
@@ -1983,166 +2406,29 @@ export async function convertFile(
     return convertPresentation(input, src, dest, quality);
   }
 
-  if (subFormats.has(src) && subFormats.has(dest)) {
+  if (subFormats.has(src)) {
     return convertSubtitle(input, src, dest);
   }
 
-  if (archiveFormats.has(src) || archiveFormats.has(dest)) {
+  if (archiveFormats.has(src)) {
     return convertArchive(input, src, dest);
   }
 
-  if (fontFormats.has(src) && fontFormats.has(dest)) {
+  if (fontFormats.has(src)) {
     return convertFont(input, src, dest);
   }
 
-  // Last resort: try as document conversion
-  try {
-    return await convertDocument(input, src, dest);
-  } catch {
-    throw new Error(
-      `Conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not supported in this environment`,
-    );
+  if (src === "drawio") {
+    return convertDrawio(input, dest, quality);
   }
+
+  if (src === "p7m") {
+    return convertP7m(input, dest, quality, width, height);
+  }
+
+  throw new Error(
+    `Conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not supported in this environment`,
+  );
 }
 
-export function getMimeType(ext: string): string {
-  const mimeMap: Record<string, string> = {
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    webp: "image/webp",
-    avif: "image/avif",
-    bmp: "image/bmp",
-    gif: "image/gif",
-    tiff: "image/tiff",
-    tif: "image/tiff",
-    ico: "image/x-icon",
-    svg: "image/svg+xml",
-    heic: "image/heic",
-    heif: "image/heif",
-    psd: "image/vnd.adobe.photoshop",
-    apng: "image/apng",
-    blp: "image/x-blp",
-    cur: "image/x-win-bitmap",
-    dds: "image/vnd-ms.dds",
-    dib: "image/bmp",
-    eps: "application/postscript",
-    icns: "image/x-icns",
-    jp2: "image/jp2",
-    jxl: "image/jxl",
-    mpo: "image/mpo",
-    msp: "image/x-msp",
-    pbm: "image/x-portable-bitmap",
-    pcx: "image/x-pcx",
-    pfm: "image/x-portable-floatmap",
-    pgm: "image/x-portable-graymap",
-    pnm: "image/x-portable-anymap",
-    ppm: "image/x-portable-pixmap",
-    qoi: "image/x-qoi",
-    sgi: "image/sgi",
-    tga: "image/x-targa",
-    tgs: "application/x-tgsticker",
-    xbm: "image/x-xbitmap",
-    xpm: "image/x-xpixmap",
-    dcx: "image/x-dcx",
-    json: "application/json",
-    csv: "text/csv",
-    yaml: "application/x-yaml",
-    yml: "application/x-yaml",
-    xml: "application/xml",
-    toml: "application/toml",
-    tsv: "text/tab-separated-values",
-    txt: "text/plain",
-    html: "text/html",
-    htm: "text/html",
-    md: "text/markdown",
-    pdf: "application/pdf",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    rtf: "application/rtf",
-    srt: "text/srt",
-    vtt: "text/vtt",
-    mp3: "audio/mpeg",
-    wav: "audio/wav",
-    ogg: "audio/ogg",
-    aac: "audio/aac",
-    flac: "audio/flac",
-    mp4: "video/mp4",
-    webm: "video/webm",
-    avi: "video/x-msvideo",
-    mkv: "video/x-matroska",
-    mov: "video/quicktime",
-    asf: "video/x-ms-asf",
-    f4v: "video/x-f4v",
-    ogv: "video/ogg",
-    ts: "video/mp2t",
-    doc: "application/msword",
-    m4a: "audio/mp4",
-    wma: "audio/x-ms-wma",
-    zip: "application/zip",
-    tar: "application/x-tar",
-    gz: "application/gzip",
-    "7z": "application/x-7z-compressed",
-    rar: "application/vnd.rar",
-    "tar.bz2": "application/x-bzip2",
-    "tar.gz": "application/gzip",
-    "tar.xz": "application/x-xz",
-    "tar.zst": "application/zstd",
-    epub: "application/epub+zip",
-    azw3: "application/vnd.amazon.ebook",
-    cbz: "application/x-cbz",
-    cb7: "application/x-cb7",
-    cbr: "application/x-cbr",
-    fb2: "application/x-fb2",
-    lrf: "application/x-lrf",
-    mobi: "application/x-mobipocket-ebook",
-    pdb: "application/x-pdb",
-    snb: "application/x-snb",
-    key: "application/x-iwork-keynote",
-    odp: "application/vnd.oasis.opendocument.presentation",
-    pot: "application/vnd.ms-powerpoint.template",
-    potx: "application/vnd.openxmlformats-officedocument.presentationml.template",
-    pps: "application/vnd.ms-powerpoint.slideshow",
-    ppsx: "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
-    ppt: "application/vnd.ms-powerpoint",
-    pptm: "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    adoc: "text/asciidoc",
-    ipynb: "application/x-ipynb+json",
-    muse: "text/x-muse",
-    odt: "application/vnd.oasis.opendocument.text",
-    opml: "text/x-opml",
-    org: "text/x-org",
-    rst: "text/x-rst",
-    tex: "application/x-tex",
-    textile: "text/textile",
-    env: "text/x-environment",
-    feather: "application/x-feather",
-    ini: "text/x-ini",
-    jsonl: "application/jsonl",
-    ods: "application/vnd.oasis.opendocument.spreadsheet",
-    orc: "application/x-orc",
-    parquet: "application/x-parquet",
-    sqlite: "application/x-sqlite3",
-    toon: "application/x-toon",
-    vcf: "text/vcard",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    xls: "application/vnd.ms-excel",
-    dta: "application/x-stata",
-    fwf: "text/x-fixed-width",
-    sav: "application/x-spss-sav",
-    xpt: "application/x-sas-xpt",
-    otf: "font/otf",
-    ttf: "font/ttf",
-    woff: "font/woff",
-    woff2: "font/woff2",
-    ass: "text/x-ass",
-    ssa: "text/x-ssa",
-    sub: "text/x-microdvd",
-    mpl: "text/x-mpl",
-    eml: "message/rfc822",
-    msg: "application/vnd.ms-outlook",
-    drawio: "application/x-drawio",
-    p7m: "application/pkcs7-mime",
-  };
-  return mimeMap[ext.toLowerCase()] || "application/octet-stream";
-}
+export { getMimeType } from "@/lib/mime-types";
