@@ -70,7 +70,7 @@ const defaultContextValue: AppContextValue = {
   user: null,
   currentUser: null,
   setUser: noop as Dispatch<SetStateAction<AppUser | null>>,
-  currentView: "home",
+  currentView: "converter",
   setCurrentView: noop as Dispatch<SetStateAction<string>>,
   loading: true,
   isLoading: true,
@@ -142,7 +142,7 @@ async function readJson(res: Response): Promise<ApiEnvelope> {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [currentView, setCurrentView] = useState("home");
+  const [currentView, setCurrentView] = useState("converter");
   const [loading, setLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {

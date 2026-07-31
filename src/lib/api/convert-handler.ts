@@ -10,6 +10,7 @@ import {
   isAudioConversionAvailable,
   isVideoConversionAvailable,
   payloadTooLargeMessage,
+  normalizePayloadError,
 } from "@/lib/upload-limits";
 import { getFormatByExt } from "@/lib/formats";
 import { getSessionUser } from "@/lib/auth";
@@ -62,7 +63,28 @@ export async function handleConvertPost(
       );
     }
 
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (parseErr) {
+      const raw =
+        parseErr instanceof Error ? parseErr.message : String(parseErr);
+      const contentLength = request.headers.get("content-length");
+      const sizeHint = contentLength
+        ? ` Upload size header: ${(Number(contentLength) / (1024 * 1024)).toFixed(1)} MB.`
+        : "";
+      return NextResponse.json(
+        {
+          error: normalizePayloadError(
+            raw.toLowerCase().includes("formdata") ||
+              raw.toLowerCase().includes("body")
+              ? `Failed to read uploaded file.${sizeHint} Host may reject large multipart bodies (Heroku router ~30 MB). Use a smaller file or raise platform body limits.`
+              : raw,
+          ),
+        },
+        { status: 400 },
+      );
+    }
     const file = formData.get("file") as File | null;
     const targetFormat = formData.get("targetFormat") as string | null;
 
@@ -270,9 +292,13 @@ export async function handleConvertPost(
         error:
           message.includes("Cannot find module") ||
           message.includes("ENOENT") ||
-          message.includes("libquery_engine")
+          message.includes("libquery_engine") ||
+          message.toLowerCase().includes("ffmpeg binary not found") ||
+          message.toLowerCase().includes("ffmpeg_bin")
             ? `Server misconfiguration: ${message}. Redeploy after npm install && prisma generate.`
-            : message,
+            : message.includes("spawn") && message.toLowerCase().includes("ffmpeg")
+              ? `ffmpeg failed to start (${message}). On Heroku add buildpack heroku-community/apt (Aptfile includes ffmpeg) or set FFMPEG_BIN.`
+              : message,
       },
       { status: 500 },
     );

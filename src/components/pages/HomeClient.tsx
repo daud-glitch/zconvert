@@ -63,9 +63,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   const footerAds = adsByLocation(ads, "footer");
 
   useEffect(() => {
-    if (defaultView) {
-      setCurrentView(defaultView);
-    }
+    setCurrentView(defaultView || "converter");
   }, [defaultView, setCurrentView]);
 
   useEffect(() => {

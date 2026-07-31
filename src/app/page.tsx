@@ -1,5 +1,5 @@
 import HomeClient from "@/components/pages/HomeClient";
 
 export default function Page() {
-  return <HomeClient />;
+  return <HomeClient defaultView="converter" />;
 }

@@ -1,5 +1,7 @@
 import sharp from "sharp";
 import fs from "fs/promises";
+import { accessSync, constants as fsConstants } from "fs";
+import { execFileSync } from "child_process";
 import os from "os";
 import path from "path";
 import { PDFDocument, rgb } from "pdf-lib";
@@ -49,24 +51,66 @@ import he from "he";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
 import type Ffmpeg from "fluent-ffmpeg";
 
-/** Resolve ffmpeg binary (env override → ffmpeg-static → system PATH). */
-async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
-  const ffmpegMod = await import("fluent-ffmpeg");
-  const ffmpeg = ffmpegMod.default;
+function ffmpegPathExists(binPath: string): boolean {
+  try {
+    accessSync(binPath, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveSystemFfmpegPath(): string | null {
+  try {
+    const cmd = process.platform === "win32" ? "where" : "which";
+    const out = execFileSync(cmd, ["ffmpeg"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .trim()
+      .split(/\r?\n/)[0]
+      ?.trim();
+    return out && ffmpegPathExists(out) ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve ffmpeg binary (env → system PATH → ffmpeg-static). */
+function resolveFfmpegBinaryPath(): string {
   const envPath =
     process.env.FFMPEG_BIN?.trim() || process.env.FFMPEG_PATH?.trim();
   if (envPath) {
-    ffmpeg.setFfmpegPath(envPath);
-  } else {
-    try {
-      const ffmpegStatic = require("ffmpeg-static") as string | null | undefined;
-      if (ffmpegStatic) {
-        ffmpeg.setFfmpegPath(ffmpegStatic);
-      }
-    } catch (err) {
-      console.error("Failed to set ffmpeg-static path:", err);
+    if (!ffmpegPathExists(envPath)) {
+      throw new Error(
+        `FFMPEG_BIN/FFMPEG_PATH is set to "${envPath}" but that file was not found.`,
+      );
     }
+    return envPath;
   }
+
+  const systemPath = resolveSystemFfmpegPath();
+  if (systemPath) return systemPath;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ffmpegStatic = require("ffmpeg-static") as string | null | undefined;
+    if (ffmpegStatic && ffmpegPathExists(ffmpegStatic)) {
+      return ffmpegStatic;
+    }
+  } catch (err) {
+    console.error("Failed to load ffmpeg-static:", err);
+  }
+
+  throw new Error(
+    "ffmpeg binary not found. On Heroku add buildpack heroku-community/apt (with Aptfile) or set FFMPEG_BIN. Ensure optional ffmpeg-static installed for this platform.",
+  );
+}
+
+async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
+  const ffmpegMod = await import("fluent-ffmpeg");
+  const ffmpeg = ffmpegMod.default;
+  ffmpeg.setFfmpegPath(resolveFfmpegBinaryPath());
   return ffmpeg as unknown as Ffmpeg.FfmpegCommand;
 }
 
