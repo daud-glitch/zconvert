@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Edit, Trash2, Megaphone, Save, Search, GripVertical } from "lucide-react";
+import { Plus, Edit, Trash2, Megaphone, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";

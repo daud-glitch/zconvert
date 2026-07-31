@@ -32,9 +32,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { type AdminStats, type FormatStatusData } from "@/lib/app-types";
-import { formatBytes, formatDate, getCategoryIcon } from "@/lib/app-helpers";
+import { formatBytes, formatDate, getCategoryIcon, isConversionSuccess } from "@/lib/app-helpers";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
-import { type ViewType } from "@/lib/formats";
 import { useApp } from "@/lib/app-context";
 
 export function AdminOverview() {
@@ -67,8 +66,10 @@ export function AdminOverview() {
           console.error(`Format Status API returned ${formatRes.status}`);
         }
 
-        setStats(statsData && !(statsData as any).error ? (statsData as AdminStats) : null);
-        setFormatStatus(formatData && !(formatData as any).error ? (formatData as FormatStatusData) : null);
+        const statsPayload = statsData as AdminStats & { error?: string };
+        const formatPayload = formatData as FormatStatusData & { error?: string };
+        setStats(statsPayload.error ? null : statsPayload);
+        setFormatStatus(formatPayload.error ? null : formatPayload);
       } catch (err) {
         console.error("Failed to load admin dashboard data:", err);
       } finally {
@@ -93,7 +94,9 @@ export function AdminOverview() {
   const totalConversions = stats?.totalConversions || 0;
   const totalUsers = stats?.totalUsers || 0;
   const storageSaved = stats?.storageSaved || 0;
-  const completedCount = stats?.conversionsByStatus?.completed || 0;
+  const completedCount =
+    (stats?.conversionsByStatus?.done || 0) +
+    (stats?.conversionsByStatus?.completed || 0);
   const successRate =
     totalConversions > 0
       ? Math.round((completedCount / totalConversions) * 100)
@@ -282,14 +285,14 @@ export function AdminOverview() {
             <div className="space-y-4">
               {[
                 {
-                  key: "completed",
+                  key: "done",
                   label: "Completed",
                   color: "bg-emerald-500",
                   textColor: "text-emerald-600",
                   bgColor: "bg-emerald-50 dark:bg-emerald-950",
                 },
                 {
-                  key: "failed",
+                  key: "error",
                   label: "Failed",
                   color: "bg-red-500",
                   textColor: "text-red-600",
@@ -303,7 +306,14 @@ export function AdminOverview() {
                   bgColor: "bg-amber-50 dark:bg-amber-950",
                 },
               ].map((s) => {
-                const count = stats?.conversionsByStatus?.[s.key] || 0;
+                const count =
+                  s.key === "done"
+                    ? (stats?.conversionsByStatus?.done || 0) +
+                      (stats?.conversionsByStatus?.completed || 0)
+                    : s.key === "error"
+                      ? (stats?.conversionsByStatus?.error || 0) +
+                        (stats?.conversionsByStatus?.failed || 0)
+                      : stats?.conversionsByStatus?.[s.key] || 0;
                 const total = totalConversions || 1;
                 const pct = Math.round((count / total) * 100);
                 return (
@@ -450,15 +460,15 @@ export function AdminOverview() {
                   <div className="text-right shrink-0">
                     <Badge
                       variant={
-                        c.status === "completed" ? "default" : "destructive"
+                        isConversionSuccess(c.status) ? "default" : "destructive"
                       }
                       className={
-                        c.status === "completed"
+                        isConversionSuccess(c.status)
                           ? "bg-emerald-500 text-[9px] px-1.5 py-0"
                           : "text-[9px] px-1.5 py-0"
                       }
                     >
-                      {c.status === "completed" ? "✓" : "✗"}
+                      {isConversionSuccess(c.status) ? "✓" : "✗"}
                     </Badge>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
                       {formatDate(c.createdAt)}

@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { type ViewType } from "@/lib/formats";
 import { type FormatsData } from "@/lib/app-types";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { getCategoryFromExt, getCategoryIcon } from "@/lib/app-helpers";

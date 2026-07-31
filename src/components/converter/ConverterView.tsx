@@ -35,13 +35,14 @@ import {
   formatDate,
   getCategoryFromExt,
   getConvertApiPath,
+  isConversionSuccess,
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { saveFileLocally } from "@/lib/storage";
-import { useApp } from "@/lib/app-context";
 import {
   audioUnavailableMessage,
+  videoUnavailableMessage,
   formatMaxUploadLabel,
   getClientMaxUploadBytes,
   normalizePayloadError,
@@ -49,8 +50,14 @@ import {
 } from "@/lib/upload-limits";
 
 const MAX_UPLOAD_BYTES = getClientMaxUploadBytes();
+const MEDIA_CONVERSION_ENABLED =
+  process.env.NEXT_PUBLIC_MEDIA_ENABLED !== "0" &&
+  process.env.NEXT_PUBLIC_AUDIO_ENABLED !== "0";
+const VIDEO_CONVERSION_ENABLED =
+  process.env.NEXT_PUBLIC_VIDEO_ENABLED !== "0" &&
+  process.env.NEXT_PUBLIC_MEDIA_ENABLED !== "0";
 const AUDIO_CONVERSION_ENABLED =
-  process.env.NEXT_PUBLIC_AUDIO_ENABLED !== "0" ||
+  MEDIA_CONVERSION_ENABLED ||
   Boolean(process.env.NEXT_PUBLIC_CONVERT_API_URL?.trim());
 
 function getMergeSourceBlob(item: FileItem): Blob | null {
@@ -371,6 +378,17 @@ export function ConverterView() {
       return;
     }
 
+    if (
+      !VIDEO_CONVERSION_ENABLED &&
+      (getCategoryFromExt(item.ext) === "video" ||
+        getCategoryFromExt(item.targetFormat) === "video")
+    ) {
+      const msg = videoUnavailableMessage();
+      updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
+      showToast(msg, "error");
+      return;
+    }
+
     updateFile(item.id, {
       status: "converting",
       startTime: Date.now(),
@@ -648,7 +666,7 @@ export function ConverterView() {
                 {dragOver ? "Drop files to upload" : "Drop files here or click to browse"}
               </h3>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Images, documents, data, audio, archives, subtitles, fonts & more
+                Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
               <p className="text-[11px] text-muted-foreground/70 mt-2">
                 Up to 20 files · {formatMaxUploadLabel()} each · Ctrl+U to browse
@@ -971,7 +989,7 @@ export function ConverterView() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = `${DOWNLOAD_BRAND_PREFIX}-${filesToMerge[0].name.replace(/\.[^/.]+$/, "").replace(/[^\w.\-]+/g, "_")}-merged.pdf`;
+                        a.download = `${DOWNLOAD_BRAND_PREFIX}-${filesToMerge[0].name.replace(/\.[^/.]+$/, "").replace(/[^\w.-]+/g, "_")}-merged.pdf`;
                         a.click();
                         URL.revokeObjectURL(url);
                         showToast(`Merged ${filesToMerge.length} files into PDF!`);
@@ -1547,7 +1565,7 @@ export function ConverterView() {
       )}
 
       {/* ─── Recent Conversions ─── */}
-      {recentConversions.filter((c) => c.status === "completed").length > 0 && (
+      {recentConversions.filter((c) => isConversionSuccess(c.status)).length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -1560,7 +1578,7 @@ export function ConverterView() {
           <CardContent className="pt-0">
             <div className="space-y-2">
               {recentConversions
-                .filter((c) => c.status === "completed")
+                .filter((c) => isConversionSuccess(c.status))
                 .slice(0, 6)
                 .map((c) => (
                   <div
@@ -1584,10 +1602,10 @@ export function ConverterView() {
                     </div>
                     <Badge
                       variant={
-                        c.status === "completed" ? "default" : "destructive"
+                        isConversionSuccess(c.status) ? "default" : "destructive"
                       }
                       className={
-                        c.status === "completed"
+                        isConversionSuccess(c.status)
                           ? "bg-emerald-500 hover:bg-emerald-600 text-xs shrink-0"
                           : "text-xs shrink-0"
                       }

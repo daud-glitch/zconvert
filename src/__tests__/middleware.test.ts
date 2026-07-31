@@ -64,6 +64,8 @@ describe("middleware", () => {
       "/api/auth/login",
       "/api/auth/logout",
       "/api/auth/me",
+      "/api/cms",
+      "/api/cms/pages/about",
     ];
 
     it.each(publicRoutes)("should allow access to %s without session", (route) => {
@@ -106,9 +108,8 @@ describe("middleware", () => {
       const req = createMockRequest(route, "");
       middleware(req as never);
 
-      // Empty string fails JSON.parse, so it returns Invalid session
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: "Invalid session" },
+        { error: "Authentication required" },
         { status: 401 },
       );
     });
@@ -118,7 +119,7 @@ describe("middleware", () => {
       middleware(req as never);
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: "Invalid session" },
+        { error: "Authentication required" },
         { status: 401 },
       );
     });

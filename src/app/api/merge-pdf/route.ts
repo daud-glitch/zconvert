@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
             y -= lineHeight;
           }
         }
-      } catch (err) {
+      } catch {
         const errPage = mergedPdf.addPage([595.28, 841.89]);
         errPage.drawText(`[Could not embed: ${file.name}]`, {
           x: 50,

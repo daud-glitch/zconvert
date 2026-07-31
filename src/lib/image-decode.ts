@@ -285,19 +285,6 @@ function decodePcx(input: Buffer): {
   let pos = 128;
   const planeData: number[][] = Array.from({ length: planes }, () => []);
 
-  const readByte = (): number => {
-    if (encoding === 1) {
-      let b = input[pos++];
-      if ((b & 0xc0) === 0xc0) {
-        const count = b & 0x3f;
-        b = input[pos++];
-        return b | (count << 8);
-      }
-      return b;
-    }
-    return input[pos++];
-  };
-
   for (let y = 0; y < height; y++) {
     for (let pl = 0; pl < planes; pl++) {
       let x = 0;

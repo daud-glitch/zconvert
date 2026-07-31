@@ -16,10 +16,31 @@ function hasRemoteConvertWorker(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_CONVERT_API_URL?.trim());
 }
 
-/** Audio needs ffmpeg; available on Oracle worker or self-hosted. */
-export function isAudioConversionAvailable(): boolean {
+/**
+ * ffmpeg audio/video: enabled on self-hosted servers by default.
+ * Disabled on Vercel unless FORCE_FFMPEG=1 or a remote convert worker is set.
+ */
+export function isFfmpegConversionAvailable(): boolean {
+  if (process.env.DISABLE_FFMPEG === "1" || process.env.DISABLE_FFMPEG === "true") {
+    return false;
+  }
+  if (
+    process.env.FORCE_FFMPEG === "1" ||
+    process.env.FORCE_FFMPEG === "true"
+  ) {
+    return true;
+  }
   if (hasRemoteConvertWorker()) return true;
   return !isVercelDeployment();
+}
+
+/** @deprecated Prefer isFfmpegConversionAvailable */
+export function isAudioConversionAvailable(): boolean {
+  return isFfmpegConversionAvailable();
+}
+
+export function isVideoConversionAvailable(): boolean {
+  return isFfmpegConversionAvailable();
 }
 
 export function getServerMaxUploadBytes(): number {
@@ -57,7 +78,9 @@ export function formatMaxUploadLabel(): string {
 export function payloadTooLargeMessage(actualBytes: number): string {
   const maxMb = (getClientMaxUploadBytes() / MB).toFixed(1);
   const actualMb = (actualBytes / MB).toFixed(1);
-  const cloud = isVercelDeployment() || getClientMaxUploadBytes() <= VERCEL_FUNCTION_BODY_LIMIT_BYTES;
+  const cloud =
+    isVercelDeployment() ||
+    getClientMaxUploadBytes() <= VERCEL_FUNCTION_BODY_LIMIT_BYTES;
   if (cloud && !hasRemoteConvertWorker()) {
     return `File is ${actualMb} MB but the cloud converter accepts at most ${maxMb} MB per file (Vercel limit). Compress the file, split it, or configure an Oracle convert worker (see docs/ORACLE_VERCEL_SETUP.md).`;
   }
@@ -65,7 +88,27 @@ export function payloadTooLargeMessage(actualBytes: number): string {
 }
 
 export function audioUnavailableMessage(): string {
-  return "Audio conversion is not available on the cloud deployment (requires ffmpeg and files under 4.5 MB). Use a self-hosted install for WAV/MP3 and other audio.";
+  return "Audio conversion requires ffmpeg. On Vercel it is disabled unless you set FORCE_FFMPEG=1 or NEXT_PUBLIC_CONVERT_API_URL to a media worker. On a normal server, install ffmpeg (or ffmpeg-static) and ensure DISABLE_FFMPEG is not set.";
+}
+
+export function videoUnavailableMessage(): string {
+  return "Video conversion requires ffmpeg. On Vercel it is disabled unless you set FORCE_FFMPEG=1 or NEXT_PUBLIC_CONVERT_API_URL to a media worker. On a normal server, install ffmpeg (or ffmpeg-static) and ensure DISABLE_FFMPEG is not set.";
+}
+
+export function libreOfficeUnavailableMessage(): string {
+  return "This conversion requires LibreOffice. Install LibreOffice and set SOFFICE_BIN (or EXTERNAL_TOOLCHAIN_ENABLED=1 with soffice on PATH).";
+}
+
+export function calibreUnavailableMessage(): string {
+  return "This ebook conversion requires Calibre. Install Calibre and set CALIBRE_EBOOK_CONVERT_BIN (or put ebook-convert on PATH with EXTERNAL_TOOLCHAIN_ENABLED=1).";
+}
+
+export function rarUnavailableMessage(): string {
+  return "RAR output requires an external RAR CLI (WinRAR/rar). Set RAR_BIN to enable, or choose ZIP/TAR.GZ instead.";
+}
+
+export function zstdUnavailableMessage(): string {
+  return "Zstandard (tar.zst) compression is not available on this Node runtime. Choose ZIP, TAR.GZ, or TAR.BZ2 instead.";
 }
 
 export function normalizePayloadError(message: string): string {

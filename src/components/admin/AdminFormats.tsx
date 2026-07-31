@@ -171,9 +171,12 @@ export function AdminFormats() {
                 </div>
               </div>
               {cat.status === "partial" && (
-                <div className="mt-3 flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="w-3 h-3" />
-                  <span>Some conversions may fall back to ZIP/placeholder</span>
+                <div className="mt-3 flex items-start gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                  <span>
+                    {cat.note ||
+                      "Some conversions may be limited by host tools or fidelity."}
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -210,8 +213,8 @@ export function AdminFormats() {
                   Partial
                 </div>
                 <div className="text-xs text-amber-600/70 dark:text-amber-400/70">
-                  Some conversions use fallback or placeholder logic (needs
-                  FFmpeg, system tools, etc.)
+                  Works for common paths; fidelity limits or host tools
+                  (ffmpeg, LibreOffice, RAR) may apply. See category notes.
                 </div>
               </div>
             </div>

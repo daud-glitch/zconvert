@@ -16,14 +16,27 @@ Vercel env:
 ```env
 NEXT_PUBLIC_CONVERT_API_URL=https://convert.yourdomain.com
 NEXT_PUBLIC_MAX_UPLOAD_MB=100
+NEXT_PUBLIC_MEDIA_ENABLED=1
+NEXT_PUBLIC_AUDIO_ENABLED=1
+NEXT_PUBLIC_VIDEO_ENABLED=1
 ```
 
-Oracle env:
+Oracle / self-hosted worker env:
 
 ```env
 ALLOWED_ORIGIN=https://your-app.vercel.app
 MAX_UPLOAD_SIZE_MB=100
+NEXT_PUBLIC_MAX_UPLOAD_MB=100
+EXTERNAL_TOOLCHAIN_ENABLED=1
+ADMIN_SETUP_SECRET=long-random-secret
+# Optional toolchain paths
+FFMPEG_BIN=
+SOFFICE_BIN=
+CALIBRE_EBOOK_CONVERT_BIN=
+RAR_BIN=
 ```
+
+**Note:** On Vercel alone (no worker), upload is capped ~4.5 MB and ffmpeg audio/video is off unless `FORCE_FFMPEG=1` or `NEXT_PUBLIC_CONVERT_API_URL` points at a worker.
 
 ---
 

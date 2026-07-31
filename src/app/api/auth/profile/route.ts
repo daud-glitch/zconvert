@@ -20,7 +20,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const updateData: any = {};
+    const updateData: {
+      name?: string;
+      avatar?: string;
+      email?: string;
+      passwordHash?: string;
+    } = {};
 
     if (name) updateData.name = name;
     if (avatar) updateData.avatar = avatar;

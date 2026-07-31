@@ -33,6 +33,7 @@ type ApiEnvelope = {
   data?: unknown;
   error?: string | { message?: string; code?: string } | null;
   user?: unknown;
+  requires2FA?: boolean;
   requiresTwoFactor?: boolean;
   twoFactorRequired?: boolean;
 };
@@ -176,12 +177,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, twoFactorCode }),
+          body: JSON.stringify({
+            email,
+            password,
+            ...(twoFactorCode ? { token: twoFactorCode } : {}),
+          }),
         });
         const payload = await readJson(res);
         const requiresTwoFactor = Boolean(
-          payload.requiresTwoFactor || payload.twoFactorRequired,
+          payload.requires2FA ||
+            payload.requiresTwoFactor ||
+            payload.twoFactorRequired,
         );
+
+        if (requiresTwoFactor && !getEnvelopeUser(payload)) {
+          return { success: false, requiresTwoFactor: true };
+        }
 
         if (!res.ok || payload.success === false) {
           return {
@@ -194,7 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const nextUser = getEnvelopeUser(payload);
         setUser(nextUser);
 
-        return { success: true, user: nextUser, requiresTwoFactor };
+        return { success: true, user: nextUser };
       } catch {
         return { success: false, error: "Network error" };
       }

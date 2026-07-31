@@ -135,7 +135,7 @@ export async function DELETE(request: NextRequest) {
 
     await db.appSettings.delete({ where: { key } });
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     // If key not found, return silent success to avoid errors
     return NextResponse.json({ success: true, error: null });
   }

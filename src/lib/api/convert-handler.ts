@@ -5,11 +5,15 @@ import { isConversionPairListed } from "@/lib/formats";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import {
   audioUnavailableMessage,
+  videoUnavailableMessage,
   getServerMaxUploadBytes,
   isAudioConversionAvailable,
+  isVideoConversionAvailable,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
 import { getFormatByExt } from "@/lib/formats";
+import { getSessionUser } from "@/lib/auth";
+import { logConversion } from "@/lib/conversion-log";
 
 const MAX_UPLOAD_SIZE = getServerMaxUploadBytes();
 
@@ -125,6 +129,16 @@ export async function handleConvertPost(
         { status: 422 },
       );
     }
+    if (
+      !isVideoConversionAvailable() &&
+      (sourceFormatInfo.category === "video" ||
+        getFormatByExt(target)?.category === "video")
+    ) {
+      return NextResponse.json(
+        { error: videoUnavailableMessage() },
+        { status: 422 },
+      );
+    }
     if (file.size === 0) {
       return NextResponse.json({ error: "Empty file provided" }, { status: 400 });
     }
@@ -145,6 +159,8 @@ export async function handleConvertPost(
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const startTime = Date.now();
+    const sessionUser = await getSessionUser(request);
+    const category = sourceFormatInfo.category;
 
     let result: Buffer;
     let pdfZipMeta: { pageCount: number } | undefined;
@@ -180,6 +196,19 @@ export async function handleConvertPost(
         convertError instanceof Error
           ? convertError.message
           : "Unknown conversion error";
+      await logConversion({
+        userId: sessionUser?.id ?? null,
+        fileName,
+        originalExt: sourceExt,
+        targetExt: target,
+        category,
+        inputSize: file.size,
+        outputSize: 0,
+        status: "error",
+        duration: Date.now() - startTime,
+        error: errorMessage,
+        ipAddress: ip === "unknown" ? null : ip,
+      });
       return NextResponse.json({ error: errorMessage }, { status: 422 });
     }
 
@@ -191,6 +220,19 @@ export async function handleConvertPost(
     const encodedName = encodeURIComponent(
       pdfZipMeta ? `${baseName}-pages.zip` : `${baseName}.${target}`,
     );
+
+    const conversionId = await logConversion({
+      userId: sessionUser?.id ?? null,
+      fileName,
+      originalExt: sourceExt,
+      targetExt: outputExt,
+      category,
+      inputSize: file.size,
+      outputSize: result.length,
+      status: "done",
+      duration: Date.now() - startTime,
+      ipAddress: ip === "unknown" ? null : ip,
+    });
 
     const responseHeaders: Record<string, string> = {
       "Content-Type": "application/octet-stream",
@@ -205,6 +247,10 @@ export async function handleConvertPost(
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-store",
     };
+
+    if (conversionId) {
+      responseHeaders["X-Conversion-Id"] = conversionId;
+    }
 
     if (pdfZipMeta) {
       responseHeaders["X-Output-Package"] = "zip";

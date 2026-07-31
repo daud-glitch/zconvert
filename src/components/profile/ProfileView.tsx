@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApp } from "@/lib/app-context";
-import { User, Mail, Lock, Loader2, Save, LogOut, ShieldCheck } from "lucide-react";
+import { User, Mail, Loader2, Save, LogOut, ShieldCheck } from "lucide-react";
 
 export function ProfileView() {
   const { currentUser, logout, refreshUser } = useApp();
@@ -54,7 +54,7 @@ export function ProfileView() {
       } else {
         setMessage({ text: data.error || "Update failed", type: "error" });
       }
-    } catch (err) {
+    } catch {
       setMessage({ text: "Network error. Please try again.", type: "error" });
     } finally {
       setIsSaving(false);

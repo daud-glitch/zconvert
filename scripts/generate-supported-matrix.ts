@@ -104,10 +104,12 @@ function main() {
 
   lines.push("## Notes");
   lines.push("");
-  lines.push("- **Image:** exotic inputs (PSD, DDS, QOI, PCX, …) are decoded via `image-decode.ts` then converted with sharp.");
-  lines.push("- **TGS:** vector Lottie — input accepted but rasterization is not supported.");
-  lines.push("- **Data:** ORC, XPT, Toon binary inputs return explicit errors.");
-  lines.push("- **Ebook:** MOBI/AZW3/LRF output not supported (no Kindle writer).");
+  lines.push("- **Image:** exotic inputs (PSD, DDS, QOI, PCX, …) are decoded via `image-decode.ts` then converted with sharp. TGS is not offered (needs Lottie).");
+  lines.push("- **Data:** ORC, XPT, and Toon are not listed in the UI (unsupported readers).");
+  lines.push("- **Ebook:** Kindle/legacy inputs (MOBI, AZW3, LRF, PDB, SNB) are not listed; EPUB/FB2/comics remain.");
+  lines.push("- **Font:** Only OTF/TTF/WOFF → WOFF2 and WOFF2 → TTF (no passthrough pairs).");
+  lines.push("- **Presentation:** Text extract + rewrap; not full slide fidelity.");
+  lines.push("- **Audio / Archive:** May require ffmpeg, RAR CLI, LibreOffice, or Node zstd depending on host.");
   lines.push("");
 
   const outPath = join(process.cwd(), "docs", "SUPPORTED_MATRIX.md");

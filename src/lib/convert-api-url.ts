@@ -5,6 +5,7 @@ const CATEGORY_PATH: Record<FormatCategory, string> = {
   data: "/api/convert/data",
   archive: "/api/convert/archive",
   document: "/api/convert/document",
+  video: "/api/convert/other",
   audio: "/api/convert/other",
   ebook: "/api/convert/other",
   presentation: "/api/convert/other",

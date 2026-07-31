@@ -10,6 +10,7 @@ export type ViewType =
 
 export type FormatCategory =
   | "image"
+  | "video"
   | "audio"
   | "document"
   | "data"
@@ -38,6 +39,12 @@ export const categoryMeta: Record<
     color: "text-emerald-700 dark:text-emerald-400",
     bgColor: "bg-emerald-500",
     icon: "Image",
+  },
+  video: {
+    label: "Video",
+    color: "text-violet-700 dark:text-violet-400",
+    bgColor: "bg-violet-500",
+    icon: "Video",
   },
   audio: {
     label: "Audio",
@@ -275,6 +282,38 @@ export const archiveOutputSupported = [
 ] as const;
 
 export const archiveStandard = [...archiveOutputSupported];
+
+
+const videoOutputSupported = [
+  "mp4",
+  "webm",
+  "avi",
+  "mkv",
+  "mov",
+  "wmv",
+  "flv",
+  "m4v",
+  "mpeg",
+  "mpg",
+  "3gp",
+  "ogv",
+  "ts",
+] as const;
+
+const videoAudioExtractTargets = [
+  "mp3",
+  "wav",
+  "aac",
+  "m4a",
+  "ogg",
+  "opus",
+  "flac",
+] as const;
+
+const videoTargets = (self: string) => {
+  const outs = videoOutputSupported.filter((e) => e !== self);
+  return [...outs, ...videoAudioExtractTargets].sort();
+};
 
 const archiveNoSelf = (self: string) => {
   const set = new Set<string>(archiveStandard);
@@ -598,15 +637,6 @@ const allFormats: FormatInfo[] = [
     targetFormats: imgNoSelf("tga"),
   },
   {
-    ext: "tgs",
-    name: "TGS",
-    description:
-      "TGS is the animated sticker format used by the Telegram messaging application, based on the Lottie animation format (JSON vector animation) compressed with gzip. It produces smooth, scalable vector animations at very small file sizes, making them ideal for messaging apps where bandwidth and storage efficiency are important. TGS stickers look crisp at any resolution since they are based on vector paths rather than raster pixels.",
-    category: "image",
-    mimeTypes: ["application/x-tgsticker"],
-    targetFormats: ["gif", "png", "webp"],
-  },
-  {
     ext: "tiff",
     name: "TIFF",
     description:
@@ -727,6 +757,127 @@ const allFormats: FormatInfo[] = [
     targetFormats: ["mp3", "wav", "ogg", "aac", "flac"],
   },
 
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Video
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    ext: "mp4",
+    name: "MP4",
+    description:
+      "MP4 (MPEG-4 Part 14) is the most widely used digital video container format, storing H.264/H.265 video and AAC audio for web, mobile, and broadcast delivery.",
+    category: "video",
+    mimeTypes: ["video/mp4"],
+    targetFormats: videoTargets("mp4"),
+  },
+  {
+    ext: "webm",
+    name: "WebM",
+    description:
+      "WebM is an open, royalty-free media format designed for the web, typically using VP8/VP9/AV1 video and Vorbis/Opus audio.",
+    category: "video",
+    mimeTypes: ["video/webm"],
+    targetFormats: videoTargets("webm"),
+  },
+  {
+    ext: "avi",
+    name: "AVI",
+    description:
+      "AVI (Audio Video Interleave) is a classic Microsoft multimedia container widely used for desktop video archives and editing intermediates.",
+    category: "video",
+    mimeTypes: ["video/x-msvideo"],
+    targetFormats: videoTargets("avi"),
+  },
+  {
+    ext: "mkv",
+    name: "MKV",
+    description:
+      "MKV (Matroska Video) is a flexible open container that can hold multiple video, audio, and subtitle tracks in one file.",
+    category: "video",
+    mimeTypes: ["video/x-matroska"],
+    targetFormats: videoTargets("mkv"),
+  },
+  {
+    ext: "mov",
+    name: "MOV",
+    description:
+      "MOV is Apple QuickTime's multimedia container, common in professional video production and iPhone camera recordings.",
+    category: "video",
+    mimeTypes: ["video/quicktime"],
+    targetFormats: videoTargets("mov"),
+  },
+  {
+    ext: "wmv",
+    name: "WMV",
+    description:
+      "WMV (Windows Media Video) is Microsoft's video format family used for desktop playback and streaming on Windows platforms.",
+    category: "video",
+    mimeTypes: ["video/x-ms-wmv"],
+    targetFormats: videoTargets("wmv"),
+  },
+  {
+    ext: "flv",
+    name: "FLV",
+    description:
+      "FLV (Flash Video) is a legacy streaming video format formerly used by Adobe Flash Player and older online video platforms.",
+    category: "video",
+    mimeTypes: ["video/x-flv"],
+    targetFormats: videoTargets("flv"),
+  },
+  {
+    ext: "m4v",
+    name: "M4V",
+    description:
+      "M4V is an MP4-based video format popularized by Apple for iTunes and device video libraries.",
+    category: "video",
+    mimeTypes: ["video/x-m4v", "video/mp4"],
+    targetFormats: videoTargets("m4v"),
+  },
+  {
+    ext: "mpeg",
+    name: "MPEG",
+    description:
+      "MPEG (MPEG-1/MPEG-2 Program Stream) is a classic digital video format used in DVDs, broadcast, and archival footage.",
+    category: "video",
+    mimeTypes: ["video/mpeg"],
+    targetFormats: videoTargets("mpeg"),
+  },
+  {
+    ext: "mpg",
+    name: "MPG",
+    description:
+      "MPG is a common file extension for MPEG-1/MPEG-2 video streams used in older digital video workflows.",
+    category: "video",
+    mimeTypes: ["video/mpeg"],
+    targetFormats: videoTargets("mpg"),
+  },
+  {
+    ext: "3gp",
+    name: "3GP",
+    description:
+      "3GP is a multimedia container designed for 3G mobile devices, storing compressed video and audio for low-bandwidth delivery.",
+    category: "video",
+    mimeTypes: ["video/3gpp"],
+    targetFormats: videoTargets("3gp"),
+  },
+  {
+    ext: "ogv",
+    name: "OGV",
+    description:
+      "OGV is the Ogg container used for Theora (and related) video streams in open-source and web video contexts.",
+    category: "video",
+    mimeTypes: ["video/ogg"],
+    targetFormats: videoTargets("ogv"),
+  },
+  {
+    ext: "ts",
+    name: "TS",
+    description:
+      "TS (MPEG Transport Stream) carries packetized audio/video commonly used in broadcast TV and HLS streaming segments.",
+    category: "video",
+    mimeTypes: ["video/mp2t"],
+    targetFormats: videoTargets("ts"),
+  },
   // ═══════════════════════════════════════════════════════════════════════════
   // Documents
   // ═══════════════════════════════════════════════════════════════════════════
@@ -936,7 +1087,7 @@ const allFormats: FormatInfo[] = [
       "DTA is the native binary data file format for Stata, a statistical analysis package widely used in economics, epidemiology, and social science research. It stores complete datasets along with variable labels, value labels, missing value indicators, and display formats that preserve the full analytical context. DTA files can contain millions of observations and thousands of variables, making them suitable for large survey and panel datasets.",
     category: "data",
     mimeTypes: ["application/x-stata"],
-    targetFormats: dataNoSelf("dta", ["fwf", "sav", "xls", "xpt"]),
+    targetFormats: dataNoSelf("dta", ["fwf", "sav", "xls"]),
   },
   {
     ext: "env",
@@ -1002,15 +1153,6 @@ const allFormats: FormatInfo[] = [
     targetFormats: dataNoSelf("ods"),
   },
   {
-    ext: "orc",
-    name: "ORC",
-    description:
-      "ORC (Optimized Row Columnar) is a highly efficient binary columnar storage format developed for the Apache Hadoop ecosystem. It stores data in typed columns with built-in statistics, indexes, and compression that enable predicate pushdown and column pruning, dramatically speeding up analytical queries. ORC is widely used in Apache Hive, Apache Spark, and Presto as a high-performance format for large-scale data warehousing workloads.",
-    category: "data",
-    mimeTypes: ["application/x-orc"],
-    targetFormats: dataNoSelf("orc"),
-  },
-  {
     ext: "parquet",
     name: "Parquet",
     description:
@@ -1026,7 +1168,7 @@ const allFormats: FormatInfo[] = [
       "SAV is the binary data file format native to IBM SPSS Statistics, one of the most widely used statistical analysis packages in social science, healthcare, and market research. It stores datasets together with complete variable metadata including names, labels, value labels, missing value codes, and measurement scales. SAV files are essential for sharing reproducible SPSS analyses and are also readable by R, Python, and SAS through compatibility libraries.",
     category: "data",
     mimeTypes: ["application/x-spss-sav"],
-    targetFormats: dataNoSelf("sav", ["dta", "fwf", "xls", "xpt"]),
+    targetFormats: dataNoSelf("sav", ["dta", "fwf", "xls"]),
   },
   {
     ext: "sqlite",
@@ -1045,15 +1187,6 @@ const allFormats: FormatInfo[] = [
     category: "data",
     mimeTypes: ["application/toml"],
     targetFormats: dataNoSelf("toml"),
-  },
-  {
-    ext: "toon",
-    name: "Toon",
-    description:
-      "Toon Data Format is a specialized binary format for storing animation data produced by Toon Boom animation software, including scene structure, timing, and animation curves. It encodes frame-by-frame keyframes, rigging hierarchies, and drawing information used in professional 2D animation production. Toon files are primarily used within animation studios that rely on Toon Boom Harmony for producing television series and feature-length animated content.",
-    category: "data",
-    mimeTypes: ["application/x-toon"],
-    targetFormats: dataNoSelf("toon"),
   },
   {
     ext: "tsv",
@@ -1080,7 +1213,7 @@ const allFormats: FormatInfo[] = [
       "XLS is the legacy binary spreadsheet format used by Microsoft Excel from 1987 through the Office 2003 era, based on Microsoft's proprietary Binary Interchange File Format (BIFF). It stores worksheets, formulas, charts, and macros in a binary structure that requires Microsoft's format specification to parse correctly. XLS remains common in older enterprise systems and when compatibility with legacy versions of Excel is required.",
     category: "data",
     mimeTypes: ["application/vnd.ms-excel"],
-    targetFormats: dataNoSelf("xls", ["dta", "fwf", "sav", "xpt"]),
+    targetFormats: dataNoSelf("xls", ["dta", "fwf", "sav"]),
   },
   {
     ext: "xlsx",
@@ -1091,16 +1224,7 @@ const allFormats: FormatInfo[] = [
     mimeTypes: [
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ],
-    targetFormats: dataNoSelf("xlsx", ["dta", "fwf", "sav", "xls", "xpt"]),
-  },
-  {
-    ext: "xpt",
-    name: "XPT",
-    description:
-      "XPT is the SAS Transport File format, a portable data format defined by SAS Institute for exchanging datasets between different operating systems and SAS environments. It is required by the US Food and Drug Administration (FDA) for submitting clinical trial data in regulatory filings under CDISC standards. XPT files encode variable names, labels, formats, and data values using a documented ASCII-based layout that ensures reliable cross-platform data exchange.",
-    category: "data",
-    mimeTypes: ["application/x-sas-xpt"],
-    targetFormats: dataNoSelf("xpt", ["dta", "fwf", "sav", "xls"]),
+    targetFormats: dataNoSelf("xlsx", ["dta", "fwf", "sav", "xls"]),
   },
   {
     ext: "xml",
@@ -1210,15 +1334,6 @@ const allFormats: FormatInfo[] = [
   // Ebook
   // ═══════════════════════════════════════════════════════════════════════════
   {
-    ext: "azw3",
-    name: "AZW3",
-    description:
-      "AZW3 (also known as KF8 or Kindle Format 8) is Amazon's modern ebook format used on Kindle e-readers, the Kindle app, and Fire tablets. It represents a significant upgrade over the older MOBI format by supporting HTML5, CSS3, and embedded fonts for richer typography and more precise layout control. AZW3 is Amazon's current standard for Kindle publishing and is used for all new Kindle Direct Publishing titles.",
-    category: "ebook",
-    mimeTypes: ["application/vnd.amazon.ebook"],
-    targetFormats: ebookNoSelf("azw3"),
-  },
-  {
     ext: "cb7",
     name: "CB7",
     description:
@@ -1263,29 +1378,40 @@ const allFormats: FormatInfo[] = [
     mimeTypes: ["application/x-fb2"],
     targetFormats: ebookNoSelf("fb2"),
   },
+
+
   {
-    ext: "lrf",
-    name: "LRF",
+    ext: "azw3",
+    name: "AZW3",
     description:
-      "LRF is a proprietary ebook format developed by Sony specifically for their Reader series of e-ink devices (PRS-xxx lineup). It stores ebook content along with layout information optimized for Sony's display dimensions and rendering engine. Although Sony's Reader platform has been discontinued, existing LRF files can be converted to modern formats like EPUB using tools such as Calibre, preserving the content for current devices.",
+      "AZW3 (Kindle Format 8) is Amazon's modern ebook format. Conversion uses Calibre when available on the server.",
     category: "ebook",
-    mimeTypes: ["application/x-lrf"],
-    targetFormats: ebookNoSelf("lrf"),
+    mimeTypes: ["application/vnd.amazon.ebook"],
+    targetFormats: ebookNoSelf("azw3"),
   },
   {
     ext: "mobi",
     name: "MOBI",
     description:
-      "MOBI (Mobipocket eBook) is an ebook format originally developed by Mobipocket SA and later acquired by Amazon to power the original Kindle format. It supports reflowable text, embedded images, tables, and basic interactivity and is the ancestor of Amazon's modern AZW3/KF8 format. While newer Kindle devices use AZW3 natively, MOBI remains a widely supported conversion target and is used as an interchange format in ebook tools like Calibre.",
+      "MOBI is the classic Mobipocket/Kindle ebook format. Conversion uses Calibre when available on the server.",
     category: "ebook",
     mimeTypes: ["application/x-mobipocket-ebook"],
     targetFormats: ebookNoSelf("mobi"),
   },
   {
+    ext: "lrf",
+    name: "LRF",
+    description:
+      "LRF is Sony Reader's legacy ebook format. Conversion uses Calibre when available on the server.",
+    category: "ebook",
+    mimeTypes: ["application/x-lrf"],
+    targetFormats: ebookNoSelf("lrf"),
+  },
+  {
     ext: "pdb",
     name: "PDB",
     description:
-      "PDB (Palm Database eBook) was the native application and ebook file format for Palm OS handheld devices and early smartphones. In the ebook context, it refers to the eReader and Plucker ebook formats stored within PDB containers, which were popular during the Palm Pilot era. PDB ebooks are no longer in common use but can be converted to modern formats like EPUB to preserve content from older digital book collections.",
+      "PDB Palm ebook containers. Conversion uses Calibre when available on the server.",
     category: "ebook",
     mimeTypes: ["application/x-pdb"],
     targetFormats: ebookNoSelf("pdb"),
@@ -1294,12 +1420,11 @@ const allFormats: FormatInfo[] = [
     ext: "snb",
     name: "SNB",
     description:
-      "SNB (Shanda Bambook) is a proprietary ebook format developed by Shanda Literature for the Bambook e-reader device, popular in mainland China. It includes Chinese-language typography optimizations and DRM protection for content purchased from the Shanda Reading platform. SNB files can be converted to standard formats like EPUB or MOBI using conversion tools, allowing content to be read on more widely available modern devices.",
+      "SNB is the Shanda Bambook ebook format. Conversion uses Calibre when available on the server.",
     category: "ebook",
     mimeTypes: ["application/x-snb"],
     targetFormats: ebookNoSelf("snb"),
   },
-
   // ═══════════════════════════════════════════════════════════════════════════
   // Presentation
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1459,7 +1584,7 @@ const allFormats: FormatInfo[] = [
       "OTF (OpenType Font) is a scalable font format co-developed by Microsoft and Adobe as an evolution of TrueType that adds advanced typographic capabilities. It supports ligatures, alternate glyphs, contextual substitutions, small caps, old-style figures, and broad multilingual character coverage in a single cross-platform file. OTF is the professional standard for typefaces used in design, publishing, and operating systems worldwide.",
     category: "font",
     mimeTypes: ["font/otf", "font/otf-font"],
-    targetFormats: ["ttf", "woff", "woff2"],
+    targetFormats: ["woff2"],
   },
   {
     ext: "ttf",
@@ -1468,7 +1593,7 @@ const allFormats: FormatInfo[] = [
       "TTF (TrueType Font) is a scalable outline font format developed by Apple and Microsoft in the late 1980s as a rival to Adobe's PostScript Type 1 technology. TrueType fonts include both mathematical outlines and hinting instructions that ensure readable rendering at small screen sizes on low-resolution displays. TTF is the most universally supported font format across Windows, macOS, Linux, iOS, and Android, and forms the technical foundation of the modern OpenType format.",
     category: "font",
     mimeTypes: ["font/ttf", "font/truetype"],
-    targetFormats: ["otf", "woff", "woff2"],
+    targetFormats: ["woff2"],
   },
   {
     ext: "woff",
@@ -1477,7 +1602,7 @@ const allFormats: FormatInfo[] = [
       "WOFF (Web Open Font Format) is a font packaging format optimized for efficient web delivery, developed by the W3C and supported by all modern browsers. It wraps TrueType or OpenType font data with zlib compression and metadata, typically reducing font file sizes by around 40% compared to raw TTF or OTF. WOFF replaced direct TTF/OTF embedding as the preferred web font delivery format before WOFF2 took over.",
     category: "font",
     mimeTypes: ["font/woff"],
-    targetFormats: ["otf", "ttf", "woff2"],
+    targetFormats: ["woff2"],
   },
   {
     ext: "woff2",
@@ -1486,7 +1611,7 @@ const allFormats: FormatInfo[] = [
       "WOFF2 (Web Open Font Format 2) is the modern web font format that supersedes WOFF, achieving around 30% better compression using the Brotli algorithm. Smaller font files translate directly to faster page loads, better Core Web Vitals scores, and improved user experience on slower connections. WOFF2 is supported by all modern browsers and is the strongly recommended format for serving custom web fonts in production.",
     category: "font",
     mimeTypes: ["font/woff2"],
-    targetFormats: ["otf", "ttf", "woff"],
+    targetFormats: ["ttf"],
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1555,6 +1680,7 @@ export function getTotalConversions(): number {
 
 export function detectCategory(mimeType: string): FormatCategory {
   if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/") && !mimeType.includes("x-fli")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
   if (
     mimeType.includes("powerpoint") ||

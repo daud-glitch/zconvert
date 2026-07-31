@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-
-import { formats, categoryMeta } from "@/lib/formats";
+import { formats, categoryMeta, type FormatCategory } from "@/lib/formats";
+import { getCategoryCapability } from "@/lib/format-capability";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.authorized) return auth.response;
 
   try {
-    const categories = Object.entries(categoryMeta).map(([key, meta]) => {
+    const categories = (
+      Object.keys(categoryMeta) as FormatCategory[]
+    ).map((key) => {
+      const meta = categoryMeta[key];
+      const capability = getCategoryCapability(key);
       const categoryFormats = formats.filter((f) => f.category === key);
       const pairCount = categoryFormats.reduce(
         (acc, f) => acc + f.targetFormats.length,
@@ -22,19 +26,26 @@ export async function GET(request: NextRequest) {
         color: meta.bgColor,
         formatCount: categoryFormats.length,
         pairCount,
-        status: "functional" as const,
+        status: capability.status,
+        note: capability.note,
       };
     });
 
     const totalFormats = formats.length;
     const totalPairs = formats.reduce((acc, f) => acc + f.targetFormats.length, 0);
+    const functionalCategories = categories.filter(
+      (c) => c.status === "functional",
+    ).length;
+    const partialCategories = categories.filter(
+      (c) => c.status === "partial",
+    ).length;
 
     return NextResponse.json({
       categories,
       totalFormats,
       totalPairs,
-      functionalCategories: categories.length,
-      partialCategories: 0,
+      functionalCategories,
+      partialCategories,
     });
   } catch (error) {
     return NextResponse.json(
@@ -57,7 +68,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Batch update formats enabled status
     await Promise.all(
       ids.map((id: string) =>
         db.format.update({ where: { id }, data: { enabled } }),

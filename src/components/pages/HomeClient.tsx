@@ -5,8 +5,6 @@ import {
   RefreshCw,
   X,
   Layers,
-  Settings,
-  LogIn,
   LogOut,
   Sun,
   Moon,
@@ -39,6 +37,14 @@ import { ProfileView } from "@/components/profile/ProfileView";
 import { AdminView } from "@/components/admin/AdminView";
 import { useApp } from "@/lib/app-context";
 import { AuthDialog } from "@/components/auth/AuthDialog";
+import { CmsAdSlot } from "@/components/cms/CmsAdSlot";
+import { CmsFeatureCards } from "@/components/cms/CmsFeatureCards";
+import {
+  useCmsBundle,
+  linksByGroup,
+  adsByLocation,
+} from "@/hooks/use-cms";
+import Link from "next/link";
 
 export default function HomeClient({ defaultView }: { defaultView?: ViewType }) {
   const { currentView, setCurrentView, currentUser, logout, loading } = useApp();
@@ -47,6 +53,14 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   const [darkMode, setDarkMode] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const { features, links, ads } = useCmsBundle();
+  const footerLegal = linksByGroup(links, "footer_legal");
+  const footerProduct = linksByGroup(links, "footer_product");
+  const topAds = [
+    ...adsByLocation(ads, "homepage_top"),
+    ...adsByLocation(ads, "converter_top"),
+  ];
+  const footerAds = adsByLocation(ads, "footer");
 
   useEffect(() => {
     if (defaultView) {
@@ -296,12 +310,20 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
       {/* ── Main Content ───────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col relative">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-1 flex flex-col">
+          {currentView === "converter" && topAds.length > 0 && (
+            <div className="mb-6">
+              <CmsAdSlot ads={topAds} />
+            </div>
+          )}
           {currentView === "converter" && <ConverterView />}
           {currentView === "formats" && <FormatsView />}
           {currentView === "history" && <HistoryView />}
           {currentView === "bookmarks" && <BookmarksView />}
           {currentView === "profile" && <ProfileView />}
           {currentView === "admin" && <AdminView />}
+          {currentView === "converter" && (
+            <CmsFeatureCards features={features} />
+          )}
         </div>
 
         {/* Shortcuts Hint (Floating) */}
@@ -332,9 +354,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 </span>
               </div>
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-                A high-performance, private file conversion suite. No file size
-                limits, no registration required, and everything stays in your
-                browser whenever possible.
+                A high-performance file conversion suite. Convert images, video,
+                documents, and more — up to 100 MB per file on this server.
               </p>
               <div className="flex items-center gap-4">
                 <Button
@@ -366,18 +387,33 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 Quick Links
               </h4>
               <nav className="flex flex-col gap-2 text-sm text-muted-foreground">
-                <button
-                  onClick={() => setCurrentView("converter")}
-                  className="text-left hover:text-emerald-500 transition-colors"
-                >
-                  Converter
-                </button>
-                <button
-                  onClick={() => setCurrentView("formats")}
-                  className="text-left hover:text-emerald-500 transition-colors"
-                >
-                  Supported Formats
-                </button>
+                {(footerProduct.length
+                  ? footerProduct
+                  : [
+                      { id: "c", label: "Converter", url: "/" },
+                      { id: "f", label: "Supported Formats", url: "/conversions" },
+                    ]
+                ).map((link) =>
+                  link.url.startsWith("/") && !link.url.startsWith("//") ? (
+                    <Link
+                      key={link.id}
+                      href={link.url}
+                      className="text-left hover:text-emerald-500 transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  ) : (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      className="text-left hover:text-emerald-500 transition-colors"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {link.label}
+                    </a>
+                  ),
+                )}
                 <button
                   onClick={() => setCurrentView("history")}
                   className="text-left hover:text-emerald-500 transition-colors"
@@ -416,15 +452,45 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
 
           <Separator className="my-10 border-border/40" />
 
+          {footerAds.length > 0 && (
+            <div className="mb-8">
+              <CmsAdSlot ads={footerAds} />
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <p className="text-xs text-muted-foreground">
               &copy; {new Date().getFullYear()} Cloud Converter. All rights
               reserved. Built for performance and privacy.
             </p>
             <div className="flex items-center gap-6 text-xs text-muted-foreground">
-              <button className="hover:text-foreground">Terms</button>
-              <button className="hover:text-foreground">Privacy</button>
-              <button className="hover:text-foreground">Cookies</button>
+              {(footerLegal.length
+                ? footerLegal
+                : [
+                    { id: "t", label: "Terms", url: "/terms" },
+                    { id: "p", label: "Privacy", url: "/privacy" },
+                  ]
+              ).map((link) =>
+                link.url.startsWith("/") && !link.url.startsWith("//") ? (
+                  <Link
+                    key={link.id}
+                    href={link.url}
+                    className="hover:text-foreground"
+                  >
+                    {link.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    className="hover:text-foreground"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {link.label}
+                  </a>
+                ),
+              )}
               <button
                 className="flex items-center gap-1.5 hover:text-foreground transition-colors"
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}

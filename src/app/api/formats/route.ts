@@ -62,7 +62,19 @@ export async function GET(request: NextRequest) {
     }
 
     const categoryCounts = getCategoryCount();
-    const grouped: Record<string, any> = {};
+    const grouped: Record<
+      string,
+      {
+        meta: {
+          label: string;
+          color: string;
+          bgColor: string;
+          icon: string;
+        };
+        formats: unknown[];
+        count: number;
+      }
+    > = {};
 
     if (dbCategories.length > 0) {
       // Use database categories and formats

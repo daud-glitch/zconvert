@@ -91,6 +91,8 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_MAX_UPLOAD_MB: process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || maxUploadMb,
     NEXT_PUBLIC_VERCEL: vercelDeploy ? "1" : "0",
     NEXT_PUBLIC_AUDIO_ENABLED: vercelDeploy ? "0" : "1",
+    NEXT_PUBLIC_VIDEO_ENABLED: vercelDeploy ? "0" : "1",
+    NEXT_PUBLIC_MEDIA_ENABLED: vercelDeploy ? "0" : "1",
     NEXT_PUBLIC_CONVERT_API_URL: process.env.NEXT_PUBLIC_CONVERT_API_URL || "",
   },
   typescript: {

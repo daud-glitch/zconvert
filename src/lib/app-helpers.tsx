@@ -39,6 +39,11 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+/** Schema uses `done`; older UI used `completed`. */
+export function isConversionSuccess(status: string): boolean {
+  return status === "done" || status === "completed";
+}
+
 // ─── Category Detection ───────────────────────────────────────────────────────
 
 export function getCategoryFromExt(ext: string): string {
@@ -50,8 +55,9 @@ export function getCategoryFromExt(ext: string): string {
     dds: "image", dib: "image", eps: "image", heif: "image", icns: "image",
     jp2: "image", jxl: "image", mpo: "image", msp: "image", pbm: "image",
     pcx: "image", pfm: "image", pgm: "image", pnm: "image", ppm: "image",
-    qoi: "image", sgi: "image", tgs: "image", xbm: "image", xpm: "image",
+    qoi: "image", sgi: "image", xbm: "image", xpm: "image",
     fli: "image", flc: "image",
+    mp4: "video", webm: "video", avi: "video", mkv: "video", mov: "video", wmv: "video", flv: "video", m4v: "video", mpeg: "video", mpg: "video", "3gp": "video", ogv: "video", ts: "video",
     mp3: "audio", wav: "audio", ogg: "audio", aac: "audio", flac: "audio",
     wma: "audio", m4a: "audio", opus: "audio",
     pdf: "document", docx: "document", doc: "document", txt: "document",
@@ -61,19 +67,19 @@ export function getCategoryFromExt(ext: string): string {
     textile: "document", eml: "document", msg: "document",
     json: "data", yaml: "data", yml: "data", xml: "data", toml: "data",
     tsv: "data", env: "data", feather: "data", ini: "data", jsonl: "data",
-    ods: "data", orc: "data", parquet: "data", sqlite: "data", toon: "data",
+    ods: "data", parquet: "data", sqlite: "data",
     vcf: "data", xlsx: "data", dta: "data", fwf: "data", sav: "data",
-    xls: "data", xpt: "data",
+    xls: "data",
     zip: "archive", tar: "archive", gz: "archive", rar: "archive",
     "7z": "archive", bz2: "archive", xz: "archive", "tar.bz2": "archive",
     "tar.gz": "archive", "tar.xz": "archive", "tar.zst": "archive",
-    epub: "ebook", mobi: "ebook", azw3: "ebook", cbz: "ebook", cb7: "ebook",
-    cbr: "ebook", fb2: "ebook", lrf: "ebook", pdb: "ebook", snb: "ebook",
+    epub: "ebook", mobi: "ebook", azw3: "ebook", lrf: "ebook", pdb: "ebook", snb: "ebook", cbz: "ebook", cb7: "ebook",
+    cbr: "ebook", fb2: "ebook",
     key: "presentation", odp: "presentation", pot: "presentation",
     potx: "presentation", pps: "presentation", ppsx: "presentation",
     ppt: "presentation", pptm: "presentation", pptx: "presentation",
     srt: "subtitle", vtt: "subtitle", ass: "subtitle", ssa: "subtitle",
-    woff: "font", woff2: "font", ttf: "font", otf: "font", eot: "font",
+    woff: "font", woff2: "font", ttf: "font", otf: "font",
     drawio: "other", p7m: "other",
   };
   return map[ext] || "other";

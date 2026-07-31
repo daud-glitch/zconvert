@@ -100,6 +100,10 @@ async function createSession(user: { id: string; email: string; name: string | n
         userAgent: request.headers.get("user-agent") || null,
       },
     });
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    }).catch(() => {});
   } catch (err) {
     console.error("Session creation error:", err);
     throw new Error("Failed to create session in database");

@@ -21,7 +21,6 @@ import {
   Megaphone,
   Settings,
 } from "lucide-react";
-import { type ViewType } from "@/lib/formats";
 
 /** Prefix for bulk ZIP downloads (e.g. cloudconverter.tech-report.zip). */
 export const DOWNLOAD_BRAND_PREFIX = "cloudconverter.tech";
@@ -29,7 +28,7 @@ export const DOWNLOAD_BRAND_PREFIX = "cloudconverter.tech";
 /** Build a branded ZIP filename: cloudconverter.tech-{name}.zip */
 export function bulkZipDownloadFilename(fileNames: string[]): string {
   const sanitize = (s: string) =>
-    s.replace(/[^\w.\-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "files";
+    s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "files";
   const firstBase = sanitize(
     (fileNames[0] || "files").replace(/\.[^/.]+$/, ""),
   );
@@ -86,21 +85,21 @@ export const SUPPORTED_EXTENSIONS = [
   ".fli", ".flc", ".gif", ".heic", ".heif", ".icns", ".ico", ".jp2", ".jpeg",
   ".jpg", ".jxl", ".mpo", ".msp", ".pbm", ".pcx", ".pfm", ".pgm", ".png",
   ".pnm", ".ppm", ".psd", ".qoi", ".raw", ".cr2", ".sgi", ".svg", ".tga",
-  ".tgs", ".tif", ".tiff", ".webp", ".xbm", ".xpm",
+  ".tif", ".tiff", ".webp", ".xbm", ".xpm",
+  ".mp4", ".webm", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".m4v", ".mpeg", ".mpg", ".3gp", ".ogv", ".ts",
   ".mp3", ".wav", ".ogg", ".aac", ".flac", ".wma", ".m4a", ".opus",
   ".adoc", ".doc", ".docx", ".html", ".htm", ".ipynb", ".md", ".muse",
   ".odt", ".opml", ".org", ".pdf", ".rst", ".rtf", ".tex", ".textile",
   ".txt", ".eml", ".msg",
   ".csv", ".dta", ".env", ".feather", ".fwf", ".ini", ".json", ".jsonl",
-  ".ods", ".orc", ".parquet", ".sav", ".sqlite", ".toml", ".toon", ".tsv",
-  ".vcf", ".xls", ".xlsx", ".xpt", ".xml", ".yaml", ".yml",
+  ".ods", ".parquet", ".sav", ".sqlite", ".toml", ".tsv",
+  ".vcf", ".xls", ".xlsx", ".xml", ".yaml", ".yml",
   ".7z", ".rar", ".tar", ".tar.bz2", ".tar.gz", ".tar.xz", ".tar.zst",
   ".zip", ".gz", ".bz2", ".xz",
-  ".azw3", ".cb7", ".cbr", ".cbz", ".epub", ".fb2", ".lrf", ".mobi",
-  ".pdb", ".snb",
+  ".azw3", ".cb7", ".cbr", ".cbz", ".epub", ".fb2", ".lrf", ".mobi", ".pdb", ".snb",
   ".key", ".odp", ".pot", ".potx", ".pps", ".ppsx", ".ppt", ".pptm", ".pptx",
   ".ass", ".mpl", ".srt", ".ssa", ".sub", ".vtt",
-  ".otf", ".ttf", ".woff", ".woff2", ".eot",
+  ".otf", ".ttf", ".woff", ".woff2",
   ".drawio", ".p7m",
 ].join(",");
 

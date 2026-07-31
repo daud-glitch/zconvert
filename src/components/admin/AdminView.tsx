@@ -5,7 +5,6 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type AdminTab } from "@/lib/app-types";
 import { adminNavItems } from "@/lib/app-constants";
-import { type ViewType } from "@/lib/formats";
 import { Breadcrumb } from "@/components/common/Breadcrumb";
 import { AdminOverview } from "./AdminOverview";
 import { AdminAnalytics } from "./AdminAnalytics";

@@ -77,7 +77,7 @@ export function ConverterHero({
             </h1>
 
             <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Drop images, documents, spreadsheets, audio, archives, and more —
+              Drop images, video, documents, spreadsheets, audio, archives, and more —
               pick your output format and download in seconds.
               {formatCount > 0 && (
                 <>

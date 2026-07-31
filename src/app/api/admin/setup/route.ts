@@ -4,10 +4,20 @@ import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
   try {
+    const setupSecret = process.env.ADMIN_SETUP_SECRET?.trim();
+    if (!setupSecret) {
+      return NextResponse.json(
+        {
+          error:
+            "Admin setup is disabled. Set ADMIN_SETUP_SECRET in the server environment.",
+        },
+        { status: 403 },
+      );
+    }
+
     const { email, password, secret } = await request.json();
 
-    // Simple protection - change this secret in production
-    if (secret !== "make-me-admin") {
+    if (secret !== setupSecret) {
       return NextResponse.json({ error: "Invalid secret" }, { status: 403 });
     }
 
@@ -21,7 +31,6 @@ export async function POST(request: NextRequest) {
     const existingUser = await db.user.findUnique({ where: { email } });
 
     if (existingUser) {
-      // Update existing user to admin
       const updated = await db.user.update({
         where: { email },
         data: { role: "admin", passwordHash: await bcrypt.hash(password, 10) },
@@ -33,7 +42,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create new admin user
     const user = await db.user.create({
       data: {
         email,

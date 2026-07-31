@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, Trash2, ArrowRightLeft, Search, Plus, ExternalLink, Lock } from "lucide-react";
+import { Bookmark, Trash2, ArrowRightLeft, Search, ExternalLink, Lock } from "lucide-react";
 import { useApp } from "@/lib/app-context";
 import { type BookmarkRecord } from "@/lib/app-types";
 import { readJsonResponse } from "@/lib/http-json";
-import { getCategoryIcon, getCategoryFromExt } from "@/lib/app-helpers";
-import { categoryColors, categoryLightBg, categoryTextColors, categoryBorderColors } from "@/lib/app-constants";
+import { getCategoryIcon } from "@/lib/app-helpers";
+import { categoryLightBg, categoryTextColors } from "@/lib/app-constants";
 import { Input } from "@/components/ui/input";
 
 export function BookmarksView() {
@@ -18,30 +18,29 @@ export function BookmarksView() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchBookmarks = async () => {
-    if (!currentUser) {
-      setIsLoading(false);
-      setBookmarks([]);
-      return;
-    }
-    try {
-      setIsLoading(true);
-      const res = await fetch("/api/bookmarks");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await readJsonResponse<{
-        data?: BookmarkRecord[];
-        bookmarks?: BookmarkRecord[];
-      }>(res);
-      setBookmarks(data.data || data.bookmarks || []);
-    } catch (err) {
-      console.error("Failed to fetch bookmarks:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchBookmarks();
+    const fetchBookmarks = async () => {
+      if (!currentUser) {
+        setIsLoading(false);
+        setBookmarks([]);
+        return;
+      }
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/bookmarks");
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await readJsonResponse<{
+          data?: BookmarkRecord[];
+          bookmarks?: BookmarkRecord[];
+        }>(res);
+        setBookmarks(data.data || data.bookmarks || []);
+      } catch (err) {
+        console.error("Failed to fetch bookmarks:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void fetchBookmarks();
   }, [currentUser]);
 
   const handleDelete = async (id: string) => {

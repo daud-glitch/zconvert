@@ -20,6 +20,7 @@ import {
   Subtitles,
   Type,
   FileQuestion,
+  Video,
 } from "lucide-react";
 import { formats, categoryMeta } from "@/lib/formats";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 
 const catColors: Record<string, string> = {
   image: "bg-emerald-500",
+  video: "bg-violet-500",
   audio: "bg-amber-500",
   document: "bg-sky-500",
   data: "bg-rose-500",
@@ -42,6 +44,7 @@ const catColors: Record<string, string> = {
 
 const catBorder: Record<string, string> = {
   image: "border-l-emerald-500",
+  video: "border-l-violet-500",
   audio: "border-l-amber-500",
   document: "border-l-sky-500",
   data: "border-l-rose-500",
@@ -55,6 +58,7 @@ const catBorder: Record<string, string> = {
 
 const catTargetBg: Record<string, string> = {
   image: "hover:bg-emerald-500",
+  video: "hover:bg-violet-500",
   audio: "hover:bg-amber-500",
   document: "hover:bg-sky-500",
   data: "hover:bg-rose-500",
@@ -70,6 +74,7 @@ function getCatIcon(cat: string, size = "w-4 h-4") {
   const cls = size;
   const map: Record<string, React.ReactNode> = {
     image: <ImageIcon className={cls} />,
+    video: <Video className={cls} />,
     audio: <Music className={cls} />,
     document: <FileText className={cls} />,
     data: <Database className={cls} />,

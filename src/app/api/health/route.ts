@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 export async function GET() {
-  const status: Record<string, any> = {
+  const status: {
+    timestamp: string;
+    status: string;
+    environment: string | undefined;
+    database?: string;
+    db_error?: string;
+  } = {
     timestamp: new Date().toISOString(),
     status: "ok",
     environment: process.env.NODE_ENV,

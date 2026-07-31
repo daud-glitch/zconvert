@@ -83,6 +83,7 @@ export interface FormatCategoryStatus {
   formatCount: number;
   pairCount: number;
   status: "functional" | "partial";
+  note?: string;
 }
 
 export interface FormatStatusData {

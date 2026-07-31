@@ -9,9 +9,18 @@ import { isPdfRasterTarget } from "@/lib/pdf-raster-targets";
 import { decodeImageToPng } from "@/lib/image-decode";
 import { formats } from "@/lib/formats";
 import {
+  audioUnavailableMessage,
+  videoUnavailableMessage,
+  libreOfficeUnavailableMessage,
+  calibreUnavailableMessage,
+  rarUnavailableMessage,
+  zstdUnavailableMessage,
+  isFfmpegConversionAvailable,
+} from "@/lib/upload-limits";
+import {
   convertViaLibreOffice,
+  convertViaCalibre,
   createRarWithToolchain,
-  type ArchiveEntry,
 } from "@/lib/external-toolchain";
 import {
   extractArchiveEntries,
@@ -23,6 +32,7 @@ import {
   packTo7zip,
   readBinaryDataRecords,
   writeParquetBuffer,
+  type ArchiveEntry,
 } from "@/lib/format-readers";
 import PptxGenJS from "pptxgenjs";
 import * as XLSX from "xlsx";
@@ -37,22 +47,70 @@ import { parse as csvParse } from "csv-parse/sync";
 import { stringify as csvStringify } from "csv-stringify/sync";
 import he from "he";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
-import { PassThrough } from "stream";
 import type Ffmpeg from "fluent-ffmpeg";
 
-/** Load ffmpeg only for audio routes (keeps serverless bundle smaller on Vercel). */
+/** Resolve ffmpeg binary (env override → ffmpeg-static → system PATH). */
 async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
   const ffmpegMod = await import("fluent-ffmpeg");
   const ffmpeg = ffmpegMod.default;
-  try {
-    const ffmpegStatic = require("ffmpeg-static") as string | undefined;
-    if (ffmpegStatic) {
-      ffmpeg.setFfmpegPath(ffmpegStatic);
+  const envPath =
+    process.env.FFMPEG_BIN?.trim() || process.env.FFMPEG_PATH?.trim();
+  if (envPath) {
+    ffmpeg.setFfmpegPath(envPath);
+  } else {
+    try {
+      const ffmpegStatic = require("ffmpeg-static") as string | null | undefined;
+      if (ffmpegStatic) {
+        ffmpeg.setFfmpegPath(ffmpegStatic);
+      }
+    } catch (err) {
+      console.error("Failed to set ffmpeg-static path:", err);
     }
-  } catch (err) {
-    console.error("Failed to set ffmpeg path:", err);
   }
-  return ffmpeg as any;
+  return ffmpeg as unknown as Ffmpeg.FfmpegCommand;
+}
+
+/**
+ * Run ffmpeg via temp files (reliable for large audio/video on servers).
+ */
+async function convertWithFfmpegFiles(
+  input: Buffer,
+  inputExt: string,
+  outputExt: string,
+  configure: (command: Ffmpeg.FfmpegCommand) => Ffmpeg.FfmpegCommand,
+  unavailableMessage: string,
+): Promise<Buffer> {
+  if (!isFfmpegConversionAvailable()) {
+    throw new Error(unavailableMessage);
+  }
+
+  const ffmpeg = await getFfmpegCommand();
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-ff-"));
+  const inPath = path.join(tmp, `input.${inputExt.replace(/^\./, "")}`);
+  const outPath = path.join(tmp, `output.${outputExt.replace(/^\./, "")}`);
+
+  try {
+    await fs.writeFile(inPath, input);
+
+    await new Promise<void>((resolve, reject) => {
+      let command = ffmpeg(inPath);
+      command = configure(command);
+      command
+        .output(outPath)
+        .on("start", (cmd) => console.log("[ffmpeg]", cmd))
+        .on("error", (err) => reject(err))
+        .on("end", () => resolve())
+        .run();
+    });
+
+    const out = await fs.readFile(outPath);
+    if (!out.length) {
+      throw new Error("ffmpeg produced empty output");
+    }
+    return out;
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 // ─── Format Sets ────────────────────────────────────────────────────────────
@@ -118,38 +176,6 @@ function encodeIco(data: Buffer, width: number, height: number): Buffer {
   return ico;
 }
 
-/** Decode 24-bit BMP (from ICO payload) to RGBA for sharp. */
-function decodeBmpToRgba(bmp: Buffer): {
-  data: Buffer;
-  width: number;
-  height: number;
-} {
-  if (bmp.length < 54 || bmp.toString("ascii", 0, 2) !== "BM") {
-    throw new Error("Invalid BMP data in icon");
-  }
-  const pixelOffset = bmp.readUInt32LE(10);
-  const width = bmp.readInt32LE(18);
-  const height = Math.abs(bmp.readInt32LE(22));
-  const bpp = bmp.readUInt16LE(28);
-  if (bpp !== 24) throw new Error("Only 24-bit BMP icons are supported");
-
-  const rowSize = Math.ceil((width * 3) / 4) * 4;
-  const rgba = Buffer.alloc(width * height * 4);
-
-  for (let y = 0; y < height; y++) {
-    const srcY = height - 1 - y;
-    for (let x = 0; x < width; x++) {
-      const srcIdx = pixelOffset + srcY * rowSize + x * 3;
-      const dstIdx = (y * width + x) * 4;
-      rgba[dstIdx] = bmp[srcIdx + 2];
-      rgba[dstIdx + 1] = bmp[srcIdx + 1];
-      rgba[dstIdx + 2] = bmp[srcIdx];
-      rgba[dstIdx + 3] = 255;
-    }
-  }
-  return { data: rgba, width, height };
-}
-
 /** Formats convertImage can encode (must match formats.ts imgOutputSupported). */
 export const imageOutputFormats = new Set([
   "png",
@@ -191,16 +217,13 @@ const dataFormats = new Set([
   "json",
   "jsonl",
   "ods",
-  "orc",
   "parquet",
   "sav",
   "sqlite",
   "toml",
-  "toon",
   "tsv",
   "xls",
   "xlsx",
-  "xpt",
   "xml",
   "yaml",
   "yml",
@@ -239,7 +262,7 @@ const dataBinaryReadableFormats = new Set([
   "sqlite",
 ]);
 
-const dataBinaryUnsupportedFormats = new Set(["orc", "toon", "xpt"]);
+const dataBinaryUnsupportedFormats = new Set(["orc", "toon", "xpt"]); // kept for direct/API safety
 
 /** Subtitle outputs (must match formats.ts subtitle targets). */
 export const subtitleOutputFormats = new Set([
@@ -300,7 +323,7 @@ export const ebookOutputFormats = new Set([
 ]);
 
 /** Font outputs (must match formats.ts font targets). */
-export const fontOutputFormats = new Set(["otf", "ttf", "woff", "woff2"]);
+export const fontOutputFormats = new Set(["ttf", "woff2"]);
 
 const docFormats = new Set([
   "pdf",
@@ -363,6 +386,22 @@ const audioFormats = new Set([
   "opus",
 ]);
 
+export const videoFormats = new Set([
+  "mp4",
+  "webm",
+  "avi",
+  "mkv",
+  "mov",
+  "wmv",
+  "flv",
+  "m4v",
+  "mpeg",
+  "mpg",
+  "3gp",
+  "ogv",
+  "ts",
+]);
+
 const ebookFormats = new Set([
   "azw3",
   "cb7",
@@ -374,6 +413,16 @@ const ebookFormats = new Set([
   "mobi",
   "pdb",
   "snb",
+]);
+
+const calibrePreferredInputs = new Set([
+  "azw3",
+  "mobi",
+  "lrf",
+  "pdb",
+  "snb",
+  "epub",
+  "fb2",
 ]);
 
 const presFormats = new Set([
@@ -1439,9 +1488,7 @@ async function convertDocument(
       "MS Word 97",
     );
     if (viaLibreOffice) return viaLibreOffice;
-    throw new Error(
-      "DOC conversion requires LibreOffice. Set SOFFICE_BIN to enable.",
-    );
+    throw new Error(libreOfficeUnavailableMessage());
   }
 
   // Extract text from binary document formats first
@@ -1757,22 +1804,32 @@ async function convertEbook(
     );
   }
 
-  // Try to extract text from ebook
+  // Prefer Calibre for Kindle/legacy and whenever available for EPUB/FB2.
+  if (calibrePreferredInputs.has(src) || dest === "epub") {
+    const viaCalibre = await convertViaCalibre(input, src, dest);
+    if (viaCalibre && viaCalibre.length > 0) {
+      return viaCalibre;
+    }
+    if (["azw3", "mobi", "lrf", "pdb", "snb"].includes(src)) {
+      throw new Error(calibreUnavailableMessage());
+    }
+  }
+
+  // Fallback: extract text from ZIP-based ebooks / FB2, then document writers.
   let text = "";
   try {
     if (src === "fb2") {
-    text = await extractFb2Text(input);
-  } else if (src === "epub" || src === "cbz" || src === "cb7" || src === "cbr") {
-      // Try reading as ZIP (EPUB/CBZ are ZIP-based)
+      text = await extractFb2Text(input);
+    } else if (src === "epub" || src === "cbz" || src === "cb7" || src === "cbr") {
       const zip = await JSZip.loadAsync(input);
       const htmlFiles: string[] = [];
-      zip.forEach((path, _file) => {
+      zip.forEach((pathName, _file) => {
         if (
-          path.endsWith(".html") ||
-          path.endsWith(".xhtml") ||
-          path.endsWith(".htm")
+          pathName.endsWith(".html") ||
+          pathName.endsWith(".xhtml") ||
+          pathName.endsWith(".htm")
         ) {
-          htmlFiles.push(path);
+          htmlFiles.push(pathName);
         }
       });
       const contents = await Promise.all(
@@ -1918,13 +1975,7 @@ async function convertPresentation(
     );
   }
 
-  // Presentation-to-presentation: passthrough for same-family binary formats
-  const zipPresFormats = new Set(["pptx", "ppsx", "potx", "pptm"]);
-  if (zipPresFormats.has(src) && zipPresFormats.has(dest)) {
-    return input;
-  }
-  if (src === "odp" && dest === "odp") return input;
-
+  // Always extract text then rewrap (no same-family byte passthrough).
   const text = await extractPresentationText(input, inputExt);
 
   if (
@@ -2036,15 +2087,19 @@ async function convertArchive(
   }
 
   if (dest === "7z") {
-    return packTo7zip(files);
+    try {
+      return await packTo7zip(files);
+    } catch (err) {
+      throw new Error(
+        `7z packing failed: ${err instanceof Error ? err.message : "unknown error"}. Ensure 7zip-min works on this host, or choose ZIP.`,
+      );
+    }
   }
 
   if (dest === "rar") {
     const rarBuffer = await createRarWithToolchain(files);
     if (rarBuffer) return rarBuffer;
-    throw new Error(
-      "RAR conversion requires external RAR CLI. Set RAR_BIN to enable.",
-    );
+    throw new Error(rarUnavailableMessage());
   }
 
   const buildTarBuffer = async (): Promise<Buffer> => {
@@ -2111,7 +2166,7 @@ async function convertArchive(
       zlib as unknown as { zstdCompressSync?: (value: Buffer) => Buffer }
     ).zstdCompressSync;
     if (typeof zstdCompressSync !== "function") {
-      throw new Error("Zstandard compression is not available on this runtime");
+      throw new Error(zstdUnavailableMessage());
     }
     return Buffer.from(zstdCompressSync(tarBuffer));
   }
@@ -2130,47 +2185,94 @@ async function convertFont(
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
 
-  if (!fontOutputFormats.has(dest)) {
-    throw new Error(
-      `Font output .${outputExt.toUpperCase()} is not supported. Supported: ${[...fontOutputFormats].sort().join(", ")}`,
-    );
-  }
-
-  // For WOFF2 conversions, try wawoff2
   if (dest === "woff2") {
     try {
       const { compress } = await import("wawoff2");
       return Buffer.from(await compress(input));
-    } catch {
-      return input; // Fallback to passthrough
+    } catch (err) {
+      throw new Error(
+        `WOFF2 compression failed: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
     }
   }
 
-  if (src === "woff2") {
+  if (src === "woff2" && dest === "ttf") {
     try {
       const { decompress } = await import("wawoff2");
       return Buffer.from(await decompress(input));
-    } catch {
-      return input;
+    } catch (err) {
+      throw new Error(
+        `WOFF2 decompression failed: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
     }
   }
 
-  // For TTF ↔ OTF, they're structurally similar — passthrough
-  return input;
+  throw new Error(
+    `Font conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not supported. Supported pairs: OTF/TTF/WOFF → WOFF2, WOFF2 → TTF.`,
+  );
 }
 
-// ─── Audio Converter (ffmpeg) ──────────────────────────────────────────────
+// ─── Audio / Video Converter (ffmpeg, temp files) ─────────────────────────
+function applyAudioCodec(
+  command: Ffmpeg.FfmpegCommand,
+  outputExt: string,
+): Ffmpeg.FfmpegCommand {
+  if (outputExt === "mp3") {
+    return command.audioCodec("libmp3lame").audioBitrate("192k");
+  }
+  if (outputExt === "aac") {
+    return command.audioCodec("aac").audioBitrate("192k");
+  }
+  if (outputExt === "m4a") {
+    return command.audioCodec("aac").audioBitrate("192k");
+  }
+  if (outputExt === "ogg") {
+    return command.audioCodec("libvorbis");
+  }
+  if (outputExt === "flac") {
+    return command.audioCodec("flac");
+  }
+  if (outputExt === "wav") {
+    return command.audioCodec("pcm_s16le");
+  }
+  if (outputExt === "opus") {
+    return command.audioCodec("libopus");
+  }
+  if (outputExt === "wma") {
+    return command.audioCodec("wmav2");
+  }
+  return command;
+}
+
+function applyVideoCodec(
+  command: Ffmpeg.FfmpegCommand,
+  outputExt: string,
+): Ffmpeg.FfmpegCommand {
+  if (outputExt === "webm") {
+    return command
+      .videoCodec("libvpx-vp9")
+      .audioCodec("libopus")
+      .outputOptions(["-b:v", "1M", "-b:a", "128k"]);
+  }
+  if (outputExt === "ogv") {
+    return command.videoCodec("libtheora").audioCodec("libvorbis");
+  }
+  if (outputExt === "wmv") {
+    return command.videoCodec("wmv2").audioCodec("wmav2");
+  }
+  // Default: H.264 + AAC in MP4-family containers (also works for many others)
+  return command
+    .videoCodec("libx264")
+    .audioCodec("aac")
+    .outputOptions(["-preset", "veryfast", "-crf", "23", "-movflags", "+faststart"]);
+}
+
 async function convertAudio(
   input: Buffer,
   inputExt: string,
   outputExt: string,
 ): Promise<Buffer> {
-  if (process.env.VERCEL) {
-    throw new Error(
-      "Audio conversion is not available on the cloud deployment (server size limits). Use a self-hosted install for audio.",
-    );
-  }
-
+  const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
   if (!audioFormats.has(dest)) {
     throw new Error(
@@ -2178,95 +2280,47 @@ async function convertAudio(
     );
   }
 
-  const ffmpeg = await getFfmpegCommand();
+  return convertWithFfmpegFiles(
+    input,
+    src,
+    dest,
+    (command) => applyAudioCodec(command.noVideo(), dest),
+    audioUnavailableMessage(),
+  );
+}
 
-  return new Promise((resolve, reject) => {
-    let completed = false;
-    const fail = (err: Error) => {
-      if (completed) return;
-      completed = true;
-      reject(err);
-    };
+async function convertVideo(
+  input: Buffer,
+  inputExt: string,
+  outputExt: string,
+): Promise<Buffer> {
+  const src = inputExt.toLowerCase();
+  const dest = outputExt.toLowerCase();
 
-    try {
-      const inputStream = new PassThrough();
-      inputStream.end(input);
+  // Video → audio extract
+  if (audioFormats.has(dest)) {
+    return convertWithFfmpegFiles(
+      input,
+      src,
+      dest,
+      (command) => applyAudioCodec(command.noVideo(), dest),
+      videoUnavailableMessage(),
+    );
+  }
 
-      const outputStream = new PassThrough();
-      const chunks: Buffer[] = [];
+  if (!videoFormats.has(dest)) {
+    throw new Error(
+      `Video output .${outputExt.toUpperCase()} is not supported. Supported: ${[...videoFormats].sort().join(", ")}`,
+    );
+  }
 
-      outputStream.on("data", (chunk) => chunks.push(chunk));
-      outputStream.on("end", () => {
-        if (completed) return;
-        const finalBuffer = Buffer.concat(chunks);
-        if (finalBuffer.length === 0) {
-          fail(new Error("Audio conversion produced empty output"));
-        } else {
-          completed = true;
-          resolve(finalBuffer);
-        }
-      });
-      outputStream.on("error", (err) => {
-        console.error("Audio Output Stream Error:", err);
-        fail(err);
-      });
-
-      // Common codec mappings for better compatibility
-      let command = ffmpeg(inputStream as any);
-
-      // Input format hint
-      if (inputExt) {
-        // Map some common extensions to ffmpeg format names if needed
-        let inputFormat = inputExt;
-        if (inputExt === "m4a") inputFormat = "mov";
-        else if (inputExt === "wma") inputFormat = "asf";
-        command = command.inputFormat(inputFormat);
-      }
-
-      let format = outputExt;
-
-      if (outputExt === "mp3") {
-        command = command.audioCodec("libmp3lame").audioBitrate("128k");
-      } else if (outputExt === "aac") {
-        command = command.audioCodec("aac").audioBitrate("128k");
-        format = "adts";
-      } else if (outputExt === "m4a") {
-        command = command.audioCodec("aac").audioBitrate("128k");
-        format = "ipod"; // 'ipod' is the format name for m4a in ffmpeg pipes
-        // fragmented mp4 is required for piping m4a/mp4
-        command = command.outputOptions("-movflags frag_keyframe+empty_moov");
-      } else if (outputExt === "ogg") {
-        command = command.audioCodec("libvorbis");
-      } else if (outputExt === "flac") {
-        command = command.audioCodec("flac");
-      } else if (outputExt === "wav") {
-        command = command.audioCodec("pcm_s16le");
-      } else if (outputExt === "opus") {
-        command = command.audioCodec("libopus");
-        format = "opus";
-      }
-
-      command
-        .toFormat(format)
-        .on("start", (cmd) => {
-          console.log("FFmpeg Audio Command:", cmd);
-        })
-        .on("progress", (progress) => {
-          if (progress.percent) {
-            console.log(`FFmpeg Audio Progress: ${progress.percent}%`);
-          }
-        })
-        .on("error", (err, stdout, stderr) => {
-          console.error("FFmpeg Audio Error:", err.message);
-          if (stderr) console.error("FFmpeg Stderr:", stderr);
-          fail(new Error(`Audio conversion failed: ${err.message}`));
-        })
-        .pipe(outputStream, { end: true });
-    } catch (err) {
-      console.error("ConvertAudio Catch Error:", err);
-      fail(err instanceof Error ? err : new Error(String(err)));
-    }
-  });
+  return convertWithFfmpegFiles(
+    input,
+    src,
+    dest,
+    (command) => applyVideoCodec(command, dest),
+    videoUnavailableMessage(),
+  );
 }
 
 function sniffEmbeddedExt(buf: Buffer): string {
@@ -2357,6 +2411,10 @@ export async function convertFile(
   // Route to appropriate converter
   if (imageInputFormats.has(src)) {
     return convertImage(input, src, dest, quality, width, height);
+  }
+
+  if (videoFormats.has(src) && (videoFormats.has(dest) || audioFormats.has(dest))) {
+    return convertVideo(input, src, dest);
   }
 
   if (audioFormats.has(src) && audioFormats.has(dest)) {

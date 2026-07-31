@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Routes that don't require authentication
 const publicRoutes = [
   "/api/convert",
   "/api/convert/image",
@@ -21,12 +20,15 @@ const publicRoutes = [
   "/api/pdf-split",
   "/api/ready",
   "/api/health",
+  "/api/cms",
   "/login",
   "/",
 ];
 
-// Routes that require admin role
-const adminRoutes = ["/api/admin"];
+const adminApiRoutes = ["/api/admin"];
+
+/** UI admin entry points that require a session cookie. */
+const adminUiRoutes = ["/system/core/admin", "/core/system/admin", "/admin"];
 
 function corsPreflightResponse(): NextResponse {
   const origin = process.env.ALLOWED_ORIGIN || "*";
@@ -41,65 +43,69 @@ function corsPreflightResponse(): NextResponse {
   });
 }
 
+function hasSessionUser(sessionCookie: { value: string } | undefined): boolean {
+  if (!sessionCookie?.value) return false;
+  try {
+    const session = JSON.parse(sessionCookie.value);
+    return Boolean(session?.userId);
+  } catch {
+    return false;
+  }
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (
-    request.method === "OPTIONS" &&
-    pathname.startsWith("/api/convert")
-  ) {
+  if (request.method === "OPTIONS" && pathname.startsWith("/api/convert")) {
     return corsPreflightResponse();
   }
 
   const sessionCookie = request.cookies.get("session");
 
-  // Allow public routes
-  if (publicRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"))) {
-    // For public routes, just continue
+  if (
+    publicRoutes.some(
+      (route) => pathname === route || pathname.startsWith(route + "/"),
+    )
+  ) {
     return NextResponse.next();
   }
 
-  // Protect admin API routes
-  if (adminRoutes.some((route) => pathname.startsWith(route))) {
-    if (!sessionCookie) {
+  if (adminApiRoutes.some((route) => pathname.startsWith(route))) {
+    // Allow setup bootstrap without a session (still gated by ADMIN_SETUP_SECRET).
+    if (pathname === "/api/admin/setup" || pathname.startsWith("/api/admin/setup/")) {
+      return NextResponse.next();
+    }
+    if (!hasSessionUser(sessionCookie)) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 },
       );
     }
-
-    try {
-      const session = JSON.parse(sessionCookie.value);
-      if (!session || !session.userId) {
-        return NextResponse.json(
-          { error: "Authentication required" },
-          { status: 401 },
-        );
-      }
-      // Allow through - the route handler will verify admin role via requireAdmin
-      return NextResponse.next();
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid session" },
-        { status: 401 },
-      );
-    }
+    return NextResponse.next();
   }
 
-  // For all other routes, allow through
+  if (adminUiRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"))) {
+    if (!hasSessionUser(sessionCookie)) {
+      const login = new URL("/login", request.url);
+      login.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(login);
+    }
+    return NextResponse.next();
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  // Match all API routes except public/auth, for example admin routes
-  // Match all UI routes, for example protected /dashboard routes
-  // For login route, we redirect to dashboard if user is logged in
   matcher: [
     "/api/:path*",
     "/admin/:path*",
+    "/system/core/admin",
+    "/system/core/admin/:path*",
+    "/core/system/admin",
+    "/core/system/admin/:path*",
     "/dashboard/:path*",
     "/settings/:path*",
-    "/conversions/:path*",
     "/bookmarks/:path*",
     "/profile/:path*",
     "/login",

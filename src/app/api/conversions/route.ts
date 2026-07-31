@@ -49,7 +49,10 @@ export async function GET(request: NextRequest) {
     const totalInputSize = sizeAggregation._sum.inputSize || BigInt(0);
 
     return NextResponse.json({
-      data: conversions,
+      data: conversions.map((c) => ({
+        ...c,
+        createdAt: c.createdAt.toISOString(),
+      })),
       pagination: {
         page,
         limit,
@@ -58,8 +61,8 @@ export async function GET(request: NextRequest) {
       },
       stats: {
         total: totalCount,
-        totalConvertedSize: totalOutputSize.toString(),
-        totalOriginalSize: totalInputSize.toString(),
+        totalConvertedSize: Number(totalOutputSize).toString(),
+        totalOriginalSize: Number(totalInputSize).toString(),
       },
     });
   } catch (error) {
