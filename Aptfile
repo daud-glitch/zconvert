@@ -1,2 +1,1 @@
-# Heroku: add buildpack `heroku-community/apt` (index 1) so system ffmpeg is available.
 ffmpeg
