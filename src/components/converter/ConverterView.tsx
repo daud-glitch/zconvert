@@ -1827,7 +1827,7 @@ export function ConverterView() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {subtitleQuickPresets.map((preset) => (
                 <button
                   key={preset.id}

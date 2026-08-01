@@ -50,6 +50,19 @@ import { stringify as csvStringify } from "csv-stringify/sync";
 import he from "he";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
 import type Ffmpeg from "fluent-ffmpeg";
+import {
+  parseSbv,
+  toSbv,
+  parseLrc,
+  toLrc,
+  parseIcs,
+  toIcs,
+  parseM3u,
+  toM3u,
+  parseGeoJson,
+  toGeoJson,
+  type SubtitleCue,
+} from "@/lib/light-text-formats";
 
 function ffmpegPathExists(binPath: string): boolean {
   try {
@@ -415,6 +428,7 @@ const dataFormats = new Set([
   "env",
   "feather",
   "fwf",
+  "geojson",
   "ini",
   "json",
   "jsonl",
@@ -438,6 +452,7 @@ export const dataOutputFormats = new Set([
   "tsv",
   "json",
   "jsonl",
+  "geojson",
   "yaml",
   "yml",
   "xml",
@@ -474,6 +489,21 @@ export const subtitleOutputFormats = new Set([
   "ssa",
   "sub",
   "mpl",
+  "sbv",
+  "lrc",
+]);
+
+/** Calendar / playlist (text-only). */
+const utilityFormats = new Set(["ics", "m3u", "m3u8"]);
+const utilityTextTargets = new Set([
+  "ics",
+  "m3u",
+  "m3u8",
+  "json",
+  "csv",
+  "tsv",
+  "txt",
+  "md",
 ]);
 
 /** Archive outputs the converter actually produces. */
@@ -639,7 +669,16 @@ const presFormats = new Set([
   "pptx",
 ]);
 
-const subFormats = new Set(["ass", "mpl", "srt", "ssa", "sub", "vtt"]);
+const subFormats = new Set([
+  "ass",
+  "lrc",
+  "mpl",
+  "sbv",
+  "srt",
+  "ssa",
+  "sub",
+  "vtt",
+]);
 
 const fontFormats = new Set(["otf", "ttf", "woff", "woff2"]);
 
@@ -1277,6 +1316,24 @@ function toMpl(entries: SubtitleEntry[]): string {
     .join("\n");
 }
 
+function asSubtitleCues(entries: SubtitleEntry[]): SubtitleCue[] {
+  return entries.map((e) => ({
+    index: e.index,
+    start: e.start,
+    end: e.end,
+    text: e.text,
+  }));
+}
+
+function fromSubtitleCues(entries: SubtitleCue[]): SubtitleEntry[] {
+  return entries.map((e) => ({
+    index: e.index,
+    start: e.start,
+    end: e.end,
+    text: e.text,
+  }));
+}
+
 // ─── Image Converter (sharp) ──────────────────────────────────────────────
 async function convertImage(
   input: Buffer,
@@ -1417,6 +1474,8 @@ async function convertData(
   if (src === "json") {
     const parsed = JSON.parse(text);
     records = Array.isArray(parsed) ? parsed : [parsed];
+  } else if (src === "geojson") {
+    records = parseGeoJson(text);
   } else if (src === "jsonl") {
     records = parseJsonl(text);
   } else if (src === "csv") {
@@ -1482,6 +1541,8 @@ async function convertData(
   switch (dest) {
     case "json":
       return Buffer.from(JSON.stringify(records, null, 2), "utf-8");
+    case "geojson":
+      return Buffer.from(toGeoJson(records), "utf-8");
     case "jsonl":
       return Buffer.from(toJsonl(records), "utf-8");
     case "csv":
@@ -1969,6 +2030,12 @@ async function convertSubtitle(
     case "mpl":
       entries = parseMpl(text);
       break;
+    case "sbv":
+      entries = fromSubtitleCues(parseSbv(text));
+      break;
+    case "lrc":
+      entries = fromSubtitleCues(parseLrc(text));
+      break;
     default:
       entries = parseSrt(text);
   }
@@ -1987,11 +2054,74 @@ async function convertSubtitle(
       return Buffer.from(toSub(entries), "utf-8");
     case "mpl":
       return Buffer.from(toMpl(entries), "utf-8");
+    case "sbv":
+      return Buffer.from(toSbv(asSubtitleCues(entries)), "utf-8");
+    case "lrc":
+      return Buffer.from(toLrc(asSubtitleCues(entries)), "utf-8");
     default:
       throw new Error(
         `Subtitle conversion from ${src.toUpperCase()} to ${dest.toUpperCase()} is not implemented`,
       );
   }
+}
+
+async function convertUtilityFormat(
+  input: Buffer,
+  inputExt: string,
+  outputExt: string,
+): Promise<Buffer> {
+  const src = inputExt.toLowerCase();
+  const dest = outputExt.toLowerCase();
+  const text = input.toString("utf-8");
+
+  let records: Record<string, unknown>[] = [];
+  if (src === "ics") {
+    records = parseIcs(text);
+  } else if (src === "m3u" || src === "m3u8") {
+    records = parseM3u(text);
+  } else if (src === "json") {
+    const parsed = JSON.parse(text);
+    records = Array.isArray(parsed) ? parsed : [parsed];
+  } else if (src === "csv") {
+    records = parseCsv(text, ",");
+  } else if (src === "tsv") {
+    records = parseCsv(text, "\t");
+  } else if (src === "txt" || src === "md") {
+    records = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => ({ content: line, url: line, title: line }));
+  } else {
+    throw new Error(
+      `Cannot read .${src.toUpperCase()} for calendar/playlist conversion`,
+    );
+  }
+
+  if (dest === "ics") {
+    return Buffer.from(toIcs(records), "utf-8");
+  }
+  if (dest === "m3u" || dest === "m3u8") {
+    return Buffer.from(toM3u(records), "utf-8");
+  }
+  if (dest === "json") {
+    return Buffer.from(JSON.stringify(records, null, 2), "utf-8");
+  }
+  if (dest === "csv") {
+    return Buffer.from(toCsv(records), "utf-8");
+  }
+  if (dest === "tsv") {
+    return Buffer.from(toTsv(records), "utf-8");
+  }
+  if (dest === "txt" || dest === "md") {
+    const lines = records.map((r) =>
+      String(r.summary ?? r.title ?? r.url ?? r.content ?? JSON.stringify(r)),
+    );
+    return Buffer.from(lines.join("\n") + "\n", "utf-8");
+  }
+  throw new Error(
+    `Utility conversion to .${dest.toUpperCase()} is not supported`,
+  );
 }
 
 // ─── Ebook Converter ───────────────────────────────────────────────────────
@@ -2703,8 +2833,16 @@ export async function convertFile(
     return convertPresentation(input, src, dest, quality);
   }
 
-  if (subFormats.has(src)) {
+  if (subFormats.has(src) && subtitleOutputFormats.has(dest)) {
     return convertSubtitle(input, src, dest);
+  }
+
+  if (
+    (utilityFormats.has(src) || utilityFormats.has(dest)) &&
+    utilityTextTargets.has(src) &&
+    utilityTextTargets.has(dest)
+  ) {
+    return convertUtilityFormat(input, src, dest);
   }
 
   if (archiveFormats.has(src)) {

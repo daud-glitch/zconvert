@@ -45,6 +45,42 @@ describe("conversion smoke", () => {
     expect(text).toContain("Hello world");
   });
 
+  it("converts SRT → SBV and ICS → JSON", async () => {
+    const srt = Buffer.from(
+      "1\n00:00:01,000 --> 00:00:03,000\nHello\n\n",
+      "utf-8",
+    );
+    const sbv = (await convertFile(srt, "srt", "sbv")).toString("utf-8");
+    expect(sbv).toContain("Hello");
+
+    const ics = Buffer.from(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Meet\r\nDTSTART:20240101T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "utf-8",
+    );
+    const json = JSON.parse(
+      (await convertFile(ics, "ics", "json")).toString("utf-8"),
+    );
+    expect(json[0].summary).toBe("Meet");
+  });
+
+  it("converts GeoJSON → CSV", async () => {
+    const geo = Buffer.from(
+      JSON.stringify({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { name: "Karachi" },
+            geometry: { type: "Point", coordinates: [67.0, 24.8] },
+          },
+        ],
+      }),
+      "utf-8",
+    );
+    const csv = (await convertFile(geo, "geojson", "csv")).toString("utf-8");
+    expect(csv.toLowerCase()).toContain("karachi");
+  });
+
   it("merges two PDFs with pdf-lib (split/merge building block)", async () => {
     const makeOnePage = async (label: string) => {
       const doc = await PDFDocument.create();

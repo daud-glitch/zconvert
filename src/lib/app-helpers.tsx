@@ -67,6 +67,7 @@ export function getCategoryFromExt(ext: string): string {
     textile: "document", eml: "document", msg: "document",
     json: "data", yaml: "data", yml: "data", xml: "data", toml: "data",
     tsv: "data", env: "data", feather: "data", ini: "data", jsonl: "data",
+    geojson: "data",
     ods: "data", parquet: "data", sqlite: "data",
     vcf: "data", xlsx: "data", dta: "data", fwf: "data", sav: "data",
     xls: "data",
@@ -79,8 +80,9 @@ export function getCategoryFromExt(ext: string): string {
     potx: "presentation", pps: "presentation", ppsx: "presentation",
     ppt: "presentation", pptm: "presentation", pptx: "presentation",
     srt: "subtitle", vtt: "subtitle", ass: "subtitle", ssa: "subtitle",
+    sub: "subtitle", mpl: "subtitle", sbv: "subtitle", lrc: "subtitle",
     woff: "font", woff2: "font", ttf: "font", otf: "font",
-    drawio: "other", p7m: "other",
+    drawio: "other", p7m: "other", ics: "other", m3u: "other", m3u8: "other",
   };
   return map[ext] || "other";
 }

@@ -193,6 +193,7 @@ const dataOutputSupported = [
   "csv",
   "env",
   "fwf",
+  "geojson",
   "html",
   "ini",
   "json",
@@ -246,6 +247,20 @@ const dataNoSelf = (self: string, extras?: string[]) => {
   if (extras) extras.forEach((e) => set.delete(e));
   return [...set].sort();
 };
+
+const subtitleAll = [
+  "ass",
+  "lrc",
+  "mpl",
+  "sbv",
+  "srt",
+  "ssa",
+  "sub",
+  "vtt",
+] as const;
+
+const subNoSelf = (self: string) =>
+  subtitleAll.filter((ext) => ext !== self) as unknown as string[];
 
 // Presentation outputs the server can produce
 const presOutputSupported = [
@@ -1078,7 +1093,7 @@ const allFormats: FormatInfo[] = [
       "CSV (Comma-Separated Values) is a plain-text tabular data format that uses commas to delimit column values and line breaks to separate rows. It is one of the most universally supported data interchange formats, readable by any spreadsheet application, database, or programming language. CSV is ideal for exporting and importing data between different systems due to its simplicity, human readability, and near-universal compatibility.",
     category: "data",
     mimeTypes: ["text/csv"],
-    targetFormats: dataNoSelf("csv"),
+    targetFormats: [...dataNoSelf("csv"), "ics", "m3u", "m3u8"].sort(),
   },
   {
     ext: "dta",
@@ -1132,7 +1147,16 @@ const allFormats: FormatInfo[] = [
       "JSON (JavaScript Object Notation) is a lightweight, human-readable data interchange format derived from JavaScript object literal syntax. It natively supports objects, arrays, strings, numbers, booleans, and null, allowing it to represent arbitrarily nested data structures. JSON has become the universal standard for REST API responses, configuration files, and data interchange on the web, with native parsing support in virtually every programming language.",
     category: "data",
     mimeTypes: ["application/json"],
-    targetFormats: dataNoSelf("json"),
+    targetFormats: [...dataNoSelf("json"), "ics", "m3u", "m3u8"].sort(),
+  },
+  {
+    ext: "geojson",
+    name: "GeoJSON",
+    description:
+      "GeoJSON is an open standard for encoding geographic data structures as JSON. It represents points, lines, polygons, and feature collections with coordinates for maps and GIS tools. GeoJSON works well with web mapping libraries and converts cleanly to CSV or JSON tables for analysis.",
+    category: "data",
+    mimeTypes: ["application/geo+json", "application/json"],
+    targetFormats: dataNoSelf("geojson"),
   },
   {
     ext: "jsonl",
@@ -1526,7 +1550,16 @@ const allFormats: FormatInfo[] = [
       "ASS (Advanced SubStation Alpha) is a feature-rich subtitle format supporting sophisticated text styling including custom fonts, colors, borders, shadows, precise on-screen positioning, and karaoke timing effects. It is the dominant format for anime fansubbing and professional subtitling where fine-grained typographic and positioning control is essential. ASS subtitles can include multiple simultaneous text layers and complex motion effects.",
     category: "subtitle",
     mimeTypes: ["text/x-ass"],
-    targetFormats: ["mpl", "srt", "ssa", "sub", "vtt"],
+    targetFormats: subNoSelf("ass"),
+  },
+  {
+    ext: "lrc",
+    name: "LRC",
+    description:
+      "LRC is a plain-text lyrics format that timestamps each line of song lyrics for karaoke-style display. Players show the current lyric as the audio reaches each tag. LRC files are easy to edit and convert to common subtitle formats like SRT and VTT.",
+    category: "subtitle",
+    mimeTypes: ["application/x-lrc", "text/plain"],
+    targetFormats: subNoSelf("lrc"),
   },
   {
     ext: "mpl",
@@ -1535,7 +1568,16 @@ const allFormats: FormatInfo[] = [
       "MPL2 is a simple subtitle format used primarily by the MPlayer and MPV media players on Linux systems. It stores subtitle timing in units of 1/10 second and subtitle text in a compact, line-based plain-text structure without formatting codes. MPL2 is lightweight and easy to generate programmatically, making it suitable for basic subtitling where advanced formatting is not required.",
     category: "subtitle",
     mimeTypes: ["text/x-mpl"],
-    targetFormats: ["ass", "srt", "ssa", "sub", "vtt"],
+    targetFormats: subNoSelf("mpl"),
+  },
+  {
+    ext: "sbv",
+    name: "SBV",
+    description:
+      "SBV (SubViewer) is YouTube's simple caption format: each cue is a start/end timestamp pair followed by caption text. It is plain text, easy to edit, and commonly used when downloading or uploading YouTube captions.",
+    category: "subtitle",
+    mimeTypes: ["text/x-svb", "text/plain"],
+    targetFormats: subNoSelf("sbv"),
   },
   {
     ext: "srt",
@@ -1544,7 +1586,7 @@ const allFormats: FormatInfo[] = [
       "SRT (SubRip Subtitle) is the most widely used and compatible subtitle format on the internet, originating from the SubRip DVD ripping software. It stores subtitles as sequentially numbered blocks, each containing a start/end timestamp and one or more lines of display text. SRT files are plain text, easily editable with any text editor, and supported by virtually every media player, video editor, and streaming platform that handles subtitles.",
     category: "subtitle",
     mimeTypes: ["application/x-subrip", "text/srt"],
-    targetFormats: ["ass", "mpl", "ssa", "sub", "vtt"],
+    targetFormats: subNoSelf("srt"),
   },
   {
     ext: "ssa",
@@ -1553,7 +1595,7 @@ const allFormats: FormatInfo[] = [
       "SSA (SubStation Alpha) is the predecessor to the more capable ASS format, offering more styling options than SRT while being simpler in structure than ASS. It supports custom fonts, colors, positioning, and basic animation effects, and was the standard subtitle format in anime fansubbing communities before ASS gained prominence. SSA and ASS files share a similar file structure and are often treated interchangeably by modern media players.",
     category: "subtitle",
     mimeTypes: ["text/x-ssa"],
-    targetFormats: ["mpl", "srt", "sub", "vtt"],
+    targetFormats: subNoSelf("ssa"),
   },
   {
     ext: "sub",
@@ -1562,7 +1604,7 @@ const allFormats: FormatInfo[] = [
       "SUB (MicroDVD Subtitle) is a subtitle format that stores timing as video frame numbers rather than absolute timestamps, making it intrinsically frame-rate dependent. Each subtitle entry uses curly-brace notation for frame numbers and supports basic inline formatting. SUB is a legacy format from the DVD ripping era that is still supported by major media players, though SRT and VTT have largely replaced it for new subtitle content.",
     category: "subtitle",
     mimeTypes: ["text/x-microdvd"],
-    targetFormats: ["ass", "mpl", "srt", "ssa", "vtt"],
+    targetFormats: subNoSelf("sub"),
   },
   {
     ext: "vtt",
@@ -1571,7 +1613,7 @@ const allFormats: FormatInfo[] = [
       "VTT (WebVTT, Web Video Text Tracks) is the W3C-standard subtitle and caption format for HTML5 video, designed to work natively in web browsers without plugins. It supports text cues with precise timing, multiple text tracks, and CSS-based styling for rich caption presentation. VTT is the required format for closed captions on web video platforms, streaming services, and accessibility-compliant applications.",
     category: "subtitle",
     mimeTypes: ["text/vtt"],
-    targetFormats: ["ass", "mpl", "srt", "ssa", "sub"],
+    targetFormats: subNoSelf("vtt"),
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1625,6 +1667,33 @@ const allFormats: FormatInfo[] = [
     category: "other",
     mimeTypes: ["application/x-drawio"],
     targetFormats: ["html", "md", "pdf", "png", "svg", "txt"],
+  },
+  {
+    ext: "ics",
+    name: "ICS",
+    description:
+      "ICS (iCalendar) is the standard calendar exchange format used by Google Calendar, Apple Calendar, Outlook, and most scheduling apps. It stores events with titles, times, locations, and descriptions as plain text. ICS files are easy to share and convert to JSON or CSV for spreadsheets and apps.",
+    category: "other",
+    mimeTypes: ["text/calendar"],
+    targetFormats: ["csv", "json", "md", "txt"],
+  },
+  {
+    ext: "m3u",
+    name: "M3U",
+    description:
+      "M3U is a plain-text playlist format listing media URLs or file paths, often with optional track titles. It is widely used by music players and IPTV apps. Convert M3U playlists to JSON or CSV for editing, or to M3U8 for HLS-style playlists.",
+    category: "other",
+    mimeTypes: ["audio/x-mpegurl", "application/vnd.apple.mpegurl"],
+    targetFormats: ["csv", "json", "m3u8", "txt"],
+  },
+  {
+    ext: "m3u8",
+    name: "M3U8",
+    description:
+      "M3U8 is the UTF-8 variant of M3U commonly used for HLS streaming playlists. Like M3U, it is a lightweight text list of media entries and metadata tags. It converts cleanly to M3U, JSON, CSV, or plain text.",
+    category: "other",
+    mimeTypes: ["application/vnd.apple.mpegurl", "audio/mpegurl"],
+    targetFormats: ["csv", "json", "m3u", "txt"],
   },
   {
     ext: "p7m",

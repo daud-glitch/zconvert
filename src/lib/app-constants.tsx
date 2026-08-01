@@ -194,6 +194,18 @@ export const subtitleQuickPresets: CategoryQuickPreset[] = [
     desc: "Toggle subtitle format",
     toggleTargets: ["srt", "vtt"],
   },
+  {
+    id: "to-sbv",
+    label: "→ SBV",
+    desc: "YouTube captions",
+    targetFormat: "sbv",
+  },
+  {
+    id: "to-lrc",
+    label: "→ LRC",
+    desc: "Timed lyrics",
+    targetFormat: "lrc",
+  },
 ];
 
 // ─── Supported Extensions (for file input accept) ────────────────────────────
@@ -209,16 +221,16 @@ export const SUPPORTED_EXTENSIONS = [
   ".adoc", ".doc", ".docx", ".html", ".htm", ".ipynb", ".md", ".muse",
   ".odt", ".opml", ".org", ".pdf", ".rst", ".rtf", ".tex", ".textile",
   ".txt", ".eml", ".msg",
-  ".csv", ".dta", ".env", ".feather", ".fwf", ".ini", ".json", ".jsonl",
+  ".csv", ".dta", ".env", ".feather", ".fwf", ".geojson", ".ini", ".json", ".jsonl",
   ".ods", ".parquet", ".sav", ".sqlite", ".toml", ".tsv",
   ".vcf", ".xls", ".xlsx", ".xml", ".yaml", ".yml",
   ".7z", ".rar", ".tar", ".tar.bz2", ".tar.gz", ".tar.xz", ".tar.zst",
   ".zip", ".gz", ".bz2", ".xz",
   ".azw3", ".cb7", ".cbr", ".cbz", ".epub", ".fb2", ".lrf", ".mobi", ".pdb", ".snb",
   ".key", ".odp", ".pot", ".potx", ".pps", ".ppsx", ".ppt", ".pptm", ".pptx",
-  ".ass", ".mpl", ".srt", ".ssa", ".sub", ".vtt",
+  ".ass", ".lrc", ".mpl", ".sbv", ".srt", ".ssa", ".sub", ".vtt",
   ".otf", ".ttf", ".woff", ".woff2",
-  ".drawio", ".p7m",
+  ".drawio", ".ics", ".m3u", ".m3u8", ".p7m",
 ].join(",");
 
 // ─── Category Colors ──────────────────────────────────────────────────────────
