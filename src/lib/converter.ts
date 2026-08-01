@@ -1303,8 +1303,12 @@ async function convertImage(
   const density = inputExt.toLowerCase() === "svg" ? 300 : undefined;
   let pipeline = sharp(prepared, { failOn: "none", density }).rotate();
 
-  if (width && height) pipeline = pipeline.resize(width, height, { fit: "fill" });
-  else if (width) pipeline = pipeline.resize(width, null, { fit: "inside" });
+  if (width && height) {
+    pipeline = pipeline.resize(width, height, {
+      fit: "cover",
+      position: "centre",
+    });
+  } else if (width) pipeline = pipeline.resize(width, null, { fit: "inside" });
   else if (height) pipeline = pipeline.resize(null, height, { fit: "inside" });
 
   try {
@@ -2415,21 +2419,30 @@ async function convertFont(
 }
 
 // ─── Audio / Video Converter (ffmpeg, temp files) ─────────────────────────
+function audioBitrateFromQuality(quality: number): string {
+  if (quality >= 90) return "320k";
+  if (quality >= 70) return "192k";
+  if (quality >= 50) return "128k";
+  return "64k";
+}
+
 function applyAudioCodec(
   command: Ffmpeg.FfmpegCommand,
   outputExt: string,
+  quality: number = 85,
 ): Ffmpeg.FfmpegCommand {
+  const bitrate = audioBitrateFromQuality(quality);
   if (outputExt === "mp3") {
-    return command.audioCodec("libmp3lame").audioBitrate("192k");
+    return command.audioCodec("libmp3lame").audioBitrate(bitrate);
   }
   if (outputExt === "aac") {
-    return command.audioCodec("aac").audioBitrate("192k");
+    return command.audioCodec("aac").audioBitrate(bitrate);
   }
   if (outputExt === "m4a") {
-    return command.audioCodec("aac").audioBitrate("192k");
+    return command.audioCodec("aac").audioBitrate(bitrate);
   }
   if (outputExt === "ogg") {
-    return command.audioCodec("libvorbis");
+    return command.audioCodec("libvorbis").audioBitrate(bitrate);
   }
   if (outputExt === "flac") {
     return command.audioCodec("flac");
@@ -2438,10 +2451,10 @@ function applyAudioCodec(
     return command.audioCodec("pcm_s16le");
   }
   if (outputExt === "opus") {
-    return command.audioCodec("libopus");
+    return command.audioCodec("libopus").audioBitrate(bitrate);
   }
   if (outputExt === "wma") {
-    return command.audioCodec("wmav2");
+    return command.audioCodec("wmav2").audioBitrate(bitrate);
   }
   return command;
 }
@@ -2495,6 +2508,7 @@ async function convertAudio(
   input: Buffer,
   inputExt: string,
   outputExt: string,
+  quality: number = 85,
 ): Promise<Buffer> {
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
@@ -2508,7 +2522,7 @@ async function convertAudio(
     input,
     src,
     dest,
-    (command) => applyAudioCodec(command.noVideo(), dest),
+    (command) => applyAudioCodec(command.noVideo(), dest, quality),
     audioUnavailableMessage(),
   );
 }
@@ -2528,7 +2542,7 @@ async function convertVideo(
       input,
       src,
       dest,
-      (command) => applyAudioCodec(command.noVideo(), dest),
+      (command) => applyAudioCodec(command.noVideo(), dest, quality),
       videoUnavailableMessage(),
     );
   }
@@ -2643,7 +2657,7 @@ export async function convertFile(
   }
 
   if (audioFormats.has(src) && audioFormats.has(dest)) {
-    return convertAudio(input, src, dest);
+    return convertAudio(input, src, dest, quality);
   }
 
   if (

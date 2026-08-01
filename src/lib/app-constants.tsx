@@ -103,6 +103,99 @@ export const videoQuickPresets = [
   },
 ];
 
+export type CategoryQuickPreset = {
+  id: string;
+  label: string;
+  desc: string;
+  quality?: number;
+  /** Fixed output format when supported by the file. */
+  targetFormat?: string | null;
+  resizeWidth?: number | null;
+  resizeHeight?: number | null;
+  /** Prefer the opposite of the current ext when both are supported (e.g. srt ↔ vtt). */
+  toggleTargets?: readonly [string, string];
+};
+
+export const audioQuickPresets: CategoryQuickPreset[] = [
+  {
+    id: "voice",
+    label: "Voice note",
+    desc: "Small MP3 for voice",
+    quality: 40,
+    targetFormat: "mp3",
+  },
+  {
+    id: "podcast",
+    label: "Podcast",
+    desc: "Clear speech MP3",
+    quality: 75,
+    targetFormat: "mp3",
+  },
+  {
+    id: "music",
+    label: "Music",
+    desc: "High bitrate MP3",
+    quality: 95,
+    targetFormat: "mp3",
+  },
+];
+
+export const imageQuickActions: CategoryQuickPreset[] = [
+  {
+    id: "square",
+    label: "Square",
+    desc: "1080×1080 crop",
+    quality: 85,
+    resizeWidth: 1080,
+    resizeHeight: 1080,
+  },
+  {
+    id: "whatsapp-img",
+    label: "WhatsApp size",
+    desc: "Max 1280px, JPG",
+    quality: 80,
+    targetFormat: "jpg",
+    resizeWidth: 1280,
+    resizeHeight: null,
+  },
+];
+
+export const documentQuickPresets: CategoryQuickPreset[] = [
+  { id: "to-pdf", label: "→ PDF", desc: "Portable document", targetFormat: "pdf" },
+  { id: "to-txt", label: "→ TXT", desc: "Plain text", targetFormat: "txt" },
+  { id: "to-docx", label: "→ DOCX", desc: "Word document", targetFormat: "docx" },
+];
+
+export const dataQuickPresets: CategoryQuickPreset[] = [
+  { id: "to-csv", label: "→ CSV", desc: "Spreadsheet rows", targetFormat: "csv" },
+  { id: "to-json", label: "→ JSON", desc: "Structured data", targetFormat: "json" },
+  { id: "to-xlsx", label: "→ Excel", desc: "XLSX workbook", targetFormat: "xlsx" },
+];
+
+export const archiveQuickPresets: CategoryQuickPreset[] = [
+  {
+    id: "to-zip",
+    label: "To ZIP",
+    desc: "Unpack & repack as ZIP",
+    targetFormat: "zip",
+  },
+  {
+    id: "to-7z",
+    label: "To 7Z",
+    desc: "Smaller archive pack",
+    targetFormat: "7z",
+  },
+];
+
+export const subtitleQuickPresets: CategoryQuickPreset[] = [
+  {
+    id: "srt-vtt",
+    label: "SRT ↔ VTT",
+    desc: "Toggle subtitle format",
+    toggleTargets: ["srt", "vtt"],
+  },
+];
+
 // ─── Supported Extensions (for file input accept) ────────────────────────────
 
 export const SUPPORTED_EXTENSIONS = [

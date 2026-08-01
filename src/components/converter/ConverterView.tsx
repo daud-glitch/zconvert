@@ -4,11 +4,12 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   Download, RefreshCw, Plus, Settings,
   History, Bookmark, Layers, Check, AlertCircle,
-  File as FileIcon, Globe, Shield, Clock, HardDrive,
+  File as FileIcon, FileText, Globe, Shield, Clock, HardDrive,
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
   Timer, X, Zap, FileStack, Loader2, Film, MessageCircle, Music2,
+  Mic, Radio, Crop, Database, Archive, Subtitles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,13 @@ import { readApiError } from "@/lib/api-errors";
 import {
   qualityPresets,
   videoQuickPresets,
+  audioQuickPresets,
+  imageQuickActions,
+  documentQuickPresets,
+  dataQuickPresets,
+  archiveQuickPresets,
+  subtitleQuickPresets,
+  type CategoryQuickPreset,
   SUPPORTED_EXTENSIONS,
   categoryColors,
   DOWNLOAD_BRAND_PREFIX,
@@ -299,34 +307,74 @@ export function ConverterView() {
     showToast(`Applied ${quality}% quality to all image files`);
   };
 
-  const applyVideoQuickPreset = (presetId: string) => {
-    const preset = videoQuickPresets.find((p) => p.id === presetId);
+  const resolvePresetTarget = (
+    item: FileItem,
+    preset: CategoryQuickPreset,
+  ): string | null => {
+    const targets = targetFormatsMap[item.ext] || [];
+    if (preset.toggleTargets) {
+      const [a, b] = preset.toggleTargets;
+      if (item.ext === a && targets.includes(b)) return b;
+      if (item.ext === b && targets.includes(a)) return a;
+      if (targets.includes(b)) return b;
+      if (targets.includes(a)) return a;
+      return null;
+    }
+    if (preset.targetFormat) {
+      return targets.includes(preset.targetFormat) ? preset.targetFormat : null;
+    }
+    return item.targetFormat || null;
+  };
+
+  const applyCategoryQuickPreset = (
+    category: string,
+    presets: CategoryQuickPreset[],
+    presetId: string,
+    noun: string,
+  ) => {
+    const preset = presets.find((p) => p.id === presetId);
     if (!preset) return;
-    const pendingVideos = files.filter(
-      (f) => f.status === "pending" && getCategoryFromExt(f.ext) === "video",
+
+    const pending = files.filter(
+      (f) => f.status === "pending" && getCategoryFromExt(f.ext) === category,
     );
-    const applicable = pendingVideos.filter((f) => {
-      if (!preset.targetFormat) return true;
-      return (targetFormatsMap[f.ext] || []).includes(preset.targetFormat);
+    const applicable = pending.filter((f) => {
+      if (preset.targetFormat || preset.toggleTargets) {
+        return resolvePresetTarget(f, preset) !== null;
+      }
+      return true;
     });
     if (applicable.length === 0) {
-      showToast(`No pending video can use “${preset.label}”`, "error");
+      showToast(`No pending ${noun} can use “${preset.label}”`, "error");
       return;
     }
     const ids = new Set(applicable.map((f) => f.id));
     setFiles((prev) =>
       prev.map((f) => {
         if (!ids.has(f.id)) return f;
+        const nextTarget = resolvePresetTarget(f, preset);
         return {
           ...f,
-          quality: preset.quality,
-          targetFormat: preset.targetFormat || f.targetFormat,
+          quality: preset.quality ?? f.quality,
+          targetFormat: nextTarget || f.targetFormat,
+          resizeWidth:
+            preset.resizeWidth !== undefined
+              ? preset.resizeWidth
+              : f.resizeWidth,
+          resizeHeight:
+            preset.resizeHeight !== undefined
+              ? preset.resizeHeight
+              : f.resizeHeight,
         };
       }),
     );
     showToast(
-      `Applied “${preset.label}” to ${applicable.length} video${applicable.length > 1 ? "s" : ""}`,
+      `Applied “${preset.label}” to ${applicable.length} ${noun}${applicable.length > 1 ? "s" : ""}`,
     );
+  };
+
+  const applyVideoQuickPreset = (presetId: string) => {
+    applyCategoryQuickPreset("video", videoQuickPresets, presetId, "video");
   };
 
   const resizeAll = (w: number | null, h: number | null) => {
@@ -619,6 +667,24 @@ export function ConverterView() {
 
   const hasPendingVideo = files.some(
     (f) => getCategoryFromExt(f.ext) === "video" && f.status === "pending",
+  );
+  const hasPendingAudio = files.some(
+    (f) => getCategoryFromExt(f.ext) === "audio" && f.status === "pending",
+  );
+  const hasPendingImage = files.some(
+    (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
+  );
+  const hasPendingDocument = files.some(
+    (f) => getCategoryFromExt(f.ext) === "document" && f.status === "pending",
+  );
+  const hasPendingData = files.some(
+    (f) => getCategoryFromExt(f.ext) === "data" && f.status === "pending",
+  );
+  const hasPendingArchive = files.some(
+    (f) => getCategoryFromExt(f.ext) === "archive" && f.status === "pending",
+  );
+  const hasPendingSubtitle = files.some(
+    (f) => getCategoryFromExt(f.ext) === "subtitle" && f.status === "pending",
   );
 
   return (
@@ -1554,20 +1620,288 @@ export function ConverterView() {
         </Card>
       )}
 
+      {/* ─── Audio Quick Presets ─── */}
+      {hasPendingAudio && (
+        <Card className="border-rose-200/70 dark:border-rose-900/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <Music2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Audio presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Voice, podcast, or music bitrate
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {audioQuickPresets.map((preset) => {
+                const Icon =
+                  preset.id === "voice"
+                    ? Mic
+                    : preset.id === "podcast"
+                      ? Radio
+                      : Music2;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() =>
+                      applyCategoryQuickPreset(
+                        "audio",
+                        audioQuickPresets,
+                        preset.id,
+                        "audio file",
+                      )
+                    }
+                    className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-rose-400/60 hover:bg-rose-50/80 dark:hover:bg-rose-950/25 text-left transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-300 flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{preset.label}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {preset.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Document Quick Presets ─── */}
+      {hasPendingDocument && (
+        <Card className="border-sky-200/70 dark:border-sky-900/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Document presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Jump to PDF, TXT, or DOCX
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {documentQuickPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() =>
+                    applyCategoryQuickPreset(
+                      "document",
+                      documentQuickPresets,
+                      preset.id,
+                      "document",
+                    )
+                  }
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-sky-400/60 hover:bg-sky-50/80 dark:hover:bg-sky-950/25 text-left transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold">{preset.label}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {preset.desc}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Data Quick Presets ─── */}
+      {hasPendingData && (
+        <Card className="border-emerald-200/70 dark:border-emerald-900/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <Database className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Data presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  CSV, JSON, or Excel in one tap
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {dataQuickPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() =>
+                    applyCategoryQuickPreset(
+                      "data",
+                      dataQuickPresets,
+                      preset.id,
+                      "data file",
+                    )
+                  }
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-emerald-400/60 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/25 text-left transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    <Database className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold">{preset.label}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {preset.desc}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Archive Quick Presets ─── */}
+      {hasPendingArchive && (
+        <Card className="border-orange-200/70 dark:border-orange-900/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <Archive className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Archive presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Unpack &amp; repack as ZIP or 7Z
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {archiveQuickPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() =>
+                    applyCategoryQuickPreset(
+                      "archive",
+                      archiveQuickPresets,
+                      preset.id,
+                      "archive",
+                    )
+                  }
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-orange-400/60 hover:bg-orange-50/80 dark:hover:bg-orange-950/25 text-left transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-700 dark:text-orange-300 flex items-center justify-center shrink-0">
+                    <Archive className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold">{preset.label}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {preset.desc}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Subtitle Quick Presets ─── */}
+      {hasPendingSubtitle && (
+        <Card className="border-indigo-200/70 dark:border-indigo-900/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <Subtitles className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Subtitle presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Toggle between SRT and VTT
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {subtitleQuickPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() =>
+                    applyCategoryQuickPreset(
+                      "subtitle",
+                      subtitleQuickPresets,
+                      preset.id,
+                      "subtitle",
+                    )
+                  }
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-indigo-400/60 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/25 text-left transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                    <Subtitles className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold">{preset.label}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {preset.desc}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ─── Conversion Quality Presets (below queue) ─── */}
-      {files.some(
-        (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
-      ) && (
+      {hasPendingImage && (
         <Card className="card-accent-violet">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center text-white">
                 <Sparkles className="w-4 h-4" />
               </div>
-              <h3 className="font-semibold text-sm">Quality Presets</h3>
-              <Badge variant="secondary" className="ml-auto text-xs">
-                One-click apply
-              </Badge>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Image presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Square crop, WhatsApp size, or quality
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+              {imageQuickActions.map((preset) => {
+                const Icon = preset.id === "square" ? Crop : MessageCircle;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() =>
+                      applyCategoryQuickPreset(
+                        "image",
+                        imageQuickActions,
+                        preset.id,
+                        "image",
+                      )
+                    }
+                    className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-violet-400/60 hover:bg-violet-50/80 dark:hover:bg-violet-950/25 text-left transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 text-violet-700 dark:text-violet-300 flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{preset.label}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {preset.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {qualityPresets.map((preset) => (
@@ -1597,9 +1931,7 @@ export function ConverterView() {
       )}
 
       {/* ─── Image Resize Options (below queue) ─── */}
-      {files.some(
-        (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
-      ) && (
+      {hasPendingImage && (
         <Card className="card-accent-sky">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
