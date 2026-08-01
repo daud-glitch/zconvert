@@ -1,39 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { RefreshCw, Search, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { type FormatsData } from "@/lib/app-types";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { getCategoryFromExt, getCategoryIcon } from "@/lib/app-helpers";
 import { Breadcrumb } from "@/components/common/Breadcrumb";
 import { useApp } from "@/lib/app-context";
-import { readJsonResponse } from "@/lib/http-json";
+import { useFormats } from "@/hooks/use-formats";
 
 export function FormatsView() {
   const { setCurrentView: navigate } = useApp();
-  const [data, setData] = useState<FormatsData | null>(null);
+  const { data, loading, error } = useFormats();
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    fetch("/api/formats")
-      .then((r) => readJsonResponse<FormatsData>(r))
-      .then(setData)
-      .catch((err) => console.error("Failed to load formats:", err));
-  }, []);
-
-  if (!data) {
+  if (loading || !data) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <div className="w-12 h-12 bg-violet-500 rounded-xl flex items-center justify-center text-white">
           <RefreshCw className="w-6 h-6" />
         </div>
-        <p className="text-sm text-muted-foreground">Loading formats...</p>
+        <p className="text-sm text-muted-foreground">
+          {error || "Loading formats..."}
+        </p>
       </div>
     );
   }

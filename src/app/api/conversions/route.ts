@@ -2,29 +2,48 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
+/**
+ * Admin-only listing of DB conversion aggregates.
+ * Per-user history + files live in browser IndexedDB — not here.
+ */
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (!auth.authorized) return auth.response;
 
   try {
     const { searchParams } = new URL(request.url);
+    const all = searchParams.get("all") === "true";
+
+    // Regular users: history is local-only
+    if (!(all && auth.user.role === "admin")) {
+      return NextResponse.json({
+        data: [],
+        pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+        stats: {
+          total: 0,
+          totalConvertedSize: "0",
+          totalOriginalSize: "0",
+        },
+        localOnly: true,
+        message:
+          "Your conversion history is stored in your browser IndexedDB, not on the server.",
+      });
+    }
+
     const category = searchParams.get("category") || undefined;
     const status = searchParams.get("status") || undefined;
-    const all = searchParams.get("all") === "true";
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const limit = Math.min(
-      100,
+      200,
       Math.max(1, Number(searchParams.get("limit")) || 20),
     );
     const skip = (page - 1) * limit;
 
-    // Build the where clause — users only see their own conversions unless admin requests all
-    const where: Record<string, unknown> =
-      all && auth.user.role === "admin" ? {} : { userId: auth.user.id };
+    const where: Record<string, unknown> = {};
     if (category) where.category = category;
     if (status) where.status = status;
 
-    const [conversions, total] = await Promise.all([
+    const [conversions, total, sizeAggregation] = await Promise.all([
       db.conversion.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -32,21 +51,14 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       db.conversion.count({ where }),
-    ]);
-
-    // Compute global stats (admins see all, users see their own)
-    const statsWhere =
-      auth.user.role === "admin" ? {} : { userId: auth.user.id };
-    const [totalCount, sizeAggregation] = await Promise.all([
-      db.conversion.count({ where: statsWhere }),
       db.conversion.aggregate({
-        where: statsWhere,
+        where,
         _sum: { outputSize: true, inputSize: true },
       }),
     ]);
 
-    const totalOutputSize = sizeAggregation._sum.outputSize || BigInt(0);
-    const totalInputSize = sizeAggregation._sum.inputSize || BigInt(0);
+    const totalOutputSize = sizeAggregation._sum.outputSize || 0;
+    const totalInputSize = sizeAggregation._sum.inputSize || 0;
 
     return NextResponse.json({
       data: conversions.map((c) => ({
@@ -60,9 +72,9 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
       stats: {
-        total: totalCount,
-        totalConvertedSize: Number(totalOutputSize).toString(),
-        totalOriginalSize: Number(totalInputSize).toString(),
+        total,
+        totalConvertedSize: String(totalOutputSize),
+        totalOriginalSize: String(totalInputSize),
       },
     });
   } catch (error) {

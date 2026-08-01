@@ -126,27 +126,27 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300 overflow-x-hidden">
       {/* ── Top Accent Line ─────────────────────────────────────────── */}
       <div className="h-1.5 w-full bg-emerald-500 fixed top-0 left-0 z-[100]" />
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="sticky top-1.5 z-50 w-full border-b border-border/40 bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="sticky top-1.5 z-50 w-full max-w-[100vw] border-b border-border/40 bg-background overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-2 min-w-0">
             {/* Logo */}
             <div
-              className="flex items-center gap-3 cursor-pointer group"
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink"
               onClick={() => toggleView("converter")}
             >
-              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-                <RefreshCw className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform shrink-0">
+                <RefreshCw className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div>
-                <span className="text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+              <div className="min-w-0">
+                <span className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate">
                   Cloud Converter
                 </span>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70">
+                <p className="hidden sm:block text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70 truncate">
                   Universal File Lab
                 </p>
               </div>
@@ -177,29 +177,29 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             </nav>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
+                className="rounded-full w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground"
                 onClick={() => setDarkMode(!darkMode)}
                 title="Toggle theme (D)"
               >
                 {darkMode ? (
-                  <Sun className="w-5 h-5" />
+                  <Sun className="w-4 h-4 sm:w-5 sm:h-5" />
                 ) : (
-                  <Moon className="w-5 h-5" />
+                  <Moon className="w-4 h-4 sm:w-5 sm:h-5" />
                 )}
               </Button>
 
-              <Separator orientation="vertical" className="h-6 mx-1" />
+              <Separator orientation="vertical" className="h-5 sm:h-6 mx-0.5 sm:mx-1 hidden sm:block" />
 
               {currentUser ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="relative h-9 w-9 rounded-full ring-2 ring-emerald-500/20 p-0"
+                      className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full ring-2 ring-emerald-500/20 p-0"
                     >
                       <div className="flex items-center justify-center w-full h-full bg-emerald-500/10 text-emerald-600 font-bold rounded-full text-xs">
                         {currentUser.name?.[0]?.toUpperCase() || "U"}
@@ -239,11 +239,11 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="rounded-full px-4 h-9"
+                    className="rounded-full px-2 sm:px-4 h-8 sm:h-9 text-xs sm:text-sm"
                     onClick={() => openAuth("login")}
                     disabled={loading}
                   >
@@ -251,7 +251,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   </Button>
                   <Button
                     size="sm"
-                    className="rounded-full px-4 h-9 bg-emerald-500 hover:bg-emerald-600 text-white"
+                    className="rounded-full px-2.5 sm:px-4 h-8 sm:h-9 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 text-white"
                     onClick={() => openAuth("signup")}
                     disabled={loading}
                   >
@@ -264,7 +264,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden rounded-full"
+                className="md:hidden rounded-full w-8 h-8 sm:w-9 sm:h-9"
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
               >
                 {mobileNavOpen ? (
@@ -306,8 +306,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
       </header>
 
       {/* ── Main Content ───────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col relative">
-        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col relative min-w-0 w-full overflow-x-hidden">
+        <div className="max-w-7xl mx-auto w-full min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-10 flex-1 flex flex-col">
           {currentView === "converter" && topAds.length > 0 && (
             <div className="mb-6">
               <CmsAdSlot ads={topAds} />

@@ -160,7 +160,7 @@ export function AdminOverview() {
                 <div
                   className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${s.bgColor} ${s.textColor}`}
                 >
-                  LIVE
+                  DB
                 </div>
               </div>
               <div className="text-2xl font-bold tracking-tight">{s.value}</div>
@@ -502,14 +502,17 @@ export function AdminOverview() {
               {
                 icon: <Server className="w-3.5 h-3.5" />,
                 label: "API Server",
-                value: "Online",
-                status: "emerald",
+                value: stats?.system?.apiOnline !== false ? "Online" : "Down",
+                status:
+                  stats?.system?.apiOnline !== false ? "emerald" : "red",
               },
               {
                 icon: <Database className="w-3.5 h-3.5" />,
                 label: "Database",
-                value: "Connected",
-                status: "emerald",
+                value: stats?.system?.databaseConnected
+                  ? "Connected"
+                  : "Unavailable",
+                status: stats?.system?.databaseConnected ? "emerald" : "red",
               },
               {
                 icon: <Shield className="w-3.5 h-3.5" />,
@@ -519,8 +522,10 @@ export function AdminOverview() {
               },
               {
                 icon: <Clock className="w-3.5 h-3.5" />,
-                label: "Uptime",
-                value: "99.9%",
+                label: "Process uptime",
+                value: stats?.system?.processUptimeSec
+                  ? `${Math.floor(stats.system.processUptimeSec / 3600)}h ${Math.floor((stats.system.processUptimeSec % 3600) / 60)}m`
+                  : "—",
                 status: "emerald",
               },
             ].map((item) => (

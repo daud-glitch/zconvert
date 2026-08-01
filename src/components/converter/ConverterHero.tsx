@@ -51,15 +51,15 @@ export function ConverterHero({
 
   return (
     <section
-      className="rounded-3xl border border-border bg-card shadow-sm"
+      className="rounded-2xl sm:rounded-3xl border border-border bg-card shadow-sm w-full min-w-0 overflow-hidden"
       aria-labelledby="converter-hero-heading"
     >
-      <div className="px-6 py-10 sm:px-10 sm:py-14 lg:px-14">
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl text-center lg:text-left">
+      <div className="px-4 py-8 sm:px-10 sm:py-14 lg:px-14">
+        <div className="flex flex-col gap-8 sm:gap-10 lg:flex-row lg:items-center lg:justify-between">
+          <div className="w-full max-w-2xl min-w-0 text-center lg:text-left">
             <Badge
               variant="secondary"
-              className="mb-5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300"
+              className="mb-4 sm:mb-5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 sm:px-3 py-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300"
             >
               <Sparkles className="mr-1.5 inline h-3 w-3" />
               Free · Private · No watermarks
@@ -67,7 +67,7 @@ export function ConverterHero({
 
             <h1
               id="converter-hero-heading"
-              className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.08]"
+              className="text-[1.75rem] leading-tight font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.08]"
             >
               Convert any file.
               <br />
@@ -76,7 +76,7 @@ export function ConverterHero({
               </span>
             </h1>
 
-            <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="mt-3 sm:mt-4 text-sm leading-relaxed text-muted-foreground sm:text-lg">
               Drop images, video, documents, spreadsheets, audio, archives, and more —
               pick your output format and download in seconds.
               {formatCount > 0 && (
@@ -102,10 +102,10 @@ export function ConverterHero({
               )}
             </p>
 
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:justify-start">
+            <div className="mt-6 sm:mt-8 flex flex-col items-stretch sm:items-center gap-2.5 sm:gap-3 sm:flex-row lg:justify-start">
               <Button
                 size="lg"
-                className="h-12 rounded-full bg-emerald-500 px-8 text-base font-semibold shadow-lg shadow-emerald-500/25 hover:bg-emerald-600"
+                className="h-11 sm:h-12 w-full sm:w-auto rounded-full bg-emerald-500 px-6 sm:px-8 text-sm sm:text-base font-semibold shadow-lg shadow-emerald-500/25 hover:bg-emerald-600"
                 onClick={onUploadClick}
               >
                 <Upload className="mr-2 h-5 w-5" />
@@ -114,7 +114,7 @@ export function ConverterHero({
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-full px-8 text-base"
+                className="h-11 sm:h-12 w-full sm:w-auto rounded-full px-6 sm:px-8 text-sm sm:text-base"
                 onClick={() => setCurrentView("formats")}
               >
                 Browse all formats

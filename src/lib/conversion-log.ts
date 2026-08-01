@@ -16,7 +16,14 @@ export type ConversionLogInput = {
   ipAddress?: string | null;
 };
 
-/** Persist a conversion row when DB is available. Never throws to callers. */
+function utcDay(d = new Date()): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/**
+ * Persist aggregate conversion stats in Postgres for the admin dashboard.
+ * User-facing history + file blobs live in the browser IndexedDB only.
+ */
 export async function logConversion(
   input: ConversionLogInput,
 ): Promise<string | null> {
@@ -26,6 +33,7 @@ export async function logConversion(
   try {
     const row = await prisma.conversion.create({
       data: {
+        // Keep userId for admin user activity counts; history UI does not use this.
         userId: input.userId ?? null,
         fileName: input.fileName.slice(0, 500),
         originalExt: input.originalExt.toLowerCase(),
@@ -42,6 +50,29 @@ export async function logConversion(
         ipAddress: input.ipAddress ?? null,
       },
     });
+
+    // Roll up DailyStats for real admin charts
+    try {
+      const day = utcDay();
+      const storageDelta = BigInt(Math.max(0, Math.floor(input.outputSize)));
+      await prisma.dailyStats.upsert({
+        where: { date: day },
+        create: {
+          date: day,
+          conversions: 1,
+          users: 0,
+          pageViews: 0,
+          storageUsed: storageDelta,
+        },
+        update: {
+          conversions: { increment: 1 },
+          storageUsed: { increment: storageDelta },
+        },
+      });
+    } catch (statsErr) {
+      console.warn("[conversion-log] DailyStats upsert failed:", statsErr);
+    }
+
     return row.id;
   } catch (err) {
     console.error("[conversion-log] Failed to persist conversion:", err);

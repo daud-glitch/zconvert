@@ -28,23 +28,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type ConversionRecord, type FormatsData } from "@/lib/app-types";
+import { type AdminStats, type FormatsData } from "@/lib/app-types";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatBytes } from "@/lib/app-helpers";
 import { categoryColors } from "@/lib/app-constants";
 
 export function AdminAnalytics() {
-  const [conversions, setConversions] = useState<ConversionRecord[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [formatsData, setFormatsData] = useState<FormatsData | null>(null);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/conversions?all=true&limit=200").then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch("/api/admin/stats").then((r) => r.json()).catch(() => null),
       fetch("/api/formats").then((r) => r.json()).catch(() => null),
     ])
-      .then(([convData, fmtData]) => {
-        setConversions(Array.isArray(convData?.data) ? convData.data : []);
+      .then(([statsData, fmtData]) => {
+        if (statsData && !statsData.error) setStats(statsData as AdminStats);
         setFormatsData(fmtData && !fmtData.error ? fmtData : null);
         setLoading(false);
       })
@@ -62,58 +62,40 @@ export function AdminAnalytics() {
     );
   }
 
-  // Compute popular format pairs
-  const pairMap: Record<string, number> = {};
-  let totalInput = 0;
-  let totalOutput = 0;
-  conversions.forEach((c) => {
-    const pair = `${c.originalExt.toUpperCase()} → ${c.targetExt.toUpperCase()}`;
-    pairMap[pair] = (pairMap[pair] || 0) + 1;
-    totalInput += c.inputSize || 0;
-    totalOutput += c.outputSize || 0;
-  });
-  const popularPairs = Object.entries(pairMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
+  const popularPairs = (stats?.popularPairs || []).slice(0, 10).map((p) => [
+    p.pair,
+    p.count,
+  ] as [string, number]);
 
-  // Category stats
-  const catMap: Record<
-    string,
-    { count: number; inputSize: number; outputSize: number; errors: number }
-  > = {};
-  conversions.forEach((c) => {
-    if (!catMap[c.category])
-      catMap[c.category] = { count: 0, inputSize: 0, outputSize: 0, errors: 0 };
-    catMap[c.category].count++;
-    catMap[c.category].inputSize += c.inputSize || 0;
-    catMap[c.category].outputSize += c.outputSize || 0;
-    if (c.status === "failed") catMap[c.category].errors++;
-  });
-  const categoryStats = Object.entries(catMap).sort(
-    (a, b) => b[1].count - a[1].count,
+  const errorCount = stats?.conversionsByStatus?.error || 0;
+  const categoryStats = (stats?.conversionsByCategory || [])
+    .map((c) => [
+      c.category,
+      {
+        count: c.count,
+        inputSize: c.size,
+        outputSize: c.outputSize || 0,
+        errors: 0,
+      },
+    ] as const)
+    .sort((a, b) => b[1].count - a[1].count);
+
+  const avgDuration = stats?.avgDurationMs || 0;
+  const totalInput = (stats?.conversionsByCategory || []).reduce(
+    (a, c) => a + (c.size || 0),
+    0,
   );
+  const totalOutput = stats?.storageUsed || 0;
+  const analyzed = stats?.totalConversions || 0;
 
-  // Average conversion time
-  const avgDuration =
-    conversions.filter((c) => c.duration && c.duration > 0).length > 0
-      ? Math.round(
-          conversions
-            .filter((c) => c.duration && c.duration > 0)
-            .reduce((sum, c) => sum + (c.duration || 0), 0) /
-            conversions.filter((c) => c.duration && c.duration > 0).length,
-        )
-      : 0;
-
-  // Daily conversions (last 7 days)
-  const dailyMap: Record<string, number> = {};
-  conversions.forEach((c) => {
-    const day = new Date(c.createdAt).toLocaleDateString("en-US", {
+  const dailyData = (stats?.dailyStats || []).slice(-14).map((d) => {
+    const label = new Date(d.date + "T00:00:00Z").toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
+      timeZone: "UTC",
     });
-    dailyMap[day] = (dailyMap[day] || 0) + 1;
+    return [label, d.conversions] as [string, number];
   });
-  const dailyData = Object.entries(dailyMap).slice(-7);
 
   const barColors = [
     "bg-emerald-500",
@@ -134,14 +116,14 @@ export function AdminAnalytics() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
-            label: "Analyzed",
-            value: conversions.length,
+            label: "Total (DB)",
+            value: analyzed,
             icon: <Activity className="w-4 h-4" />,
             color: "bg-violet-500",
           },
           {
             label: "Avg Time",
-            value: `${avgDuration}ms`,
+            value: avgDuration ? `${avgDuration}ms` : "—",
             icon: <Timer className="w-4 h-4" />,
             color: "bg-sky-500",
           },
@@ -174,6 +156,12 @@ export function AdminAnalytics() {
           </div>
         ))}
       </div>
+
+      {errorCount > 0 && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          {errorCount} failed conversions recorded in the database.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Popular Format Pairs */}

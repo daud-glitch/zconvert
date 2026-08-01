@@ -62,6 +62,7 @@ export interface FormatsData {
   totalFormats: number;
   totalConversions: number;
   categoryCounts: Record<string, number>;
+  version?: string;
 }
 
 // ─── Admin Types ──────────────────────────────────────────────────────────────
@@ -69,29 +70,66 @@ export interface FormatsData {
 export interface AdminStats {
   totalConversions: number;
   totalUsers: number;
-  conversionsByCategory: { category: string; count: number; size: number }[];
+  conversionsByCategory: {
+    category: string;
+    count: number;
+    size: number;
+    outputSize?: number;
+  }[];
   conversionsByStatus: Record<string, number>;
   recentConversions: ConversionRecord[];
   storageSaved: number;
   storageUsed: number;
+  avgDurationMs?: number | null;
+  popularPairs?: { pair: string; originalExt: string; targetExt: string; count: number }[];
+  dailyStats?: {
+    date: string;
+    conversions: number;
+    users: number;
+    pageViews: number;
+    storageUsed: number;
+  }[];
+  system?: {
+    apiOnline: boolean;
+    databaseConnected: boolean;
+    processUptimeSec: number;
+  };
+}
+
+export interface FormatStatusItem {
+  id: string | null;
+  ext: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  targetFormats: string[];
+  mimeTypes: string[];
 }
 
 export interface FormatCategoryStatus {
+  id?: string | null;
   category: string;
   label: string;
   color: string;
   formatCount: number;
+  enabledCount?: number;
+  disabledCount?: number;
   pairCount: number;
+  enabled?: boolean;
   status: "functional" | "partial";
   note?: string;
+  formats?: FormatStatusItem[];
 }
 
 export interface FormatStatusData {
   categories: FormatCategoryStatus[];
   totalFormats: number;
+  enabledFormats?: number;
   totalPairs: number;
   functionalCategories: number;
   partialCategories: number;
+  version?: string;
+  source?: "database" | "static";
 }
 
 export type AdminTab =

@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { notifyFormatsChanged } from "@/hooks/use-formats";
 
 interface Category {
   id: string;
@@ -83,6 +84,7 @@ export function AdminCategories() {
       loadCategories();
       setShowDialog(false);
       setEditingCategory(null);
+      notifyFormatsChanged();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save category";
       setError(message);
@@ -101,6 +103,7 @@ export function AdminCategories() {
         throw new Error(data.error || "Failed to toggle category");
       }
       loadCategories();
+      notifyFormatsChanged();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to toggle category";
       setError(message);
@@ -124,6 +127,7 @@ export function AdminCategories() {
       }
       setDeleteConfirm(null);
       loadCategories();
+      notifyFormatsChanged();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete category";
       setError(message);

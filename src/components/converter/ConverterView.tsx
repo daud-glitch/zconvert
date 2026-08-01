@@ -21,9 +21,10 @@ import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrig
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
-import { type FileItem, type ConversionRecord, type BookmarkRecord, type FormatsData } from "@/lib/app-types";
+import { type FileItem, type ConversionRecord, type BookmarkRecord } from "@/lib/app-types";
 import { readJsonResponse } from "@/lib/http-json";
 import { readApiError } from "@/lib/api-errors";
+import { useFormats } from "@/hooks/use-formats";
 import {
   qualityPresets,
   videoQuickPresets,
@@ -48,7 +49,8 @@ import {
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
-import { saveFileLocally } from "@/lib/storage";
+import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
+import { useApp } from "@/lib/app-context";
 import {
   audioUnavailableMessage,
   videoUnavailableMessage,
@@ -85,8 +87,9 @@ function mergeOutputFileName(item: FileItem): string {
 }
 
 export function ConverterView() {
+  const { currentUser } = useApp();
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [formatsData, setFormatsData] = useState<FormatsData | null>(null);
+  const { data: formatsData } = useFormats();
   const [dragOver, setDragOver] = useState(false);
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
@@ -123,43 +126,41 @@ export function ConverterView() {
     );
   };
 
+  useEffect(() => {
+    if (!formatsData?.grouped) return;
+    const map: Record<string, string[]> = {};
+    for (const group of Object.values(formatsData.grouped)) {
+      for (const fmt of group.formats) {
+        map[fmt.ext] = fmt.targetFormats;
+      }
+    }
+    setTargetFormatsMap(map);
+  }, [formatsData]);
 
   useEffect(() => {
-    fetch("/api/formats")
-      .then((r) => readJsonResponse<FormatsData & { error?: string }>(r))
-      .then((data) => {
-        if (!data || data.error || !data.grouped) {
-          console.error("Failed to fetch formats:", data?.error || "Unknown error");
-          return;
-        }
-        setFormatsData(data);
-        const map: Record<string, string[]> = {};
-        for (const group of Object.values(data.grouped) as Array<{
-          formats: Array<{ ext: string; targetFormats: string[] }>;
-        }>) {
-          for (const fmt of group.formats) {
-            map[fmt.ext] = fmt.targetFormats;
-          }
-        }
-        setTargetFormatsMap(map);
-      })
-      .catch((err) => {
-        console.error("Error fetching formats:", err);
-      });
-
     fetch("/api/bookmarks")
       .then((r) => readJsonResponse<{ data?: BookmarkRecord[] }>(r))
       .then((data) => setBookmarks(data.data || []))
       .catch(() => {});
 
-    fetch("/api/conversions?limit=5")
-      .then(async (r) => {
-        if (!r.ok) return { data: [] as ConversionRecord[] };
-        return readJsonResponse<{ data?: ConversionRecord[] }>(r);
-      })
-      .then((d) => setRecentConversions(d.data || []))
-      .catch(() => {});
-  }, []);
+    void getLocalHistory(5, currentUser?.id ?? null).then((rows) => {
+      setRecentConversions(
+        rows.map((r) => ({
+          id: r.id,
+          fileName: r.fileName,
+          originalExt: r.originalExt,
+          targetExt: r.targetExt,
+          category: r.category,
+          inputSize: r.inputSize,
+          outputSize: r.outputSize,
+          status: r.status,
+          duration: r.duration,
+          error: r.error,
+          createdAt: r.createdAt,
+        })),
+      );
+    });
+  }, [currentUser?.id]);
 
   const fetchRemoteFile = async (url: string) => {
     if (urlFetching) return;
@@ -514,18 +515,53 @@ export function ConverterView() {
       const pageCount = pageCountHeader
         ? parseInt(pageCountHeader, 10)
         : undefined;
+      const endTime = Date.now();
+      const startTime = item.startTime || endTime;
+      const outputExt = outputPackage === "zip" ? "zip" : item.targetFormat;
 
-      // Save to local IndexedDB
-      await saveFileLocally(conversionId, item.name, blob, blob.type);
+      // User history + file stay in browser IndexedDB only
+      await saveLocalConversion({
+        id: conversionId,
+        fileName: item.name,
+        originalExt: item.ext,
+        targetExt: outputExt,
+        category: getCategoryFromExt(item.ext) || "other",
+        inputSize: item.size,
+        outputSize: blob.size,
+        status: "done",
+        duration: endTime - startTime,
+        error: null,
+        mimeType: blob.type || "application/octet-stream",
+        data: blob,
+        accountKey: currentUser?.id ?? null,
+      });
 
       updateFile(item.id, {
         status: "done",
         result: blob,
-        endTime: Date.now(),
+        endTime,
         outputSize: blob.size,
         outputPackage,
         pageCount: Number.isFinite(pageCount) ? pageCount : undefined,
       });
+
+      setRecentConversions((prev) => [
+        {
+          id: conversionId,
+          fileName: item.name,
+          originalExt: item.ext,
+          targetExt: outputExt,
+          category: getCategoryFromExt(item.ext) || "other",
+          inputSize: item.size,
+          outputSize: blob.size,
+          status: "done",
+          duration: endTime - startTime,
+          error: null,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev.filter((c) => c.id !== conversionId),
+      ].slice(0, 5));
+
       if (outputPackage === "zip" && pageCount) {
         showToast(
           `${item.name}: ${pageCount} pages saved as ZIP (${item.targetFormat.toUpperCase()})`,
@@ -537,10 +573,25 @@ export function ConverterView() {
       const message = humanizeConversionError(
         err instanceof Error ? err.message : "Conversion failed",
       );
+      const endTime = Date.now();
+      const startTime = item.startTime || endTime;
       updateFile(item.id, {
         status: "error",
         error: message,
-        endTime: Date.now(),
+        endTime,
+      });
+      void saveLocalConversion({
+        id: item.id,
+        fileName: item.name,
+        originalExt: item.ext,
+        targetExt: item.targetFormat,
+        category: getCategoryFromExt(item.ext) || "other",
+        inputSize: item.size,
+        outputSize: 0,
+        status: "error",
+        duration: endTime - startTime,
+        error: message,
+        accountKey: currentUser?.id ?? null,
       });
       showToast(message, "error");
     }

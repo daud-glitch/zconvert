@@ -162,9 +162,11 @@ export function ProfileView() {
               <div>
                 <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">Privacy & Data Storage</h3>
                 <p className="text-sm text-emerald-700/80 dark:text-emerald-400/80 mt-1">
-                  Your privacy is our priority. While we record conversion statistics for your history, 
-                  <strong> your actual files never leave your browser's local storage (IndexedDB).</strong> 
-                  We don't store your documents on our servers.
+                  Your conversion history and downloaded results live in this
+                  browser&apos;s local database (IndexedDB). You can keep or delete
+                  them anytime. Files are processed temporarily on the server to
+                  convert — we do not keep your file contents in cloud storage
+                  after conversion.
                 </p>
               </div>
             </div>
