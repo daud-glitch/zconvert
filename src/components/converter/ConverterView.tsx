@@ -51,6 +51,7 @@ import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
+import { uploadAndConvert } from "@/lib/client-upload";
 import {
   audioUnavailableMessage,
   videoUnavailableMessage,
@@ -482,33 +483,15 @@ export function ConverterView() {
     });
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": item.file.type || "application/octet-stream",
-        "X-File-Name": encodeURIComponent(item.name),
-        "X-Target-Format": item.targetFormat,
-        "X-Quality": String(item.quality),
-      };
-      if (item.resizeWidth) headers["X-Width"] = String(item.resizeWidth);
-      if (item.resizeHeight) headers["X-Height"] = String(item.resizeHeight);
-
-      // Fully buffer the file first — mobile browsers sometimes stream incomplete bodies
-      const fileBytes = await item.file.arrayBuffer();
-      if (!fileBytes.byteLength) {
-        throw new Error("The selected file is empty. Pick another file.");
-      }
-      if (item.size > 0 && fileBytes.byteLength < item.size) {
-        throw new Error(
-          `File read incomplete (${fileBytes.byteLength} of ${item.size} bytes). Re-select the file and try again.`,
-        );
-      }
-      headers["Content-Length"] = String(fileBytes.byteLength);
-
-      const response = await fetch(getConvertApiPath(item.ext), {
-        method: "POST",
-        headers,
-        body: fileBytes,
-        cache: "no-store",
-        priority: "high",
+      const response = await uploadAndConvert({
+        file: item.file,
+        fileName: item.name,
+        sourceExt: item.ext,
+        targetFormat: item.targetFormat,
+        quality: item.quality,
+        resizeWidth: item.resizeWidth,
+        resizeHeight: item.resizeHeight,
+        convertUrl: getConvertApiPath(item.ext),
       });
 
       if (!response.ok) {

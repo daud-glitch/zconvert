@@ -8,6 +8,7 @@ const publicRoutes = [
   "/api/convert/archive",
   "/api/convert/document",
   "/api/convert/other",
+  "/api/convert/chunk",
   "/api/formats",
   "/api/bookmarks",
   "/api/auth/login",
@@ -38,7 +39,7 @@ function corsPreflightResponse(): NextResponse {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-File-Name, X-Target-Format, X-Quality, X-Width, X-Height",
+        "Content-Type, X-File-Name, X-Target-Format, X-Quality, X-Width, X-Height, X-Upload-Id, X-Chunk-Index, X-Chunk-Total, X-Total-Size",
       "Access-Control-Max-Age": "86400",
     },
   });

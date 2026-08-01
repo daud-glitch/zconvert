@@ -102,6 +102,7 @@ function parseWithBusboy(
  * - X-Target-Format
  * - X-Quality (optional)
  * - X-Width / X-Height (optional)
+ * - X-Upload-Id (optional) — assembled from prior /api/convert/chunk uploads
  */
 async function parseRawBinaryUpload(
   request: Request,
@@ -109,6 +110,40 @@ async function parseRawBinaryUpload(
 ): Promise<ParsedMultipart | null> {
   const targetFormat = request.headers.get("x-target-format")?.trim();
   if (!targetFormat) return null;
+
+  const uploadId = request.headers.get("x-upload-id")?.trim();
+  if (uploadId) {
+    const { assembleUpload } = await import("@/lib/chunked-upload");
+    const assembled = await assembleUpload(uploadId);
+    if (assembled.buffer.length > maxFileBytes) {
+      throw new Error(
+        `Upload exceeds maximum size (${Math.round(maxFileBytes / (1024 * 1024))} MB)`,
+      );
+    }
+    let filename = assembled.filename;
+    const rawName = request.headers.get("x-file-name");
+    if (rawName) {
+      try {
+        filename = decodeURIComponent(rawName);
+      } catch {
+        filename = rawName;
+      }
+    }
+    return {
+      fields: {
+        targetFormat,
+        quality: request.headers.get("x-quality") || "85",
+        width: request.headers.get("x-width") || "",
+        height: request.headers.get("x-height") || "",
+      },
+      file: {
+        filename,
+        mimeType:
+          request.headers.get("content-type") || "application/octet-stream",
+        buffer: assembled.buffer,
+      },
+    };
+  }
 
   const buffer = Buffer.from(await request.arrayBuffer());
   if (buffer.length === 0) {

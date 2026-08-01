@@ -157,8 +157,12 @@ export function humanizeConversionError(message: string): string {
   ) {
     return "This media file could not be read (corrupt, incomplete upload, or unsupported encoding). Re-select the file from your gallery and try again — on mobile wait until the upload finishes.";
   }
-  if (lower.includes("upload incomplete")) {
-    return msg;
+  if (
+    lower.includes("upload incomplete") ||
+    lower.includes("chunk") ||
+    lower.includes("upload session")
+  ) {
+    return msg.length > 200 ? `${msg.slice(0, 197)}…` : msg;
   }
   if (
     lower.includes("unexpected end of form") ||
