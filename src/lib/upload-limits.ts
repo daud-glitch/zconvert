@@ -150,6 +150,17 @@ export function humanizeConversionError(message: string): string {
     return "Audio/video engine is unavailable on this server. Try again later.";
   }
   if (
+    lower.includes("invalid data found") ||
+    lower.includes("error opening input") ||
+    lower.includes("could not read this") ||
+    (lower.includes("ffmpeg") && lower.includes("corrupt"))
+  ) {
+    return "This media file could not be read (corrupt, incomplete upload, or unsupported encoding). Re-select the file from your gallery and try again — on mobile wait until the upload finishes.";
+  }
+  if (lower.includes("upload incomplete")) {
+    return msg;
+  }
+  if (
     lower.includes("unexpected end of form") ||
     lower.includes("multipart") ||
     lower.includes("failed to read uploaded")

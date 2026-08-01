@@ -120,6 +120,14 @@ async function parseRawBinaryUpload(
     );
   }
 
+  // Detect truncated uploads (common cause of ffmpeg "Invalid data" on mobile)
+  const declared = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(declared) && declared > 0 && buffer.length < declared) {
+    throw new Error(
+      `Upload incomplete: received ${buffer.length} of ${declared} bytes. On mobile, keep the app open until conversion finishes, or try a smaller file.`,
+    );
+  }
+
   let filename = "upload.bin";
   const rawName = request.headers.get("x-file-name");
   if (rawName) {

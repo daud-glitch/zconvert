@@ -51,6 +51,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [themeReady, setThemeReady] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const { features, links, ads } = useCmsBundle();
@@ -68,22 +69,34 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
-    if (saved) {
-      setDarkMode(saved === "dark");
+    let next = false;
+    if (saved === "dark" || saved === "light") {
+      next = saved === "dark";
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      setDarkMode(true);
+      next = true;
     }
+    setDarkMode(next);
+    document.documentElement.classList.toggle("dark", next);
+    document.documentElement.style.colorScheme = next ? "dark" : "light";
+    setThemeReady(true);
   }, []);
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [darkMode]);
+    if (!themeReady) return;
+    document.documentElement.classList.toggle("dark", darkMode);
+    document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+  }, [darkMode, themeReady]);
+
+  const toggleTheme = () => {
+    setDarkMode((d) => {
+      const next = !d;
+      document.documentElement.classList.toggle("dark", next);
+      document.documentElement.style.colorScheme = next ? "dark" : "light";
+      localStorage.setItem("theme", next ? "dark" : "light");
+      return next;
+    });
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -105,7 +118,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
           document.querySelector<HTMLInputElement>("input[type=file]")?.click();
         }
       }
-      if (e.key === "d" && !e.ctrlKey && !e.metaKey) setDarkMode((d) => !d);
+      if (e.key === "d" && !e.ctrlKey && !e.metaKey) toggleTheme();
       if (e.key === "1") setCurrentView("converter");
       if (e.key === "2") setCurrentView("formats");
       if (e.key === "3") setCurrentView("history");
@@ -113,7 +126,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [setCurrentView]);
+  }, [setCurrentView, themeReady]);
 
   const toggleView = (view: ViewType) => {
     setCurrentView(view);
@@ -182,7 +195,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 variant="ghost"
                 size="icon"
                 className="rounded-full w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground"
-                onClick={() => setDarkMode(!darkMode)}
+                onClick={toggleTheme}
                 title="Toggle theme (D)"
               >
                 {darkMode ? (

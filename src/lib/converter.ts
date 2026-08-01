@@ -299,21 +299,80 @@ async function convertWithFfmpegFiles(
     throw new Error(unavailableMessage);
   }
 
+  if (!input?.length) {
+    throw new Error("Empty media file — nothing to convert.");
+  }
+
+  // Reject obvious non-media payloads (truncated HTML error pages, JSON, etc.)
+  const headAscii = input
+    .subarray(0, Math.min(64, input.length))
+    .toString("utf8")
+    .trimStart()
+    .toLowerCase();
+  if (
+    headAscii.startsWith("<!doctype") ||
+    headAscii.startsWith("<html") ||
+    headAscii.startsWith("{") ||
+    headAscii.startsWith("-----begin")
+  ) {
+    throw new Error(
+      "Uploaded data is not a media file (received text/HTML). Re-select the file and try again.",
+    );
+  }
+
+  const sniffed = sniffMediaContainerExt(input);
+  const srcExt = (sniffed || inputExt.replace(/^\./, "")).toLowerCase();
+  const destExt = outputExt.replace(/^\./, "").toLowerCase();
+
   const ffmpeg = await getFfmpegCommand();
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-ff-"));
-  const inPath = path.join(tmp, `input.${inputExt.replace(/^\./, "")}`);
-  const outPath = path.join(tmp, `output.${outputExt.replace(/^\./, "")}`);
+  const inPath = path.join(tmp, `input.${srcExt || "bin"}`);
+  const outPath = path.join(tmp, `output.${destExt}`);
 
   try {
     await fs.writeFile(inPath, input);
 
+    // Sanity: ensure bytes landed on disk
+    const st = await fs.stat(inPath);
+    if (st.size !== input.length || st.size === 0) {
+      throw new Error(
+        `Temp media write failed (expected ${input.length} bytes, got ${st.size}).`,
+      );
+    }
+
     await new Promise<void>((resolve, reject) => {
       let command = ffmpeg(inPath);
+      // Phone/camera uploads often need longer probe + tolerate minor stream glitches
+      command = command.inputOptions([
+        "-fflags",
+        "+genpts+igndts+discardcorrupt",
+        "-analyzeduration",
+        "100M",
+        "-probesize",
+        "50M",
+        "-err_detect",
+        "ignore_err",
+      ]);
       command = configure(command);
       command
         .output(outPath)
         .on("start", (cmd) => console.log("[ffmpeg]", cmd))
-        .on("error", (err) => reject(err))
+        .on("error", (err: Error & { message?: string }) => {
+          const raw = err?.message || String(err);
+          if (
+            /invalid data found when processing input|error opening input/i.test(
+              raw,
+            )
+          ) {
+            reject(
+              new Error(
+                `ffmpeg could not read this ${srcExt.toUpperCase() || "media"} file (invalid/corrupt or incomplete upload, ${input.length} bytes). Re-export or re-select the file and retry.`,
+              ),
+            );
+            return;
+          }
+          reject(err);
+        })
         .on("end", () => resolve())
         .run();
     });
@@ -326,6 +385,62 @@ async function convertWithFfmpegFiles(
   } finally {
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/** Detect real container from magic bytes (phones often mislabel extensions). */
+function sniffMediaContainerExt(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  // ISO BMFF: ....ftyp (mp4/m4a/mov/3gp)
+  if (buf.toString("ascii", 4, 8) === "ftyp") {
+    const brand = buf.toString("ascii", 8, 12).toLowerCase();
+    if (brand.startsWith("qt") || brand === "moov") return "mov";
+    if (brand.includes("3gp")) return "3gp";
+    if (
+      brand.startsWith("m4a") ||
+      brand === "m4a " ||
+      brand.startsWith("m4b")
+    ) {
+      return "m4a";
+    }
+    return "mp4";
+  }
+  // EBML: WebM / Matroska
+  if (
+    buf[0] === 0x1a &&
+    buf[1] === 0x45 &&
+    buf[2] === 0xdf &&
+    buf[3] === 0xa3
+  ) {
+    const slice = buf.toString("ascii", 0, Math.min(64, buf.length));
+    if (slice.includes("webm")) return "webm";
+    return "mkv";
+  }
+  // Ogg
+  if (buf.toString("ascii", 0, 4) === "OggS") return "ogg";
+  // RIFF .... WAVE / AVI / WEBP
+  if (buf.toString("ascii", 0, 4) === "RIFF" && buf.length >= 12) {
+    const form = buf.toString("ascii", 8, 12);
+    if (form === "WAVE") return "wav";
+    if (form === "AVI ") return "avi";
+  }
+  // FLAC
+  if (buf.toString("ascii", 0, 4) === "fLaC") return "flac";
+  // ID3 / MPEG audio
+  if (buf.toString("ascii", 0, 3) === "ID3") return "mp3";
+  if (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) return "mp3";
+  // ASF / WMV / WMA
+  if (
+    buf.length >= 16 &&
+    buf[0] === 0x30 &&
+    buf[1] === 0x26 &&
+    buf[2] === 0xb2 &&
+    buf[3] === 0x75
+  ) {
+    return "wmv";
+  }
+  // MPEG-TS
+  if (buf[0] === 0x47 && buf.length > 188 && buf[188] === 0x47) return "ts";
+  return null;
 }
 
 // ─── Format Sets ────────────────────────────────────────────────────────────

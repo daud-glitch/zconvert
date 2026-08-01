@@ -491,10 +491,22 @@ export function ConverterView() {
       if (item.resizeWidth) headers["X-Width"] = String(item.resizeWidth);
       if (item.resizeHeight) headers["X-Height"] = String(item.resizeHeight);
 
+      // Fully buffer the file first — mobile browsers sometimes stream incomplete bodies
+      const fileBytes = await item.file.arrayBuffer();
+      if (!fileBytes.byteLength) {
+        throw new Error("The selected file is empty. Pick another file.");
+      }
+      if (item.size > 0 && fileBytes.byteLength < item.size) {
+        throw new Error(
+          `File read incomplete (${fileBytes.byteLength} of ${item.size} bytes). Re-select the file and try again.`,
+        );
+      }
+      headers["Content-Length"] = String(fileBytes.byteLength);
+
       const response = await fetch(getConvertApiPath(item.ext), {
         method: "POST",
         headers,
-        body: item.file,
+        body: fileBytes,
         cache: "no-store",
         priority: "high",
       });
