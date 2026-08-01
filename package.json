@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start",
+    "build": "node scripts/ensure-ffmpeg.js && next build",
+    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && npx prisma generate && next build",
+    "start": "node scripts/ensure-ffmpeg.js && next start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -16,7 +17,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "node prisma/seed.js",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "ensure-ffmpeg": "node scripts/ensure-ffmpeg.js"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",

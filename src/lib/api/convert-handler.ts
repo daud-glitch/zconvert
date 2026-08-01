@@ -301,7 +301,7 @@ export async function handleConvertPost(
               : /ffmpeg exited with code 127|not found or not runnable/i.test(
                   message,
                 )
-                ? "ffmpeg could not run. On Heroku remove apt ffmpeg from Aptfile/buildpack (it breaks ffmpeg-static), redeploy, or add heroku/heroku-buildpack-activestorage-preview."
+                ? "ffmpeg could not run. Wait for a fresh Heroku deploy (heroku-postbuild downloads vendor/ffmpeg), then retry."
                 : message,
       },
       { status: 500 },

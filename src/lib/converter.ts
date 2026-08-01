@@ -201,9 +201,29 @@ function resolveFfmpegStaticPath(): string | null {
   return null;
 }
 
+function resolveVendorFfmpegPath(): string | null {
+  const candidates = [
+    path.join(process.cwd(), "vendor", "ffmpeg", "ffmpeg"),
+    path.join(process.cwd(), "vendor", "ffmpeg", "ffmpeg.exe"),
+    "/app/vendor/ffmpeg/ffmpeg",
+  ];
+  const clean = envWithoutAptLibs();
+  for (const candidate of candidates) {
+    if (!ffmpegPathExists(candidate)) continue;
+    const check = ffmpegBinaryRuns(candidate, clean);
+    if (check.ok) {
+      delete process.env.LD_LIBRARY_PATH;
+      delete process.env.LIBRARY_PATH;
+      return candidate;
+    }
+    console.error("[ffmpeg] skip vendor candidate:", candidate, check.detail);
+  }
+  return null;
+}
+
 /**
  * Resolve ffmpeg binary.
- * Prefer ffmpeg-static with a clean env; only then fall back to apt/system ffmpeg.
+ * Prefer vendor copy (ensure-ffmpeg.js) → ffmpeg-static → system/apt.
  */
 function resolveFfmpegBinaryPath(): string {
   const envPath =
@@ -228,6 +248,9 @@ function resolveFfmpegBinaryPath(): string {
     );
   }
 
+  const vendorPath = resolveVendorFfmpegPath();
+  if (vendorPath) return vendorPath;
+
   const staticPath = resolveFfmpegStaticPath();
   if (staticPath) return staticPath;
 
@@ -236,7 +259,7 @@ function resolveFfmpegBinaryPath(): string {
   if (systemPath) return systemPath;
 
   throw new Error(
-    "ffmpeg binary not found or not runnable. On Heroku: remove apt ffmpeg (Aptfile), keep ffmpeg-static, or add buildpack https://github.com/heroku/heroku-buildpack-activestorage-preview and redeploy.",
+    "ffmpeg binary not found or not runnable. Redeploy so heroku-postbuild can download vendor/ffmpeg (scripts/ensure-ffmpeg.js).",
   );
 }
 
