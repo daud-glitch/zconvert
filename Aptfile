@@ -1,1 +1,2 @@
-ffmpeg
+# Intentionally empty: apt ffmpeg breaks statically-linked ffmpeg-static via LD_LIBRARY_PATH.
+# Audio/video uses the ffmpeg-static npm package (or a dedicated ffmpeg buildpack).

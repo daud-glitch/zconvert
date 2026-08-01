@@ -60,7 +60,15 @@ function ffmpegPathExists(binPath: string): boolean {
   }
 }
 
-/** Heroku apt buildpack installs libs under ~/.apt — Node may miss LD_LIBRARY_PATH. */
+/** Env without apt LD_LIBRARY_PATH — required for statically linked ffmpeg-static. */
+function envWithoutAptLibs(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.LD_LIBRARY_PATH;
+  delete env.LIBRARY_PATH;
+  return env;
+}
+
+/** Heroku apt buildpack installs libs under ~/.apt — only needed for apt ffmpeg. */
 function ensureHerokuAptPaths(): void {
   const home = process.env.HOME?.trim();
   if (!home) return;
@@ -95,7 +103,10 @@ function ensureHerokuAptPaths(): void {
   }
 }
 
-function ffmpegBinaryRuns(binPath: string): boolean {
+function ffmpegBinaryRuns(
+  binPath: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { ok: boolean; detail?: string } {
   try {
     try {
       chmodSync(binPath, 0o755);
@@ -106,11 +117,20 @@ function ffmpegBinaryRuns(binPath: string): boolean {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 15_000,
-      env: process.env,
+      env,
     });
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (err) {
+    const detail =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" &&
+            err &&
+            "status" in err &&
+            typeof (err as { status?: unknown }).status === "number"
+          ? `exit ${(err as { status: number }).status}`
+          : String(err);
+    return { ok: false, detail };
   }
 }
 
@@ -120,6 +140,8 @@ function resolveSystemFfmpegPath(): string | null {
   if (home) {
     candidates.push(path.join(home, ".apt/usr/bin/ffmpeg"));
   }
+  // Dedicated ffmpeg buildpacks often put the binary here
+  candidates.push("/app/vendor/ffmpeg/ffmpeg", "/app/.heroku/ffmpeg/bin/ffmpeg");
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
     const out = execFileSync(cmd, ["ffmpeg"], {
@@ -139,7 +161,9 @@ function resolveSystemFfmpegPath(): string | null {
   for (const candidate of candidates) {
     if (!candidate) continue;
     if (candidate !== "ffmpeg" && !ffmpegPathExists(candidate)) continue;
-    if (ffmpegBinaryRuns(candidate)) return candidate;
+    const check = ffmpegBinaryRuns(candidate);
+    if (check.ok) return candidate;
+    console.error("[ffmpeg] skip system candidate:", candidate, check.detail);
   }
   return null;
 }
@@ -148,9 +172,29 @@ function resolveFfmpegStaticPath(): string | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ffmpegStatic = require("ffmpeg-static") as string | null | undefined;
-    if (ffmpegStatic && ffmpegPathExists(ffmpegStatic) && ffmpegBinaryRuns(ffmpegStatic)) {
+    if (!ffmpegStatic) {
+      console.error(
+        "[ffmpeg] ffmpeg-static is null — postinstall binary download may have failed on this slug",
+      );
+      return null;
+    }
+    if (!ffmpegPathExists(ffmpegStatic)) {
+      console.error("[ffmpeg] ffmpeg-static path missing:", ffmpegStatic);
+      return null;
+    }
+    // Critical on Heroku: apt LD_LIBRARY_PATH breaks the static binary (exit 127).
+    const cleanEnv = envWithoutAptLibs();
+    const check = ffmpegBinaryRuns(ffmpegStatic, cleanEnv);
+    if (check.ok) {
+      delete process.env.LD_LIBRARY_PATH;
+      delete process.env.LIBRARY_PATH;
       return ffmpegStatic;
     }
+    console.error(
+      "[ffmpeg] ffmpeg-static present but not runnable:",
+      ffmpegStatic,
+      check.detail,
+    );
   } catch (err) {
     console.error("Failed to load ffmpeg-static:", err);
   }
@@ -159,11 +203,9 @@ function resolveFfmpegStaticPath(): string | null {
 
 /**
  * Resolve ffmpeg binary.
- * Prefer ffmpeg-static on Heroku (apt ffmpeg often exits 127 without proper lib path).
+ * Prefer ffmpeg-static with a clean env; only then fall back to apt/system ffmpeg.
  */
 function resolveFfmpegBinaryPath(): string {
-  ensureHerokuAptPaths();
-
   const envPath =
     process.env.FFMPEG_BIN?.trim() || process.env.FFMPEG_PATH?.trim();
   if (envPath) {
@@ -172,22 +214,29 @@ function resolveFfmpegBinaryPath(): string {
         `FFMPEG_BIN/FFMPEG_PATH is set to "${envPath}" but that file was not found.`,
       );
     }
-    if (!ffmpegBinaryRuns(envPath)) {
-      throw new Error(
-        `FFMPEG_BIN/FFMPEG_PATH ("${envPath}") exists but failed to run (exit 127 / missing libs).`,
-      );
+    const cleanCheck = ffmpegBinaryRuns(envPath, envWithoutAptLibs());
+    if (cleanCheck.ok) {
+      delete process.env.LD_LIBRARY_PATH;
+      delete process.env.LIBRARY_PATH;
+      return envPath;
     }
-    return envPath;
+    ensureHerokuAptPaths();
+    const aptCheck = ffmpegBinaryRuns(envPath);
+    if (aptCheck.ok) return envPath;
+    throw new Error(
+      `FFMPEG_BIN/FFMPEG_PATH ("${envPath}") exists but failed to run (${cleanCheck.detail || aptCheck.detail}).`,
+    );
   }
 
   const staticPath = resolveFfmpegStaticPath();
   if (staticPath) return staticPath;
 
+  ensureHerokuAptPaths();
   const systemPath = resolveSystemFfmpegPath();
   if (systemPath) return systemPath;
 
   throw new Error(
-    "ffmpeg binary not found or not runnable (exit 127). On Heroku keep ffmpeg-static installed, or add apt buildpack + Aptfile, then redeploy.",
+    "ffmpeg binary not found or not runnable. On Heroku: remove apt ffmpeg (Aptfile), keep ffmpeg-static, or add buildpack https://github.com/heroku/heroku-buildpack-activestorage-preview and redeploy.",
   );
 }
 

@@ -298,8 +298,10 @@ export async function handleConvertPost(
             ? `Server misconfiguration: ${message}. Redeploy after npm install && prisma generate.`
             : message.includes("spawn") && message.toLowerCase().includes("ffmpeg")
               ? `ffmpeg failed to start (${message}). On Heroku add buildpack heroku-community/apt (Aptfile includes ffmpeg) or set FFMPEG_BIN.`
-              : /ffmpeg exited with code 127/i.test(message)
-                ? "ffmpeg could not run (exit 127): binary missing or shared libraries unavailable. Redeploy with ffmpeg-static, or fix apt LD_LIBRARY_PATH on Heroku."
+              : /ffmpeg exited with code 127|not found or not runnable/i.test(
+                  message,
+                )
+                ? "ffmpeg could not run. On Heroku remove apt ffmpeg from Aptfile/buildpack (it breaks ffmpeg-static), redeploy, or add heroku/heroku-buildpack-activestorage-preview."
                 : message,
       },
       { status: 500 },
