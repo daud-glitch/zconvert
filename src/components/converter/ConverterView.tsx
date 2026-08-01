@@ -8,7 +8,7 @@ import {
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
-  Timer, X, Zap, FileStack, Loader2,
+  Timer, X, Zap, FileStack, Loader2, Film, MessageCircle, Music2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import { readJsonResponse } from "@/lib/http-json";
 import { readApiError } from "@/lib/api-errors";
 import {
   qualityPresets,
+  videoQuickPresets,
   SUPPORTED_EXTENSIONS,
   categoryColors,
   DOWNLOAD_BRAND_PREFIX,
@@ -45,7 +46,7 @@ import {
   videoUnavailableMessage,
   formatMaxUploadLabel,
   getClientMaxUploadBytes,
-  normalizePayloadError,
+  humanizeConversionError,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
 
@@ -298,6 +299,36 @@ export function ConverterView() {
     showToast(`Applied ${quality}% quality to all image files`);
   };
 
+  const applyVideoQuickPreset = (presetId: string) => {
+    const preset = videoQuickPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+    const pendingVideos = files.filter(
+      (f) => f.status === "pending" && getCategoryFromExt(f.ext) === "video",
+    );
+    const applicable = pendingVideos.filter((f) => {
+      if (!preset.targetFormat) return true;
+      return (targetFormatsMap[f.ext] || []).includes(preset.targetFormat);
+    });
+    if (applicable.length === 0) {
+      showToast(`No pending video can use “${preset.label}”`, "error");
+      return;
+    }
+    const ids = new Set(applicable.map((f) => f.id));
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (!ids.has(f.id)) return f;
+        return {
+          ...f,
+          quality: preset.quality,
+          targetFormat: preset.targetFormat || f.targetFormat,
+        };
+      }),
+    );
+    showToast(
+      `Applied “${preset.label}” to ${applicable.length} video${applicable.length > 1 ? "s" : ""}`,
+    );
+  };
+
   const resizeAll = (w: number | null, h: number | null) => {
     setFiles((prev) =>
       prev.map((f) =>
@@ -455,7 +486,7 @@ export function ConverterView() {
         showToast(`${item.name} converted successfully!`);
       }
     } catch (err) {
-      const message = normalizePayloadError(
+      const message = humanizeConversionError(
         err instanceof Error ? err.message : "Conversion failed",
       );
       updateFile(item.id, {
@@ -472,12 +503,9 @@ export function ConverterView() {
       (f) => f.status === "pending" && f.targetFormat,
     );
     if (pendingFiles.length === 0) return;
-    setBatchProgress({ current: 0, total: pendingFiles.length });
     for (let i = 0; i < pendingFiles.length; i++) {
+      setBatchProgress({ current: i + 1, total: pendingFiles.length });
       await convertFile(pendingFiles[i]);
-      setBatchProgress((prev) =>
-        prev ? { ...prev, current: prev.current + 1 } : null,
-      );
     }
     setBatchProgress(null);
   };
@@ -589,8 +617,12 @@ export function ConverterView() {
     showToast(`Applied .${format.toUpperCase()} to ${applicableCount} file(s)`);
   };
 
+  const hasPendingVideo = files.some(
+    (f) => getCategoryFromExt(f.ext) === "video" && f.status === "pending",
+  );
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8 pb-24 sm:pb-0">
       {/* Toast Stack */}
       {toasts.length > 0 && (
         <div className="toast-stack fixed top-20 right-4 z-50 space-y-2">
@@ -634,7 +666,7 @@ export function ConverterView() {
       <Card className="card-elevated overflow-hidden border-border/60 shadow-md -mt-2 sm:-mt-4">
         <CardContent className="p-0">
           <div
-            className={`upload-zone-enhanced p-8 sm:p-12 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
+            className={`upload-zone-enhanced p-6 sm:p-12 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
               dragOver
                 ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25"
                 : "border-border/80"
@@ -676,6 +708,10 @@ export function ConverterView() {
               </p>
               <p className="text-[11px] text-muted-foreground/70 mt-2">
                 Up to 20 files · {formatMaxUploadLabel()} each · Ctrl+U to browse
+              </p>
+              <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                <HardDrive className="h-3 w-3 shrink-0" />
+                Temp process · converted files stay in your browser
               </p>
             </div>
           </div>
@@ -779,26 +815,32 @@ export function ConverterView() {
 
       {/* ─── File Queue ─── */}
       {batchProgress && batchProgress.total > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800">
-          <div className="flex-1">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-sky-700 dark:text-sky-300 font-medium">
-                Converting batch...
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-sky-600 dark:text-sky-400" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between text-xs mb-1.5 gap-2">
+              <span className="text-sky-700 dark:text-sky-300 font-medium truncate">
+                {batchProgress.current}/{batchProgress.total} converting…
               </span>
-              <span className="text-sky-600 dark:text-sky-400 font-mono">
-                {batchProgress.current} / {batchProgress.total}
+              <span className="text-sky-600 dark:text-sky-400 font-mono shrink-0">
+                {Math.round(
+                  ((batchProgress.current - 1) / batchProgress.total) * 100,
+                )}
+                %
               </span>
             </div>
             <div className="h-2 bg-sky-100 dark:bg-sky-900/50 rounded-full overflow-hidden">
               <div
-                className="h-full bg-sky-500 rounded-full"
+                className="h-full bg-sky-500 rounded-full transition-[width] duration-300"
                 style={{
-                  width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                  width: `${Math.max(
+                    8,
+                    ((batchProgress.current - 0.15) / batchProgress.total) * 100,
+                  )}%`,
                 }}
               />
             </div>
           </div>
-          <div className="progress-dashed w-16" />
         </div>
       )}
 
@@ -866,10 +908,10 @@ export function ConverterView() {
       )}
 
       {files.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3 px-3 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
                 <Layers className="w-4 h-4" />
                 Conversion Queue
                 <Badge variant="secondary" className="text-xs">
@@ -903,8 +945,9 @@ export function ConverterView() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="hidden sm:inline-flex"
                   onClick={convertAll}
-                  disabled={pendingCount === 0}
+                  disabled={pendingCount === 0 || Boolean(batchProgress)}
                 >
                   <RefreshCw className="w-3.5 h-3.5 mr-1" />
                   Convert All
@@ -954,7 +997,7 @@ export function ConverterView() {
                   disabled={doneCount === 0}
                 >
                   <DownloadCloud className="w-3.5 h-3.5 mr-1" />
-                  Download ZIP
+                  ZIP
                 </Button>
                 {mergeableCount >= 2 && (
                   <Button
@@ -1006,7 +1049,7 @@ export function ConverterView() {
                     }}
                   >
                     <FileStack className="w-3.5 h-3.5 mr-1" />
-                    Merge to PDF
+                    Merge
                   </Button>
                 )}
                 <Button
@@ -1023,7 +1066,8 @@ export function ConverterView() {
                   disabled={doneCount + errorCount === 0}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" />
-                  Clear Done
+                  <span className="hidden sm:inline">Clear Done</span>
+                  <span className="sm:hidden">Clear</span>
                 </Button>
                 <Button
                   variant="ghost"
@@ -1036,8 +1080,8 @@ export function ConverterView() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="max-h-[50vh] overflow-y-auto pr-2 overflow-x-hidden">
+          <CardContent className="pt-0 px-3 sm:px-6">
+            <div className="max-h-[min(55vh,28rem)] sm:max-h-[50vh] overflow-y-auto pr-1 sm:pr-2 overflow-x-hidden">
               <div className="space-y-2">
                 {files.map((item) => {
                   const itemIndex = files.findIndex((f) => f.id === item.id);
@@ -1069,9 +1113,10 @@ export function ConverterView() {
                       } ${dragIndex === itemIndex ? "opacity-50 ring-2 ring-emerald-500 ring-offset-1" : ""}`}
                     >
                       <Collapsible>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
                           {/* Grip Handle */}
-                          <div className="text-muted-foreground/40 mr-1 cursor-grab">
+                          <div className="hidden sm:block text-muted-foreground/40 mr-1 cursor-grab shrink-0">
                             <GripVertical className="w-4 h-4" />
                           </div>
 
@@ -1084,30 +1129,33 @@ export function ConverterView() {
                               {item.name}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                              <span>{formatBytes(item.size)}</span>
                               <span className="uppercase font-mono">
                                 .{item.ext}
                               </span>
-                              {item.status === "done" && (
+                              {item.status === "done" && item.outputSize != null ? (
                                 <>
-                                  <ArrowRightLeft className="w-3 h-3" />
-                                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                                    {item.outputSize
-                                      ? formatBytes(item.outputSize)
-                                      : "done"}
-                                  </span>
-                                  {item.outputSize && item.size > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] px-1.5 py-0 font-mono border-emerald-400/70 text-emerald-700 dark:text-emerald-300"
+                                  >
+                                    {formatBytes(item.size)} → {formatBytes(item.outputSize)}
+                                  </Badge>
+                                  {item.size > 0 && (
                                     <Badge
                                       variant="outline"
                                       className={`text-[10px] px-1.5 py-0 ${
                                         item.outputSize < item.size
                                           ? "border-emerald-400 text-emerald-600 dark:text-emerald-400"
-                                          : "border-red-400 text-red-600 dark:text-red-400"
+                                          : item.outputSize > item.size
+                                            ? "border-amber-400 text-amber-700 dark:text-amber-400"
+                                            : "border-border text-muted-foreground"
                                       }`}
                                     >
                                       {item.outputSize < item.size
                                         ? `↓${Math.round((1 - item.outputSize / item.size) * 100)}%`
-                                        : `↑${Math.round((item.outputSize / item.size - 1) * 100)}%`}
+                                        : item.outputSize > item.size
+                                          ? `↑${Math.round((item.outputSize / item.size - 1) * 100)}%`
+                                          : "same"}
                                     </Badge>
                                   )}
                                   {item.startTime && item.endTime && (
@@ -1121,10 +1169,12 @@ export function ConverterView() {
                                     </span>
                                   )}
                                 </>
+                              ) : (
+                                <span>{formatBytes(item.size)}</span>
                               )}
                               {item.status === "error" && (
-                                <span className="text-red-600 dark:text-red-400 font-medium">
-                                  Failed: {item.error?.slice(0, 40)}
+                                <span className="text-red-600 dark:text-red-400 font-medium break-words">
+                                  {item.error || "Failed"}
                                 </span>
                               )}
                               {item.status === "converting" && (
@@ -1137,7 +1187,7 @@ export function ConverterView() {
                             {item.status === "done" &&
                               item.outputSize &&
                               item.size > 0 && (
-                                <div className="mt-2">
+                                <div className="mt-2 max-w-xs">
                                   <div className="size-comparison-bar">
                                     <div
                                       className="size-comparison-bar-input"
@@ -1152,19 +1202,21 @@ export function ConverterView() {
                                   </div>
                                   <div className="flex justify-between mt-1">
                                     <span className="text-[9px] text-muted-foreground">
-                                      Original: {formatBytes(item.size)}
+                                      Before {formatBytes(item.size)}
                                     </span>
                                     <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
-                                      Output: {formatBytes(item.outputSize)}
+                                      After {formatBytes(item.outputSize)}
                                     </span>
                                   </div>
                                 </div>
                               )}
                           </div>
+                          </div>
 
+                          <div className="flex items-center justify-between gap-2 sm:justify-end sm:shrink-0 flex-wrap pl-0 sm:pl-0">
                           {/* Format Selector */}
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-mono text-muted-foreground uppercase">
+                            <span className="text-xs font-mono text-muted-foreground uppercase hidden sm:inline">
                               {item.ext}
                             </span>
                             <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1190,7 +1242,7 @@ export function ConverterView() {
                               }}
                               disabled={item.status === "converting"}
                             >
-                              <SelectTrigger className="w-24 h-8 text-xs">
+                              <SelectTrigger className="w-[5.5rem] sm:w-24 h-8 text-xs">
                                 <SelectValue placeholder="Format" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1349,6 +1401,7 @@ export function ConverterView() {
                               <X className="w-4 h-4 text-muted-foreground" />
                             </Button>
                           </div>
+                          </div>
                         </div>
 
                         {/* Collapsible Content - Independent from flex row */}
@@ -1454,12 +1507,59 @@ export function ConverterView() {
         </Card>
       )}
 
+      {/* ─── Video Quick Presets ─── */}
+      {hasPendingVideo && (
+        <Card className="border-amber-200/70 dark:border-amber-900/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <Film className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Video presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  One tap for compress, WhatsApp, or MP3 extract
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {videoQuickPresets.map((preset) => {
+                const Icon =
+                  preset.id === "whatsapp"
+                    ? MessageCircle
+                    : preset.id === "extract-mp3"
+                      ? Music2
+                      : Film;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyVideoQuickPreset(preset.id)}
+                    className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-amber-400/60 hover:bg-amber-50/80 dark:hover:bg-amber-950/25 text-left transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{preset.label}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {preset.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ─── Conversion Quality Presets (below queue) ─── */}
       {files.some(
         (f) => getCategoryFromExt(f.ext) === "image" && f.status === "pending",
       ) && (
         <Card className="card-accent-violet">
-          <CardContent className="p-5">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center text-white">
                 <Sparkles className="w-4 h-4" />
@@ -1636,7 +1736,7 @@ export function ConverterView() {
             {
               icon: <Shield className="w-4 h-4" />,
               title: "100% Private",
-              desc: "Files never leave this server. Zero third-party uploads.",
+              desc: "Temp process only — converted results stay in your browser.",
               color: "bg-emerald-500",
             },
             {
@@ -1699,7 +1799,7 @@ export function ConverterView() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl w-[calc(100%-1.5rem)] sm:w-full">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-sky-500" />
@@ -1729,6 +1829,29 @@ export function ConverterView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile sticky Convert All */}
+      {pendingCount > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
+          <Button
+            className="w-full h-12 rounded-xl bg-emerald-500 text-base font-semibold hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
+            onClick={convertAll}
+            disabled={Boolean(batchProgress)}
+          >
+            {batchProgress ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {batchProgress.current}/{batchProgress.total} converting…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Convert {pendingCount} file{pendingCount > 1 ? "s" : ""}
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

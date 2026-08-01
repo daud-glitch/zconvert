@@ -124,3 +124,49 @@ export function normalizePayloadError(message: string): string {
   }
   return message;
 }
+
+/** Short, user-facing conversion errors (UI + toasts). */
+export function humanizeConversionError(message: string): string {
+  const msg = normalizePayloadError(message);
+  const lower = msg.toLowerCase();
+
+  if (lower.includes("rate limit")) {
+    return "Too many conversions right now. Wait a minute and try again.";
+  }
+  if (
+    lower.includes("timed out") ||
+    lower.includes("timeout") ||
+    lower.includes("deadline")
+  ) {
+    return "Conversion timed out. Try a shorter clip or a smaller file.";
+  }
+  if (
+    lower.includes("ffmpeg") &&
+    (lower.includes("not found") ||
+      lower.includes("not runnable") ||
+      lower.includes("exit 127") ||
+      lower.includes("could not run"))
+  ) {
+    return "Audio/video engine is unavailable on this server. Try again later.";
+  }
+  if (
+    lower.includes("unexpected end of form") ||
+    lower.includes("multipart") ||
+    lower.includes("failed to read uploaded")
+  ) {
+    return "Upload failed. Refresh the page and try again.";
+  }
+  if (lower.includes("empty upload") || lower.includes("empty file")) {
+    return "The uploaded file was empty. Choose another file.";
+  }
+  if (lower.includes("not supported") || lower.includes("unsupported")) {
+    return msg.length > 160 ? `${msg.slice(0, 157)}…` : msg;
+  }
+  if (lower.includes("exceeds maximum") || lower.includes("too large")) {
+    return msg;
+  }
+  if (lower.includes("server error") || lower.includes("crashed")) {
+    return "Server error during conversion. Please retry in a moment.";
+  }
+  return msg.length > 180 ? `${msg.slice(0, 177)}…` : msg;
+}

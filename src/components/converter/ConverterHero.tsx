@@ -125,13 +125,16 @@ export function ConverterHero({
             <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground lg:justify-start">
               <li className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-emerald-500" />
-                Processed securely
+                Temp process on server
               </li>
               <li className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-amber-500" />
-                Fast local conversion
+                Result stays in your browser
               </li>
             </ul>
+            <p className="mt-3 text-xs text-muted-foreground/80 max-w-lg mx-auto lg:mx-0">
+              We process files temporarily to convert them — downloads are saved on your device, not kept as permanent cloud storage.
+            </p>
           </div>
 
           <div className="hidden lg:block relative w-[280px] shrink-0 h-[220px]">

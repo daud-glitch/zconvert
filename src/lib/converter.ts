@@ -2446,27 +2446,49 @@ function applyAudioCodec(
   return command;
 }
 
+function videoCrfFromQuality(quality: number): number {
+  if (quality >= 90) return 20;
+  if (quality >= 75) return 23;
+  if (quality >= 55) return 28;
+  return 32;
+}
+
 function applyVideoCodec(
   command: Ffmpeg.FfmpegCommand,
   outputExt: string,
+  quality: number = 85,
 ): Ffmpeg.FfmpegCommand {
-  if (outputExt === "webm") {
+  const dest = outputExt.toLowerCase();
+  const crf = videoCrfFromQuality(quality);
+  // Lower quality presets (e.g. WhatsApp) also cap resolution for smaller files.
+  if (quality < 55) {
+    command = command.outputOptions(["-vf", "scale='min(1280,iw)':-2"]);
+  }
+
+  if (dest === "webm") {
     return command
       .videoCodec("libvpx-vp9")
       .audioCodec("libopus")
       .outputOptions(["-b:v", "1M", "-b:a", "128k"]);
   }
-  if (outputExt === "ogv") {
+  if (dest === "ogv") {
     return command.videoCodec("libtheora").audioCodec("libvorbis");
   }
-  if (outputExt === "wmv") {
+  if (dest === "wmv") {
     return command.videoCodec("wmv2").audioCodec("wmav2");
   }
-  // Default: H.264 + AAC in MP4-family containers (also works for many others)
+  // Default: H.264 + AAC (CRF from quality preset)
   return command
     .videoCodec("libx264")
     .audioCodec("aac")
-    .outputOptions(["-preset", "veryfast", "-crf", "23", "-movflags", "+faststart"]);
+    .outputOptions([
+      "-preset",
+      "veryfast",
+      "-crf",
+      String(crf),
+      "-movflags",
+      "+faststart",
+    ]);
 }
 
 async function convertAudio(
@@ -2495,6 +2517,7 @@ async function convertVideo(
   input: Buffer,
   inputExt: string,
   outputExt: string,
+  quality: number = 85,
 ): Promise<Buffer> {
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
@@ -2520,7 +2543,7 @@ async function convertVideo(
     input,
     src,
     dest,
-    (command) => applyVideoCodec(command, dest),
+    (command) => applyVideoCodec(command, dest, quality),
     videoUnavailableMessage(),
   );
 }
@@ -2616,7 +2639,7 @@ export async function convertFile(
   }
 
   if (videoFormats.has(src) && (videoFormats.has(dest) || audioFormats.has(dest))) {
-    return convertVideo(input, src, dest);
+    return convertVideo(input, src, dest, quality);
   }
 
   if (audioFormats.has(src) && audioFormats.has(dest)) {

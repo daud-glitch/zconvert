@@ -78,6 +78,31 @@ export const qualityPresets = [
   },
 ];
 
+/** One-tap media actions for pending video files in the queue. */
+export const videoQuickPresets = [
+  {
+    id: "compress",
+    label: "Compress",
+    desc: "Smaller video file",
+    quality: 55,
+    targetFormat: null as string | null,
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp",
+    desc: "Share-ready MP4",
+    quality: 45,
+    targetFormat: "mp4" as string | null,
+  },
+  {
+    id: "extract-mp3",
+    label: "Extract MP3",
+    desc: "Audio only",
+    quality: 85,
+    targetFormat: "mp3" as string | null,
+  },
+];
+
 // ─── Supported Extensions (for file input accept) ────────────────────────────
 
 export const SUPPORTED_EXTENSIONS = [
