@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import fs from "fs/promises";
-import { accessSync, constants as fsConstants } from "fs";
+import { accessSync, chmodSync, constants as fsConstants } from "fs";
 import { execFileSync } from "child_process";
 import os from "os";
 import path from "path";
@@ -60,24 +60,110 @@ function ffmpegPathExists(binPath: string): boolean {
   }
 }
 
+/** Heroku apt buildpack installs libs under ~/.apt — Node may miss LD_LIBRARY_PATH. */
+function ensureHerokuAptPaths(): void {
+  const home = process.env.HOME?.trim();
+  if (!home) return;
+  const aptRoot = path.join(home, ".apt");
+  if (!ffmpegPathExists(aptRoot)) return;
+
+  const libDirs = [
+    path.join(aptRoot, "usr/lib/x86_64-linux-gnu"),
+    path.join(aptRoot, "usr/lib/aarch64-linux-gnu"),
+    path.join(aptRoot, "usr/lib"),
+    path.join(aptRoot, "lib/x86_64-linux-gnu"),
+    path.join(aptRoot, "lib"),
+  ].filter(ffmpegPathExists);
+
+  if (libDirs.length > 0) {
+    const existing = (process.env.LD_LIBRARY_PATH || "")
+      .split(":")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    process.env.LD_LIBRARY_PATH = [...libDirs, ...existing].join(":");
+  }
+
+  const aptBin = path.join(aptRoot, "usr/bin");
+  if (ffmpegPathExists(aptBin)) {
+    const pathParts = (process.env.PATH || "")
+      .split(":")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (!pathParts.includes(aptBin)) {
+      process.env.PATH = [aptBin, ...pathParts].join(":");
+    }
+  }
+}
+
+function ffmpegBinaryRuns(binPath: string): boolean {
+  try {
+    try {
+      chmodSync(binPath, 0o755);
+    } catch {
+      // ignore chmod failures (e.g. read-only FS)
+    }
+    execFileSync(binPath, ["-version"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 15_000,
+      env: process.env,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveSystemFfmpegPath(): string | null {
+  const candidates: string[] = [];
+  const home = process.env.HOME?.trim();
+  if (home) {
+    candidates.push(path.join(home, ".apt/usr/bin/ffmpeg"));
+  }
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
     const out = execFileSync(cmd, ["ffmpeg"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      env: process.env,
     })
       .trim()
       .split(/\r?\n/)[0]
       ?.trim();
-    return out && ffmpegPathExists(out) ? out : null;
+    if (out) candidates.push(out);
   } catch {
-    return null;
+    // ignore
   }
+  candidates.push("ffmpeg");
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (candidate !== "ffmpeg" && !ffmpegPathExists(candidate)) continue;
+    if (ffmpegBinaryRuns(candidate)) return candidate;
+  }
+  return null;
 }
 
-/** Resolve ffmpeg binary (env → system PATH → ffmpeg-static). */
+function resolveFfmpegStaticPath(): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ffmpegStatic = require("ffmpeg-static") as string | null | undefined;
+    if (ffmpegStatic && ffmpegPathExists(ffmpegStatic) && ffmpegBinaryRuns(ffmpegStatic)) {
+      return ffmpegStatic;
+    }
+  } catch (err) {
+    console.error("Failed to load ffmpeg-static:", err);
+  }
+  return null;
+}
+
+/**
+ * Resolve ffmpeg binary.
+ * Prefer ffmpeg-static on Heroku (apt ffmpeg often exits 127 without proper lib path).
+ */
 function resolveFfmpegBinaryPath(): string {
+  ensureHerokuAptPaths();
+
   const envPath =
     process.env.FFMPEG_BIN?.trim() || process.env.FFMPEG_PATH?.trim();
   if (envPath) {
@@ -86,31 +172,31 @@ function resolveFfmpegBinaryPath(): string {
         `FFMPEG_BIN/FFMPEG_PATH is set to "${envPath}" but that file was not found.`,
       );
     }
+    if (!ffmpegBinaryRuns(envPath)) {
+      throw new Error(
+        `FFMPEG_BIN/FFMPEG_PATH ("${envPath}") exists but failed to run (exit 127 / missing libs).`,
+      );
+    }
     return envPath;
   }
+
+  const staticPath = resolveFfmpegStaticPath();
+  if (staticPath) return staticPath;
 
   const systemPath = resolveSystemFfmpegPath();
   if (systemPath) return systemPath;
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ffmpegStatic = require("ffmpeg-static") as string | null | undefined;
-    if (ffmpegStatic && ffmpegPathExists(ffmpegStatic)) {
-      return ffmpegStatic;
-    }
-  } catch (err) {
-    console.error("Failed to load ffmpeg-static:", err);
-  }
-
   throw new Error(
-    "ffmpeg binary not found. On Heroku add buildpack heroku-community/apt (with Aptfile) or set FFMPEG_BIN. Ensure optional ffmpeg-static installed for this platform.",
+    "ffmpeg binary not found or not runnable (exit 127). On Heroku keep ffmpeg-static installed, or add apt buildpack + Aptfile, then redeploy.",
   );
 }
 
 async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
   const ffmpegMod = await import("fluent-ffmpeg");
   const ffmpeg = ffmpegMod.default;
-  ffmpeg.setFfmpegPath(resolveFfmpegBinaryPath());
+  const bin = resolveFfmpegBinaryPath();
+  console.log("[ffmpeg] using binary:", bin);
+  ffmpeg.setFfmpegPath(bin);
   return ffmpeg as unknown as Ffmpeg.FfmpegCommand;
 }
 
