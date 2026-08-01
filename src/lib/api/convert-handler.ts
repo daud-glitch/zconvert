@@ -15,6 +15,7 @@ import {
 import { getFormatByExt } from "@/lib/formats";
 import { getSessionUser } from "@/lib/auth";
 import { logConversion } from "@/lib/conversion-log";
+import { parseMultipartUpload } from "@/lib/multipart";
 
 const MAX_UPLOAD_SIZE = getServerMaxUploadBytes();
 
@@ -63,9 +64,9 @@ export async function handleConvertPost(
       );
     }
 
-    let formData: FormData;
+    let parsed;
     try {
-      formData = await request.formData();
+      parsed = await parseMultipartUpload(request, MAX_UPLOAD_SIZE);
     } catch (parseErr) {
       const raw =
         parseErr instanceof Error ? parseErr.message : String(parseErr);
@@ -73,22 +74,24 @@ export async function handleConvertPost(
       const sizeHint = contentLength
         ? ` Upload size header: ${(Number(contentLength) / (1024 * 1024)).toFixed(1)} MB.`
         : "";
+      const lower = raw.toLowerCase();
+      const friendly =
+        lower.includes("multipart") ||
+        lower.includes("formdata") ||
+        lower.includes("body") ||
+        lower.includes("exceeds maximum")
+          ? `${raw}${sizeHint}`
+          : raw;
       return NextResponse.json(
-        {
-          error: normalizePayloadError(
-            raw.toLowerCase().includes("formdata") ||
-              raw.toLowerCase().includes("body")
-              ? `Failed to read uploaded file.${sizeHint} Host may reject large multipart bodies (Heroku router ~30 MB). Use a smaller file or raise platform body limits.`
-              : raw,
-          ),
-        },
-        { status: 400 },
+        { error: normalizePayloadError(friendly) },
+        { status: lower.includes("exceeds maximum") ? 413 : 400 },
       );
     }
-    const file = formData.get("file") as File | null;
-    const targetFormat = formData.get("targetFormat") as string | null;
 
-    if (!file) {
+    const uploaded = parsed.file;
+    const targetFormat = parsed.fields.targetFormat || null;
+
+    if (!uploaded || uploaded.buffer.length === 0) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
     if (!targetFormat) {
@@ -98,9 +101,9 @@ export async function handleConvertPost(
       );
     }
 
-    const quality = parseInt(formData.get("quality") as string) || 85;
-    const width = parseInt(formData.get("width") as string) || null;
-    const height = parseInt(formData.get("height") as string) || null;
+    const quality = parseInt(parsed.fields.quality || "", 10) || 85;
+    const width = parseInt(parsed.fields.width || "", 10) || null;
+    const height = parseInt(parsed.fields.height || "", 10) || null;
     const target = targetFormat.toLowerCase().replace(/^\./, "");
 
     if (!getFormatByExt(target)) {
@@ -110,7 +113,7 @@ export async function handleConvertPost(
       );
     }
 
-    const fileName = file.name;
+    const fileName = uploaded.filename;
     if (FORBIDDEN_FILENAME_PATTERN.test(fileName)) {
       return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
     }
@@ -134,9 +137,9 @@ export async function handleConvertPost(
       );
     }
 
-    if (file.size > MAX_UPLOAD_SIZE) {
+    if (uploaded.buffer.length > MAX_UPLOAD_SIZE) {
       return NextResponse.json(
-        { error: payloadTooLargeMessage(file.size) },
+        { error: payloadTooLargeMessage(uploaded.buffer.length) },
         { status: 413 },
       );
     }
@@ -161,7 +164,7 @@ export async function handleConvertPost(
         { status: 422 },
       );
     }
-    if (file.size === 0) {
+    if (uploaded.buffer.length === 0) {
       return NextResponse.json({ error: "Empty file provided" }, { status: 400 });
     }
 
@@ -179,7 +182,7 @@ export async function handleConvertPost(
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = uploaded.buffer;
     const startTime = Date.now();
     const sessionUser = await getSessionUser(request);
     const category = sourceFormatInfo.category;
@@ -224,7 +227,7 @@ export async function handleConvertPost(
         originalExt: sourceExt,
         targetExt: target,
         category,
-        inputSize: file.size,
+        inputSize: buffer.length,
         outputSize: 0,
         status: "error",
         duration: Date.now() - startTime,
@@ -249,7 +252,7 @@ export async function handleConvertPost(
       originalExt: sourceExt,
       targetExt: outputExt,
       category,
-      inputSize: file.size,
+      inputSize: buffer.length,
       outputSize: result.length,
       status: "done",
       duration: Date.now() - startTime,

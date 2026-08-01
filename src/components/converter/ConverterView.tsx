@@ -195,10 +195,14 @@ export function ConverterView() {
     const fileArray = Array.from(newFiles);
 
     setFiles((prev) => {
-      const spaceLeft = 20 - prev.length;
+      // Drop finished/failed items when a new upload starts; keep in-flight work.
+      const activePrev = prev.filter(
+        (f) => f.status === "pending" || f.status === "converting",
+      );
+      const spaceLeft = 20 - activePrev.length;
       if (spaceLeft <= 0) {
         showToast("Maximum queue limit reached (20 files).", "error");
-        return prev;
+        return activePrev;
       }
 
       if (fileArray.length > spaceLeft) {
@@ -227,7 +231,7 @@ export function ConverterView() {
 
         // Check if file is already in queue
         const isDuplicate =
-          prev.some((p) => p.name === name && p.size === file.size) ||
+          activePrev.some((p) => p.name === name && p.size === file.size) ||
           supported.some((p) => p.name === name && p.size === file.size);
         if (isDuplicate) return;
 
@@ -271,7 +275,7 @@ export function ConverterView() {
         );
       }
 
-      return [...prev, ...supported];
+      return [...activePrev, ...supported];
     });
   };
 
