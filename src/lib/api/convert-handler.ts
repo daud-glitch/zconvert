@@ -76,12 +76,13 @@ export async function handleConvertPost(
         : "";
       const lower = raw.toLowerCase();
       const friendly =
+        lower.includes("unexpected end of form") ||
         lower.includes("multipart") ||
-        lower.includes("formdata") ||
-        lower.includes("body") ||
-        lower.includes("exceeds maximum")
-          ? `${raw}${sizeHint}`
-          : raw;
+        lower.includes("formdata")
+          ? `Upload parsing failed.${sizeHint} Refresh the page and retry — video/audio now use binary upload (not multipart).`
+          : lower.includes("body") || lower.includes("exceeds maximum")
+            ? `${raw}${sizeHint}`
+            : raw;
       return NextResponse.json(
         { error: normalizePayloadError(friendly) },
         { status: lower.includes("exceeds maximum") ? 413 : 400 },

@@ -11,36 +11,6 @@ export type ParsedMultipart = {
   file: ParsedUploadFile | null;
 };
 
-async function parseWithNativeFormData(
-  contentType: string,
-  body: Buffer,
-): Promise<ParsedMultipart> {
-  const rebuilt = new Request("http://local.upload/convert", {
-    method: "POST",
-    headers: { "content-type": contentType },
-    body: new Uint8Array(body),
-  });
-  const formData = await rebuilt.formData();
-  const fields: Record<string, string> = {};
-  let file: ParsedUploadFile | null = null;
-
-  for (const [key, value] of formData.entries()) {
-    if (typeof value === "string") {
-      fields[key] = value;
-      continue;
-    }
-    if (file) continue;
-    const ab = Buffer.from(await value.arrayBuffer());
-    file = {
-      filename: value.name || "upload.bin",
-      mimeType: value.type || "application/octet-stream",
-      buffer: ab,
-    };
-  }
-
-  return { fields, file };
-}
-
 function parseWithBusboy(
   contentType: string,
   body: Buffer,
@@ -119,23 +89,77 @@ function parseWithBusboy(
         .catch(fail);
     });
 
-    // Important: write the full buffer then end — pipe(Readable.from) often
-    // triggers busboy "Unexpected end of form" on Heroku.
     busboy.end(body);
   });
 }
 
 /**
- * Parse multipart upload for convert routes.
- * Prefer buffered native FormData; fall back to busboy with end(buffer).
+ * Preferred upload mode: raw file bytes + metadata headers.
+ * Avoids multipart/FormData parsers that fail on Heroku for video-sized bodies.
+ *
+ * Headers:
+ * - X-File-Name (URI-encoded)
+ * - X-Target-Format
+ * - X-Quality (optional)
+ * - X-Width / X-Height (optional)
+ */
+async function parseRawBinaryUpload(
+  request: Request,
+  maxFileBytes: number,
+): Promise<ParsedMultipart | null> {
+  const targetFormat = request.headers.get("x-target-format")?.trim();
+  if (!targetFormat) return null;
+
+  const buffer = Buffer.from(await request.arrayBuffer());
+  if (buffer.length === 0) {
+    throw new Error("Empty upload body");
+  }
+  if (buffer.length > maxFileBytes) {
+    throw new Error(
+      `Upload exceeds maximum size (${Math.round(maxFileBytes / (1024 * 1024))} MB)`,
+    );
+  }
+
+  let filename = "upload.bin";
+  const rawName = request.headers.get("x-file-name");
+  if (rawName) {
+    try {
+      filename = decodeURIComponent(rawName);
+    } catch {
+      filename = rawName;
+    }
+  }
+
+  return {
+    fields: {
+      targetFormat,
+      quality: request.headers.get("x-quality") || "85",
+      width: request.headers.get("x-width") || "",
+      height: request.headers.get("x-height") || "",
+    },
+    file: {
+      filename,
+      mimeType: request.headers.get("content-type") || "application/octet-stream",
+      buffer,
+    },
+  };
+}
+
+/**
+ * Parse convert upload: raw binary headers first, multipart only as legacy fallback.
  */
 export async function parseMultipartUpload(
   request: Request,
   maxFileBytes: number,
 ): Promise<ParsedMultipart> {
+  const raw = await parseRawBinaryUpload(request, maxFileBytes);
+  if (raw) return raw;
+
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.toLowerCase().includes("multipart/form-data")) {
-    throw new Error("Expected multipart/form-data upload");
+    throw new Error(
+      "Expected raw binary upload (X-Target-Format) or multipart/form-data",
+    );
   }
 
   const body = Buffer.from(await request.arrayBuffer());
@@ -146,15 +170,6 @@ export async function parseMultipartUpload(
     throw new Error(
       `Upload exceeds maximum size (${Math.round(maxFileBytes / (1024 * 1024))} MB)`,
     );
-  }
-
-  try {
-    const native = await parseWithNativeFormData(contentType, body);
-    if (native.file && native.file.buffer.length > 0) {
-      return native;
-    }
-  } catch {
-    // fall through to busboy
   }
 
   return parseWithBusboy(contentType, body, maxFileBytes);

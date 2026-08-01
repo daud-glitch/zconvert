@@ -402,17 +402,19 @@ export function ConverterView() {
     });
 
     try {
-      const formData = new FormData();
-      formData.append("file", item.file);
-      formData.append("targetFormat", item.targetFormat);
-      formData.append("quality", String(item.quality));
-      if (item.resizeWidth) formData.append("width", String(item.resizeWidth));
-      if (item.resizeHeight)
-        formData.append("height", String(item.resizeHeight));
+      const headers: Record<string, string> = {
+        "Content-Type": item.file.type || "application/octet-stream",
+        "X-File-Name": encodeURIComponent(item.name),
+        "X-Target-Format": item.targetFormat,
+        "X-Quality": String(item.quality),
+      };
+      if (item.resizeWidth) headers["X-Width"] = String(item.resizeWidth);
+      if (item.resizeHeight) headers["X-Height"] = String(item.resizeHeight);
 
       const response = await fetch(getConvertApiPath(item.ext), {
         method: "POST",
-        body: formData,
+        headers,
+        body: item.file,
         cache: "no-store",
         priority: "high",
       });

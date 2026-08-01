@@ -37,7 +37,8 @@ function corsPreflightResponse(): NextResponse {
     headers: {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers":
+        "Content-Type, X-File-Name, X-Target-Format, X-Quality, X-Width, X-Height",
       "Access-Control-Max-Age": "86400",
     },
   });
