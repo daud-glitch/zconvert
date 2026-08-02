@@ -1,4 +1,7 @@
-import { normalizePayloadError } from "@/lib/upload-limits";
+import {
+  humanizeConversionError,
+  normalizePayloadError,
+} from "@/lib/upload-limits";
 
 /** Turn fetch failures into a short user-facing message (handles Next.js HTML error pages). */
 export async function readApiError(
@@ -8,23 +11,26 @@ export async function readApiError(
   const text = await response.text().catch(() => "");
   const trimmed = text.trim();
   if (!trimmed) {
-    return `${fallback} (${response.status})`;
+    return humanizeConversionError(`${fallback} (${response.status})`);
   }
   try {
     const data = JSON.parse(trimmed) as { error?: string; message?: string };
     const msg = data.error || data.message || fallback;
-    return normalizePayloadError(msg);
+    return humanizeConversionError(normalizePayloadError(msg));
   } catch {
     if (
       trimmed.startsWith("<!DOCTYPE") ||
       trimmed.includes("__next_error__") ||
-      trimmed.startsWith("<html")
+      trimmed.startsWith("<html") ||
+      response.status >= 500
     ) {
-      return `Server error (${response.status}). The conversion API crashed — check Vercel deployment logs (Functions → /api/convert).`;
+      return humanizeConversionError(
+        "Server error during conversion. Please retry in a moment.",
+      );
     }
     if (response.status === 413) {
-      return normalizePayloadError(trimmed);
+      return humanizeConversionError(normalizePayloadError(trimmed));
     }
-    return normalizePayloadError(trimmed.slice(0, 200));
+    return humanizeConversionError(trimmed.slice(0, 200));
   }
 }

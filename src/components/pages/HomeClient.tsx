@@ -359,7 +359,15 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="md:col-span-2 space-y-4">
               <div className="flex items-center gap-2">
-                <RefreshCw className="w-6 h-6 text-emerald-500" />
+                {/* Brand mark — matches site favicon */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/favicon.svg"
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 rounded-lg shadow-sm"
+                />
                 <span className="text-xl font-bold tracking-tight">
                   Cloud Converter
                 </span>

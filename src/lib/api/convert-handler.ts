@@ -8,6 +8,7 @@ import {
   getServerMaxUploadBytes,
   isAudioConversionAvailable,
   isVideoConversionAvailable,
+  humanizeConversionError,
   payloadTooLargeMessage,
   normalizePayloadError,
 } from "@/lib/upload-limits";
@@ -242,7 +243,10 @@ export async function handleConvertPost(
         error: errorMessage,
         ipAddress: ip === "unknown" ? null : ip,
       });
-      return NextResponse.json({ error: errorMessage }, { status: 422 });
+      return NextResponse.json(
+        { error: humanizeConversionError(errorMessage) },
+        { status: 422 },
+      );
     }
 
     const baseName = fileName.replace(/\.[^/.]+$/, "");
@@ -299,22 +303,7 @@ export async function handleConvertPost(
     const message =
       error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json(
-      {
-        error:
-          message.includes("Cannot find module") ||
-          message.includes("ENOENT") ||
-          message.includes("libquery_engine") ||
-          message.toLowerCase().includes("ffmpeg binary not found") ||
-          message.toLowerCase().includes("ffmpeg_bin")
-            ? `Server misconfiguration: ${message}. Redeploy after npm install && prisma generate.`
-            : message.includes("spawn") && message.toLowerCase().includes("ffmpeg")
-              ? `ffmpeg failed to start (${message}). Redeploy so heroku-postbuild can install vendor/ffmpeg, or set FFMPEG_BIN to a working binary.`
-              : /ffmpeg exited with code 127|not found or not runnable/i.test(
-                  message,
-                )
-                ? "ffmpeg could not run. Wait for a fresh deploy (heroku-postbuild downloads vendor/ffmpeg via scripts/ensure-ffmpeg.js), then retry."
-                : message,
-      },
+      { error: humanizeConversionError(message) },
       { status: 500 },
     );
   }

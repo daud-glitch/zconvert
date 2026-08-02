@@ -133,7 +133,9 @@ export function ConverterHero({
               </li>
             </ul>
             <p className="mt-3 text-xs text-muted-foreground/80 max-w-lg mx-auto lg:mx-0">
-              We process files temporarily to convert them — downloads are saved on your device, not kept as permanent cloud storage.
+              Files are processed temporarily on the server. Converted downloads
+              stay in your browser (IndexedDB). We may keep anonymized usage
+              stats only — not your file library.
             </p>
           </div>
 

@@ -287,6 +287,7 @@ async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
 
 /**
  * Run ffmpeg via temp files (reliable for large audio/video on servers).
+ * Always cleans temp dir; kills hung encodes so workers don't stick.
  */
 async function convertWithFfmpegFiles(
   input: Buffer,
@@ -340,7 +341,17 @@ async function convertWithFfmpegFiles(
       );
     }
 
+    // Long video re-encode needs more wall-clock; still kill hung jobs.
+    const isVideoOut = videoFormats.has(destExt);
+    const timeoutMs =
+      isVideoOut && input.length > 25 * 1024 * 1024
+        ? 14 * 60_000
+        : isVideoOut
+          ? 10 * 60_000
+          : 6 * 60_000;
+
     await new Promise<void>((resolve, reject) => {
+      let settled = false;
       let command = ffmpeg(inPath);
       // Phone/camera uploads often need longer probe + tolerate minor stream glitches
       command = command.inputOptions([
@@ -354,26 +365,58 @@ async function convertWithFfmpegFiles(
         "ignore_err",
       ]);
       command = configure(command);
+
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+
+      const timer = setTimeout(() => {
+        finish(() => {
+          try {
+            // fluent-ffmpeg kill
+            (command as unknown as { kill?: (s: string) => void }).kill?.(
+              "SIGKILL",
+            );
+          } catch {
+            // ignore
+          }
+          reject(
+            new Error(
+              "Conversion timed out. For long video try lower quality, a shorter clip, or convert to audio only.",
+            ),
+          );
+        });
+      }, timeoutMs);
+
       command
         .output(outPath)
         .on("start", (cmd) => console.log("[ffmpeg]", cmd))
         .on("error", (err: Error & { message?: string }) => {
-          const raw = err?.message || String(err);
-          if (
-            /invalid data found when processing input|error opening input/i.test(
-              raw,
-            )
-          ) {
-            reject(
-              new Error(
-                `ffmpeg could not read this ${srcExt.toUpperCase() || "media"} file (invalid/corrupt or incomplete upload, ${input.length} bytes). Re-export or re-select the file and retry.`,
-              ),
-            );
-            return;
-          }
-          reject(err);
+          finish(() => {
+            const raw = err?.message || String(err);
+            if (/SIGINT|SIGKILL|killed/i.test(raw) && settled) {
+              // timeout already rejected
+              return;
+            }
+            if (
+              /invalid data found when processing input|error opening input/i.test(
+                raw,
+              )
+            ) {
+              reject(
+                new Error(
+                  `ffmpeg could not read this ${srcExt.toUpperCase() || "media"} file (invalid/corrupt or incomplete upload, ${input.length} bytes). Re-export or re-select the file and retry.`,
+                ),
+              );
+              return;
+            }
+            reject(err);
+          });
         })
-        .on("end", () => resolve())
+        .on("end", () => finish(() => resolve()))
         .run();
     });
 
@@ -2715,38 +2758,67 @@ function applyVideoCodec(
   command: Ffmpeg.FfmpegCommand,
   outputExt: string,
   quality: number = 85,
+  inputBytes: number = 0,
 ): Ffmpeg.FfmpegCommand {
   const dest = outputExt.toLowerCase();
-  const crf = videoCrfFromQuality(quality);
-  // Lower quality presets (e.g. WhatsApp) also cap resolution for smaller files.
-  if (quality < 55) {
-    command = command.outputOptions(["-vf", "scale='min(1280,iw)':-2"]);
+  let crf = videoCrfFromQuality(quality);
+  const large = inputBytes >= 20 * 1024 * 1024;
+  // Long video→video: prioritize finishing on limited dyno CPU (Heroku).
+  const preset = large || quality < 70 ? "ultrafast" : "veryfast";
+  if (large) {
+    crf = Math.max(crf, 28);
+  }
+
+  // Cap resolution — biggest win for encode time on long clips
+  let scale: string | null = null;
+  if (large || quality < 55) {
+    scale = "scale='min(1280,iw)':-2";
+  } else if (quality < 75) {
+    scale = "scale='min(1920,iw)':-2";
   }
 
   if (dest === "webm") {
-    return command
-      .videoCodec("libvpx-vp9")
+    // VP9 is very slow; use realtime-friendly settings for large inputs
+    const opts = large
+      ? ["-b:v", "900k", "-b:a", "96k", "-deadline", "realtime", "-cpu-used", "8"]
+      : ["-b:v", "1M", "-b:a", "128k", "-cpu-used", "4"];
+    let cmd = command
+      .videoCodec(large ? "libvpx" : "libvpx-vp9")
       .audioCodec("libopus")
-      .outputOptions(["-b:v", "1M", "-b:a", "128k"]);
+      .outputOptions(opts);
+    if (scale) cmd = cmd.outputOptions(["-vf", scale]);
+    return cmd;
   }
   if (dest === "ogv") {
-    return command.videoCodec("libtheora").audioCodec("libvorbis");
+    let cmd = command.videoCodec("libtheora").audioCodec("libvorbis");
+    if (scale) cmd = cmd.outputOptions(["-vf", scale]);
+    return cmd;
   }
   if (dest === "wmv") {
-    return command.videoCodec("wmv2").audioCodec("wmav2");
+    let cmd = command.videoCodec("wmv2").audioCodec("wmav2");
+    if (scale) cmd = cmd.outputOptions(["-vf", scale]);
+    return cmd;
   }
-  // Default: H.264 + AAC (CRF from quality preset)
+  // Default: H.264 + AAC — ultrafast for large files
+  const outOpts = [
+    "-preset",
+    preset,
+    "-crf",
+    String(crf),
+    "-threads",
+    "0",
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+  ];
+  if (scale) {
+    outOpts.unshift("-vf", scale);
+  }
   return command
     .videoCodec("libx264")
     .audioCodec("aac")
-    .outputOptions([
-      "-preset",
-      "veryfast",
-      "-crf",
-      String(crf),
-      "-movflags",
-      "+faststart",
-    ]);
+    .outputOptions(outOpts);
 }
 
 async function convertAudio(
@@ -2802,7 +2874,7 @@ async function convertVideo(
     input,
     src,
     dest,
-    (command) => applyVideoCodec(command, dest, quality),
+    (command) => applyVideoCodec(command, dest, quality, input.length),
     videoUnavailableMessage(),
   );
 }

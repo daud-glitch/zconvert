@@ -1,11 +1,11 @@
 /** Client helpers for reliable large media uploads (chunked on mobile/Heroku). */
 
-const CHUNK_BYTES = 2 * 1024 * 1024; // 2 MB — safely under flaky mobile/proxy limits
-const SINGLE_SHOT_MAX = 3 * 1024 * 1024; // prefer chunking above ~3 MB
-const CHUNK_RETRIES = 3;
+const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round-trips
+const PARALLEL_CHUNKS = 3; // single-dyno friendly parallelism
+const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
+const CHUNK_RETRIES = 2;
 
 export type UploadProgress = {
-  /** 0–100 overall: upload portion then convert waits at 100 until server done */
   percent: number;
   phase: "reading" | "uploading" | "converting";
   loadedBytes: number;
@@ -55,7 +55,7 @@ async function postChunk(
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
       if (attempt < CHUNK_RETRIES) {
-        await sleep(400 * attempt);
+        await sleep(250 * attempt);
       }
     }
   }
@@ -63,9 +63,8 @@ async function postChunk(
 }
 
 /**
- * Upload a file for conversion. Large media uses chunked upload so mobile
- * networks / Heroku don't truncate a single large POST body.
- * Conversion starts only after upload finishes.
+ * Upload a file for conversion. Large media uses parallel chunk upload.
+ * Conversion starts only after all chunks are stored.
  */
 export async function uploadAndConvert(options: {
   file: File;
@@ -101,14 +100,13 @@ export async function uploadAndConvert(options: {
     try {
       onProgress?.(p);
     } catch {
-      // ignore UI callback errors
+      // ignore
     }
   };
 
-  // Small files: single request (still report progress for UX)
   if (file.size <= SINGLE_SHOT_MAX) {
     report({
-      percent: 10,
+      percent: 15,
       phase: "reading",
       loadedBytes: 0,
       totalBytes: file.size,
@@ -118,7 +116,7 @@ export async function uploadAndConvert(options: {
       throw new Error("The selected file is empty. Pick another file.");
     }
     report({
-      percent: 45,
+      percent: 55,
       phase: "uploading",
       loadedBytes: file.size,
       totalBytes: file.size,
@@ -140,7 +138,6 @@ export async function uploadAndConvert(options: {
     });
   }
 
-  // Large files: chunked upload then convert by upload id
   const uploadId =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID().replace(/-/g, "")
@@ -155,26 +152,33 @@ export async function uploadAndConvert(options: {
     totalBytes: file.size,
   });
 
-  for (let i = 0; i < chunkTotal; i++) {
-    const start = i * CHUNK_BYTES;
-    const end = Math.min(start + CHUNK_BYTES, file.size);
-    const slice = file.slice(start, end);
-    const bytes = await slice.arrayBuffer();
-    if (bytes.byteLength !== end - start) {
-      throw new Error(
-        `Failed to read file chunk ${i + 1}/${chunkTotal}. Re-select the file and retry.`,
+  for (let i = 0; i < chunkTotal; i += PARALLEL_CHUNKS) {
+    const batch: Promise<void>[] = [];
+    for (let j = i; j < Math.min(i + PARALLEL_CHUNKS, chunkTotal); j++) {
+      const start = j * CHUNK_BYTES;
+      const end = Math.min(start + CHUNK_BYTES, file.size);
+      batch.push(
+        (async () => {
+          const slice = file.slice(start, end);
+          const bytes = await slice.arrayBuffer();
+          if (bytes.byteLength !== end - start) {
+            throw new Error(
+              `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
+            );
+          }
+          await postChunk(uploadId, j, chunkTotal, file.size, fileName, bytes);
+          loaded += bytes.byteLength;
+          const percent = Math.min(95, Math.round((loaded / file.size) * 95));
+          report({
+            percent,
+            phase: "uploading",
+            loadedBytes: loaded,
+            totalBytes: file.size,
+          });
+        })(),
       );
     }
-    await postChunk(uploadId, i, chunkTotal, file.size, fileName, bytes);
-    loaded = end;
-    // Upload occupies 0–95%; convert waits at 100% after
-    const percent = Math.min(95, Math.round((loaded / file.size) * 95));
-    report({
-      percent,
-      phase: "uploading",
-      loadedBytes: loaded,
-      totalBytes: file.size,
-    });
+    await Promise.all(batch);
   }
 
   report({

@@ -202,6 +202,10 @@ export function ConverterView() {
   const urlReady =
     urlInput.trim().length > 0 && urlInput.includes("://");
 
+  const isVideoItem = (ext: string, target?: string) =>
+    getCategoryFromExt(ext) === "video" ||
+    (target ? getCategoryFromExt(target) === "video" : false);
+
   const addFiles = (newFiles: FileList | File[]) => {
     const fileArray = Array.from(newFiles);
 
@@ -210,26 +214,30 @@ export function ConverterView() {
       const activePrev = prev.filter(
         (f) => f.status === "pending" || f.status === "converting",
       );
-      const spaceLeft = 20 - activePrev.length;
-      if (spaceLeft <= 0) {
-        showToast("Maximum queue limit reached (20 files).", "error");
-        return activePrev;
-      }
+      const activeVideos = activePrev.filter((f) => isVideoItem(f.ext)).length;
+      const nonVideoSpace = Math.max(
+        0,
+        20 - activePrev.filter((f) => !isVideoItem(f.ext)).length,
+      );
+      // Videos: max 1 active (one-at-a-time processing / queue)
+      const videoSpace = Math.max(0, 1 - activeVideos);
 
-      if (fileArray.length > spaceLeft) {
+      if (nonVideoSpace <= 0 && videoSpace <= 0) {
         showToast(
-          `Maximum 20 files allowed. Only ${spaceLeft} file(s) will be added.`,
+          "Queue full (20 non-video files max, 1 video at a time).",
           "error",
         );
+        return activePrev;
       }
 
       const supported: FileItem[] = [];
       const unsupported: string[] = [];
       const tooLarge: string[] = [];
+      let skippedExtraVideos = 0;
+      let videosAdded = 0;
+      let otherAdded = 0;
 
       fileArray.forEach((file) => {
-        if (supported.length >= spaceLeft) return;
-
         const name = file.name;
 
         if (file.size > MAX_UPLOAD_BYTES) {
@@ -239,8 +247,17 @@ export function ConverterView() {
         const dotIdx = name.lastIndexOf(".");
         const ext = dotIdx >= 0 ? name.slice(dotIdx + 1).toLowerCase() : "";
         const targets = targetFormatsMap[ext] || [];
+        const isVid = isVideoItem(ext);
 
-        // Check if file is already in queue
+        if (isVid) {
+          if (videosAdded + activeVideos >= 1) {
+            skippedExtraVideos += 1;
+            return;
+          }
+        } else if (otherAdded >= nonVideoSpace) {
+          return;
+        }
+
         const isDuplicate =
           activePrev.some((p) => p.name === name && p.size === file.size) ||
           supported.some((p) => p.name === name && p.size === file.size);
@@ -265,10 +282,19 @@ export function ConverterView() {
             endTime: undefined,
             outputSize: undefined,
           });
+          if (isVid) videosAdded += 1;
+          else otherAdded += 1;
         } else {
           unsupported.push(ext ? `.${ext}` : name);
         }
       });
+
+      if (skippedExtraVideos > 0) {
+        showToast(
+          "Video: only one file at a time. Finish or remove the current video first.",
+          "error",
+        );
+      }
 
       if (tooLarge.length > 0) {
         showToast(
@@ -428,6 +454,23 @@ export function ConverterView() {
       return;
     }
 
+    // Video: never run two heavy jobs at once (memory / dyno timeouts)
+    if (isVideoItem(item.ext, item.targetFormat)) {
+      const otherVideoBusy = files.some(
+        (f) =>
+          f.id !== item.id &&
+          f.status === "converting" &&
+          isVideoItem(f.ext, f.targetFormat),
+      );
+      if (otherVideoBusy) {
+        showToast(
+          "Another video is converting. Wait for it to finish (one video at a time).",
+          "error",
+        );
+        return;
+      }
+    }
+
     if (item.ext === item.targetFormat) {
       if (item.ext === "pdf") {
         updateFile(item.id, {
@@ -583,6 +626,8 @@ export function ConverterView() {
         status: "error",
         error: message,
         endTime,
+        progress: undefined,
+        progressPhase: undefined,
       });
       void saveLocalConversion({
         id: item.id,
@@ -602,13 +647,26 @@ export function ConverterView() {
   };
 
   const convertAll = async () => {
-    const pendingFiles = files.filter(
+    // Non-videos first (batch OK), then videos one-by-one
+    const pending = files.filter(
       (f) => f.status === "pending" && f.targetFormat,
     );
-    if (pendingFiles.length === 0) return;
-    for (let i = 0; i < pendingFiles.length; i++) {
-      setBatchProgress({ current: i + 1, total: pendingFiles.length });
-      await convertFile(pendingFiles[i]);
+    if (pending.length === 0) return;
+
+    const nonVideos = pending.filter((f) => !isVideoItem(f.ext, f.targetFormat));
+    const videos = pending.filter((f) => isVideoItem(f.ext, f.targetFormat));
+    // Only first pending video — never batch videos
+    const ordered = [...nonVideos, ...videos.slice(0, 1)];
+    if (videos.length > 1) {
+      showToast(
+        `Video jobs run one at a time — converting 1 of ${videos.length} videos. Run Convert All again for the rest.`,
+        "error",
+      );
+    }
+
+    for (let i = 0; i < ordered.length; i++) {
+      setBatchProgress({ current: i + 1, total: ordered.length });
+      await convertFile(ordered[i]);
     }
     setBatchProgress(null);
   };
@@ -828,7 +886,7 @@ export function ConverterView() {
                 Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
               <p className="text-[11px] text-muted-foreground/70 mt-2">
-                Up to 20 files · {formatMaxUploadLabel()} each · Ctrl+U to browse
+                Up to 20 files (1 video at a time) · {formatMaxUploadLabel()} each · Ctrl+U to browse
               </p>
               <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
                 <HardDrive className="h-3 w-3 shrink-0" />
@@ -2163,7 +2221,7 @@ export function ConverterView() {
             {
               icon: <HardDrive className="w-4 h-4" />,
               title: "Clear limits",
-              desc: `Up to ${formatMaxUploadLabel()} per file, 20 per batch, fair use rate limits. No watermarks.`,
+              desc: `Up to ${formatMaxUploadLabel()} per file; 20 non-video / 1 video at a time. Fair rate limits. No watermarks.`,
               color: "bg-violet-500",
             },
             {

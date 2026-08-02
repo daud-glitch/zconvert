@@ -125,27 +125,53 @@ export function normalizePayloadError(message: string): string {
   return message;
 }
 
-/** Short, user-facing conversion errors (UI + toasts). */
+/** Short, user-facing conversion errors (UI + toasts). Never expose stacks. */
 export function humanizeConversionError(message: string): string {
-  const msg = normalizePayloadError(message);
+  const msg = normalizePayloadError(String(message || "Conversion failed"));
   const lower = msg.toLowerCase();
 
-  if (lower.includes("rate limit")) {
+  // Never leak raw traces / node internals
+  if (
+    lower.includes("at object.") ||
+    lower.includes("    at ") ||
+    lower.includes("node_modules") ||
+    lower.includes("errnoexception") ||
+    lower.includes("stack:") ||
+    /^error:\s*$/i.test(msg.trim())
+  ) {
+    return "Conversion failed. Try again with a smaller file or a different format.";
+  }
+
+  if (
+    lower.includes("internal server error") ||
+    lower.includes("internal error") ||
+    lower === "error" ||
+    lower.includes("econnreset") ||
+    lower.includes("socket hang up") ||
+    lower.includes("network error")
+  ) {
+    return "The server disconnected during conversion. Retry once — large video may need lower quality or audio-only extract.";
+  }
+
+  if (lower.includes("rate limit") || lower.includes("too many")) {
     return "Too many conversions right now. Wait a minute and try again.";
   }
   if (
     lower.includes("timed out") ||
     lower.includes("timeout") ||
-    lower.includes("deadline")
+    lower.includes("deadline") ||
+    lower.includes("h12") ||
+    lower.includes("service unavailable")
   ) {
-    return "Conversion timed out. Try a shorter clip or a smaller file.";
+    return "Conversion took too long and was stopped. For long video try a shorter clip, lower quality, or convert to audio only.";
   }
   if (
     lower.includes("ffmpeg") &&
     (lower.includes("not found") ||
       lower.includes("not runnable") ||
       lower.includes("exit 127") ||
-      lower.includes("could not run"))
+      lower.includes("could not run") ||
+      lower.includes("spawn"))
   ) {
     return "Audio/video engine is unavailable on this server. Try again later.";
   }
@@ -155,7 +181,7 @@ export function humanizeConversionError(message: string): string {
     lower.includes("could not read this") ||
     (lower.includes("ffmpeg") && lower.includes("corrupt"))
   ) {
-    return "This media file could not be read (corrupt, incomplete upload, or unsupported encoding). Re-select the file from your gallery and try again — on mobile wait until the upload finishes.";
+    return "This media file could not be read (corrupt, incomplete upload, or unsupported encoding). Re-select the file and try again.";
   }
   if (
     lower.includes("upload incomplete") ||
@@ -180,8 +206,22 @@ export function humanizeConversionError(message: string): string {
   if (lower.includes("exceeds maximum") || lower.includes("too large")) {
     return msg;
   }
-  if (lower.includes("server error") || lower.includes("crashed")) {
+  if (
+    lower.includes("server error") ||
+    lower.includes("crashed") ||
+    lower.includes("misconfiguration")
+  ) {
     return "Server error during conversion. Please retry in a moment.";
   }
-  return msg.length > 180 ? `${msg.slice(0, 177)}…` : msg;
+  if (lower.includes("enomem") || lower.includes("out of memory") || lower.includes("killed")) {
+    return "The server ran out of memory on this file. Try a smaller video or convert to audio only.";
+  }
+  if (lower.includes("signal") && lower.includes("sig")) {
+    return "Conversion was interrupted. Try again with lower quality or a shorter clip.";
+  }
+
+  // Strip accidental path prefixes
+  const cleaned = msg.replace(/[A-Za-z]:\\[^\s]+/g, "").replace(/\/app\/[^\s]+/g, "").trim();
+  const out = cleaned || "Conversion failed. Please try again.";
+  return out.length > 180 ? `${out.slice(0, 177)}…` : out;
 }
