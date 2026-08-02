@@ -1,8 +1,9 @@
 "use client";
 
 import type { CmsAd } from "@/hooks/use-cms";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
-/** Renders enabled CMS ads for a placement. Admin HTML/code is trusted. */
+/** Renders enabled CMS ads for a placement (HTML sanitized). */
 export function CmsAdSlot({
   ads,
   className = "",
@@ -20,7 +21,7 @@ export function CmsAdSlot({
             <div
               key={ad.id}
               className="cms-ad overflow-hidden"
-              dangerouslySetInnerHTML={{ __html: ad.code }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(ad.code) }}
             />
           );
         }
@@ -29,7 +30,7 @@ export function CmsAdSlot({
             <div
               key={ad.id}
               className="cms-ad overflow-hidden flex justify-center"
-              dangerouslySetInnerHTML={{ __html: ad.code }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(ad.code) }}
             />
           );
         }
@@ -44,7 +45,11 @@ export function CmsAdSlot({
                   {ad.title}
                 </div>
               ) : null}
-              <div dangerouslySetInnerHTML={{ __html: ad.content }} />
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(ad.content),
+                }}
+              />
             </div>
           );
         }

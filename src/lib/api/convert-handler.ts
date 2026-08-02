@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isPdfRasterTarget } from "@/lib/pdf-raster-targets";
 import { getMimeType } from "@/lib/mime-types";
-import { isConversionPairListed } from "@/lib/formats";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import {
   audioUnavailableMessage,
@@ -12,10 +11,17 @@ import {
   payloadTooLargeMessage,
   normalizePayloadError,
 } from "@/lib/upload-limits";
-import { getFormatByExt } from "@/lib/formats";
+import {
+  isConversionPairAllowed,
+  resolveFormatByExt,
+} from "@/lib/format-catalog";
 import { getSessionUser } from "@/lib/auth";
 import { logConversion } from "@/lib/conversion-log";
 import { parseMultipartUpload } from "@/lib/multipart";
+
+function corsOrigin(): string {
+  return process.env.ALLOWED_ORIGIN?.trim() || "*";
+}
 
 const MAX_UPLOAD_SIZE = getServerMaxUploadBytes();
 
@@ -107,7 +113,8 @@ export async function handleConvertPost(
     const height = parseInt(parsed.fields.height || "", 10) || null;
     const target = targetFormat.toLowerCase().replace(/^\./, "");
 
-    if (!getFormatByExt(target)) {
+    const targetFormatInfo = await resolveFormatByExt(target);
+    if (!targetFormatInfo) {
       return NextResponse.json(
         { error: `Unsupported target format: ${targetFormat}` },
         { status: 400 },
@@ -130,7 +137,7 @@ export async function handleConvertPost(
       );
     }
 
-    const sourceFormatInfo = getFormatByExt(sourceExt);
+    const sourceFormatInfo = await resolveFormatByExt(sourceExt);
     if (!sourceFormatInfo) {
       return NextResponse.json(
         { error: `Unsupported source format: ${sourceExt}` },
@@ -148,7 +155,7 @@ export async function handleConvertPost(
     if (
       !isAudioConversionAvailable() &&
       (sourceFormatInfo.category === "audio" ||
-        getFormatByExt(target)?.category === "audio")
+        targetFormatInfo.category === "audio")
     ) {
       return NextResponse.json(
         { error: audioUnavailableMessage() },
@@ -158,7 +165,7 @@ export async function handleConvertPost(
     if (
       !isVideoConversionAvailable() &&
       (sourceFormatInfo.category === "video" ||
-        getFormatByExt(target)?.category === "video")
+        targetFormatInfo.category === "video")
     ) {
       return NextResponse.json(
         { error: videoUnavailableMessage() },
@@ -169,7 +176,7 @@ export async function handleConvertPost(
       return NextResponse.json({ error: "Empty file provided" }, { status: 400 });
     }
 
-    if (!isConversionPairListed(sourceExt, target)) {
+    if (!(await isConversionPairAllowed(sourceExt, target))) {
       const listed = sourceFormatInfo.targetFormats;
       const hint =
         listed.length > 0
@@ -270,7 +277,7 @@ export async function handleConvertPost(
       "X-Content-Type-Options": "nosniff",
       "Access-Control-Expose-Headers":
         "Content-Disposition, Content-Length, X-Original-Content-Type, X-Conversion-Id, X-Output-Package, X-Page-Count",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": corsOrigin(),
       "Cache-Control": "no-store",
     };
 
@@ -301,11 +308,11 @@ export async function handleConvertPost(
           message.toLowerCase().includes("ffmpeg_bin")
             ? `Server misconfiguration: ${message}. Redeploy after npm install && prisma generate.`
             : message.includes("spawn") && message.toLowerCase().includes("ffmpeg")
-              ? `ffmpeg failed to start (${message}). On Heroku add buildpack heroku-community/apt (Aptfile includes ffmpeg) or set FFMPEG_BIN.`
+              ? `ffmpeg failed to start (${message}). Redeploy so heroku-postbuild can install vendor/ffmpeg, or set FFMPEG_BIN to a working binary.`
               : /ffmpeg exited with code 127|not found or not runnable/i.test(
                   message,
                 )
-                ? "ffmpeg could not run. Wait for a fresh Heroku deploy (heroku-postbuild downloads vendor/ffmpeg), then retry."
+                ? "ffmpeg could not run. Wait for a fresh deploy (heroku-postbuild downloads vendor/ffmpeg via scripts/ensure-ffmpeg.js), then retry."
                 : message,
       },
       { status: 500 },

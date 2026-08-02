@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
+/**
+ * Bootstrap / reset admin. Requires ADMIN_SETUP_SECRET.
+ * After the first admin exists, set ADMIN_SETUP_ALLOW_RESET=1 to promote again.
+ */
 export async function POST(request: NextRequest) {
   try {
     const setupSecret = process.env.ADMIN_SETUP_SECRET?.trim();
@@ -25,6 +29,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Email and password required" },
         { status: 400 },
+      );
+    }
+
+    if (String(password).length < 8) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters" },
+        { status: 400 },
+      );
+    }
+
+    const adminCount = await db.user.count({ where: { role: "admin" } });
+    const allowReset = process.env.ADMIN_SETUP_ALLOW_RESET === "1";
+    if (adminCount > 0 && !allowReset) {
+      return NextResponse.json(
+        {
+          error:
+            "An admin already exists. Set ADMIN_SETUP_ALLOW_RESET=1 to promote or reset via this endpoint.",
+        },
+        { status: 403 },
       );
     }
 

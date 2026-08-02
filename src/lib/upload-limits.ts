@@ -88,11 +88,11 @@ export function payloadTooLargeMessage(actualBytes: number): string {
 }
 
 export function audioUnavailableMessage(): string {
-  return "Audio conversion requires ffmpeg. On Vercel it is disabled unless you set FORCE_FFMPEG=1 or NEXT_PUBLIC_CONVERT_API_URL to a media worker. On a normal server, install ffmpeg (or ffmpeg-static) and ensure DISABLE_FFMPEG is not set.";
+  return "Audio conversion requires ffmpeg. On Vercel it is disabled unless you set FORCE_FFMPEG=1 or NEXT_PUBLIC_CONVERT_API_URL to a media worker. On Heroku, redeploy so heroku-postbuild can install vendor/ffmpeg (or set FFMPEG_BIN).";
 }
 
 export function videoUnavailableMessage(): string {
-  return "Video conversion requires ffmpeg. On Vercel it is disabled unless you set FORCE_FFMPEG=1 or NEXT_PUBLIC_CONVERT_API_URL to a media worker. On a normal server, install ffmpeg (or ffmpeg-static) and ensure DISABLE_FFMPEG is not set.";
+  return "Video conversion requires ffmpeg. On Vercel it is disabled unless you set FORCE_FFMPEG=1 or NEXT_PUBLIC_CONVERT_API_URL to a media worker. On Heroku, redeploy so heroku-postbuild can install vendor/ffmpeg (or set FFMPEG_BIN).";
 }
 
 export function libreOfficeUnavailableMessage(): string {

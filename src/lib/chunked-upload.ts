@@ -2,6 +2,11 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 
+/**
+ * Chunk staging on local /tmp.
+ * Requires a single web dyno (or sticky sessions). Multi-dyno without shared
+ * storage will fail assemble with "Upload session not found".
+ */
 const ROOT = path.join(os.tmpdir(), "zconvert-chunk-uploads");
 const MAX_CHUNKS = 512;
 const MAX_CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB per chunk
@@ -112,7 +117,9 @@ export async function assembleUpload(
   const dir = uploadDir(id);
   const meta = await readMeta(dir);
   if (!meta) {
-    throw new Error("Upload session not found or expired. Re-upload the file.");
+    throw new Error(
+      "Upload session not found or expired. Large uploads need a single dyno (or sticky sessions). Re-upload the file and retry.",
+    );
   }
   if (Date.now() - meta.createdAt > TTL_MS) {
     await cleanupUpload(id).catch(() => undefined);

@@ -447,11 +447,11 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Shield className="w-4 h-4 text-emerald-500" />
-                  100% Private Processing
+                  Temp process — files not kept
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Lock className="w-4 h-4 text-violet-500" />
-                  No Data Stored on Servers
+                  History stays in your browser
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Zap className="w-4 h-4 text-amber-500" />

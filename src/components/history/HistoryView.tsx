@@ -168,7 +168,7 @@ export function HistoryView() {
             <strong>Local database:</strong> Your conversion history and
             converted files stay in this browser (IndexedDB). Keep them or
             delete anytime. Clearing browser data removes them. Signup does not
-            upload your files to the server.
+            upload your files — the server may keep anonymized usage stats only.
           </p>
         </CardContent>
       </Card>

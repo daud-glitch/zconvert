@@ -48,8 +48,15 @@ function corsPreflightResponse(): NextResponse {
 function hasSessionUser(sessionCookie: { value: string } | undefined): boolean {
   if (!sessionCookie?.value) return false;
   try {
-    const session = JSON.parse(sessionCookie.value);
-    return Boolean(session?.userId);
+    const session = JSON.parse(sessionCookie.value) as {
+      userId?: unknown;
+      token?: unknown;
+    };
+    const userId =
+      typeof session?.userId === "string" && session.userId.length >= 1;
+    const token =
+      typeof session?.token === "string" && session.token.length >= 32;
+    return userId && token;
   } catch {
     return false;
   }

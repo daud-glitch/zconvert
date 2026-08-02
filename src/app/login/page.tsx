@@ -299,7 +299,8 @@ function LoginForm() {
           </div>
 
           <p className="text-center text-xs text-muted-foreground mt-6">
-            Your files stay on your server. We never store or share your data.
+            Converted files stay in your browser (IndexedDB). The server
+            processes uploads temporarily and keeps only anonymized usage stats.
           </p>
         </div>
       </div>

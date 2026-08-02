@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/auth";
+import { lookup } from "dns/promises";
 
 const ALLOWED_EXTENSIONS = new Set([
   "png",
@@ -60,6 +61,7 @@ const BLOCKED_HOSTS = new Set([
   "169.254.169.254",
   "metadata.azure.com",
   "metadata.internal",
+  "metadata",
 ]);
 
 const BLOCKED_IP_PATTERNS = [
@@ -68,18 +70,34 @@ const BLOCKED_IP_PATTERNS = [
   /^192\.168\./,
   /^127\./,
   /^169\.254\./,
+  /^0\./,
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // CGNAT
   /^fc00:/i,
   /^fd00:/i,
   /^fe80:/i,
+  /^::1$/,
+  /^::$/,
 ];
 
 const MAX_RESPONSE_SIZE = 50 * 1024 * 1024;
 const MAX_TIMEOUT_MS = 30_000;
+const MAX_REDIRECTS = 5;
 
 function isBlockedHost(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
+  const lower = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (BLOCKED_HOSTS.has(lower)) return true;
+  if (lower.endsWith(".local") || lower.endsWith(".internal")) return true;
   return BLOCKED_IP_PATTERNS.some((p) => p.test(lower));
+}
+
+async function resolvesToBlockedIp(hostname: string): Promise<boolean> {
+  try {
+    const results = await lookup(hostname, { all: true, verbatim: true });
+    return results.some((r) => isBlockedHost(r.address));
+  } catch {
+    // If DNS fails, let fetch fail later — don't allow bypass via NXDOMAIN tricks
+    return false;
+  }
 }
 
 function getFileExtension(url: URL): string {
@@ -92,6 +110,55 @@ function getFileExtension(url: URL): string {
       .split("?")[0];
   }
   return "";
+}
+
+async function assertSafeUrl(url: URL): Promise<string | null> {
+  if (!["http:", "https:"].includes(url.protocol)) {
+    return "Only HTTP(S) URLs are allowed";
+  }
+  if (isBlockedHost(url.hostname)) {
+    return "This URL is not accessible";
+  }
+  if (await resolvesToBlockedIp(url.hostname)) {
+    return "This URL resolves to a blocked address";
+  }
+  return null;
+}
+
+/**
+ * Fetch with manual redirect following — re-validate every hop (SSRF safe).
+ */
+async function fetchSafe(
+  startUrl: URL,
+  init: RequestInit,
+): Promise<Response> {
+  let current = startUrl;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const blocked = await assertSafeUrl(current);
+    if (blocked) {
+      throw new Error(blocked);
+    }
+
+    const response = await fetch(current.toString(), {
+      ...init,
+      redirect: "manual",
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new Error("Redirect without Location header");
+      }
+      if (hop === MAX_REDIRECTS) {
+        throw new Error("Too many redirects");
+      }
+      current = new URL(location, current);
+      continue;
+    }
+
+    return response;
+  }
+  throw new Error("Too many redirects");
 }
 
 export async function GET(request: NextRequest) {
@@ -127,19 +194,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
   }
 
-  if (!["http:", "https:"].includes(url.protocol)) {
-    return NextResponse.json(
-      { error: "Only HTTP(S) URLs are allowed" },
-      { status: 400 },
-    );
-  }
-
-  const hostname = url.hostname;
-  if (isBlockedHost(hostname)) {
-    return NextResponse.json(
-      { error: "This URL is not accessible" },
-      { status: 403 },
-    );
+  const initialBlock = await assertSafeUrl(url);
+  if (initialBlock) {
+    return NextResponse.json({ error: initialBlock }, { status: 403 });
   }
 
   const ext = getFileExtension(url);
@@ -152,20 +209,18 @@ export async function GET(request: NextRequest) {
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), {
+    response = await fetchSafe(url, {
       headers: {
-        "User-Agent": "ZConvert/1.0 (File Converter)",
+        "User-Agent": "CloudConverter/1.0 (File Converter)",
         Accept: "*/*",
       },
       signal: AbortSignal.timeout(MAX_TIMEOUT_MS),
-      redirect: "follow",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch URL";
-    return NextResponse.json(
-      { error: `Fetch failed: ${message}` },
-      { status: 502 },
-    );
+    const status =
+      /not accessible|blocked address|Only HTTP/i.test(message) ? 403 : 502;
+    return NextResponse.json({ error: `Fetch failed: ${message}` }, { status });
   }
 
   if (!response.ok) {
@@ -173,7 +228,7 @@ export async function GET(request: NextRequest) {
       {
         error: `Remote server returned ${response.status} ${response.statusText}`,
       },
-      { status: response.status },
+      { status: response.status >= 400 && response.status < 600 ? response.status : 502 },
     );
   }
 
@@ -216,6 +271,7 @@ export async function GET(request: NextRequest) {
   const filename =
     url.pathname.split("/").pop()?.split("?")[0] || "downloaded_file";
 
+  const allowOrigin = process.env.ALLOWED_ORIGIN?.trim() || "";
   const resp = new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/octet-stream",
@@ -223,8 +279,11 @@ export async function GET(request: NextRequest) {
       "Content-Length": String(buffer.byteLength),
       "Content-Disposition": `attachment; filename="${filename.replace(/"/g, '\\"')}"`,
       "X-Content-Type-Options": "nosniff",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Expose-Headers": "Content-Disposition, Content-Length, X-Original-Content-Type",
+      ...(allowOrigin
+        ? { "Access-Control-Allow-Origin": allowOrigin }
+        : {}),
+      "Access-Control-Expose-Headers":
+        "Content-Disposition, Content-Length, X-Original-Content-Type",
     },
   });
 

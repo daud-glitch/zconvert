@@ -124,8 +124,13 @@ describe("middleware", () => {
       );
     });
 
-    it.each(adminRoutes)("should allow access to %s with valid session containing userId", (route) => {
-      const validSession = JSON.stringify({ userId: "user-123", email: "admin@test.com", role: "admin" });
+    it.each(adminRoutes)("should allow access to %s with valid session containing userId and token", (route) => {
+      const validSession = JSON.stringify({
+        userId: "user-123",
+        token: "a".repeat(64),
+        email: "admin@test.com",
+        role: "admin",
+      });
       const req = createMockRequest(route, validSession);
       const result = middleware(req as never);
 
@@ -133,8 +138,26 @@ describe("middleware", () => {
       expect(result).toEqual({ type: "next", headers: new Map() });
     });
 
+    it.each(adminRoutes)("should return 401 for %s with session missing token", (route) => {
+      const sessionWithoutToken = JSON.stringify({
+        userId: "user-123",
+        email: "admin@test.com",
+        role: "admin",
+      });
+      const req = createMockRequest(route, sessionWithoutToken);
+      middleware(req as never);
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { error: "Authentication required" },
+        { status: 401 },
+      );
+    });
+
     it("should return 401 for admin route with session missing userId", () => {
-      const sessionWithoutUserId = JSON.stringify({ email: "admin@test.com" });
+      const sessionWithoutUserId = JSON.stringify({
+        email: "admin@test.com",
+        token: "a".repeat(64),
+      });
       const req = createMockRequest("/api/admin", sessionWithoutUserId);
       middleware(req as never);
 
@@ -171,7 +194,11 @@ describe("middleware", () => {
     });
 
     it("should handle admin subpaths with valid session", () => {
-      const validSession = JSON.stringify({ userId: "user-123", role: "admin" });
+      const validSession = JSON.stringify({
+        userId: "user-123",
+        token: "b".repeat(64),
+        role: "admin",
+      });
       const req = createMockRequest("/api/admin/users/extra/path", validSession);
       const result = middleware(req as never);
 

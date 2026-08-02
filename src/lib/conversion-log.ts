@@ -1,4 +1,5 @@
 import { getOptionalDb } from "@/lib/db";
+import { anonymizeFileName, hashIp } from "@/lib/format-catalog";
 
 export type ConversionLogStatus = "done" | "error";
 
@@ -23,6 +24,7 @@ function utcDay(d = new Date()): Date {
 /**
  * Persist aggregate conversion stats in Postgres for the admin dashboard.
  * User-facing history + file blobs live in the browser IndexedDB only.
+ * Guest logs store anonymized filenames and hashed IPs (not raw PII).
  */
 export async function logConversion(
   input: ConversionLogInput,
@@ -30,12 +32,19 @@ export async function logConversion(
   const prisma = getOptionalDb();
   if (!prisma) return null;
 
+  const hasUser = Boolean(input.userId);
+  const safeName = anonymizeFileName(
+    input.fileName,
+    input.originalExt,
+    hasUser,
+  );
+
   try {
     const row = await prisma.conversion.create({
       data: {
         // Keep userId for admin user activity counts; history UI does not use this.
         userId: input.userId ?? null,
-        fileName: input.fileName.slice(0, 500),
+        fileName: safeName.slice(0, 500),
         originalExt: input.originalExt.toLowerCase(),
         targetExt: input.targetExt.toLowerCase(),
         category: input.category,
@@ -47,7 +56,7 @@ export async function logConversion(
             ? Math.max(0, Math.floor(input.duration))
             : null,
         error: input.error ? input.error.slice(0, 1000) : null,
-        ipAddress: input.ipAddress ?? null,
+        ipAddress: hashIp(input.ipAddress),
       },
     });
 

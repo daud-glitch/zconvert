@@ -2,15 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+
+function passwordStrongEnough(password: string): string | null {
+  if (password.length < 8) {
+    return "Password must be at least 8 characters";
+  }
+  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    return "Password must include at least one letter and one number";
+  }
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const rl = checkRateLimit(`signup:${ip}`, 10, 60_000);
+    if (!rl.allowed) {
+      const response = NextResponse.json(
+        { error: "Too many signup attempts. Try again later." },
+        { status: 429 },
+      );
+      Object.entries(rateLimitHeaders(rl)).forEach(([k, v]) => {
+        if (v) response.headers.set(k, v);
+      });
+      return response;
+    }
+
     const { email, password, name } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email and password required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -21,6 +48,12 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const pwError = passwordStrongEnough(String(password));
+    if (pwError) {
+      return NextResponse.json({ error: pwError }, { status: 400 });
+    }
+
     const existingUser = await db.user.findUnique({
       where: { email },
     });
@@ -28,14 +61,12 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: "User already exists" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = await db.user.create({
       data: {
         email,
@@ -45,9 +76,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create session
     const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000); // 7 days
+    const expiresAt = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000);
 
     await db.session.create({
       data: {
@@ -81,7 +111,7 @@ export async function POST(request: NextRequest) {
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7,
         path: "/",
-      }
+      },
     );
 
     return response;

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getOptionalDb } from "@/lib/db";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 import { ArrowLeft } from "lucide-react";
 
 const RESERVED = new Set([
@@ -68,7 +69,11 @@ export default async function CmsPage({ params }: Props) {
           </h1>
           <div className="mt-8 prose prose-neutral dark:prose-invert max-w-none">
             {looksLikeHtml ? (
-              <div dangerouslySetInnerHTML={{ __html: page.content }} />
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(page.content),
+                }}
+              />
             ) : (
               <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
                 {page.content}

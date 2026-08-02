@@ -3,80 +3,86 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import speakeasy from "speakeasy";
 import crypto from "crypto";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const rl = checkRateLimit(`login:${ip}`, 20, 60_000);
+    if (!rl.allowed) {
+      const response = NextResponse.json(
+        { error: "Too many login attempts. Try again later." },
+        { status: 429 },
+      );
+      Object.entries(rateLimitHeaders(rl)).forEach(([k, v]) => {
+        if (v) response.headers.set(k, v);
+      });
+      return response;
+    }
+
     const { email, password, token, isAdminLogin } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email and password required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    console.log("Login attempt for:", email);
-    const user = await db.user.findUnique({ where: { email } }).catch(err => {
+    const user = await db.user.findUnique({ where: { email } }).catch((err) => {
       console.error("DB Error in login:", err);
       throw new Error("Database connection failed");
     });
-    
+
     if (!user) {
-      console.log("User not found:", email);
       return NextResponse.json(
         { error: "Invalid credentials" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     if (isAdminLogin && user.role !== "admin") {
       return NextResponse.json(
         { error: "Not authorized as admin" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    // Check password using bcrypt only
-    let passwordValid = false;
-    if (user.passwordHash) {
-      passwordValid = await bcrypt.compare(password, user.passwordHash);
-    } else if (user.email === process.env.ADMIN_EMAIL) {
-      // Fallback for default admin password from env ONLY if no hash set and it's the admin user
-      passwordValid = password === ADMIN_PASSWORD;
+    // bcrypt only — no plaintext ADMIN_PASSWORD fallback
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 },
+      );
     }
+    const passwordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordValid) {
       return NextResponse.json(
         { error: "Invalid credentials" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     if (user.twoFactorEnabled) {
       if (!token) {
-        const response = NextResponse.json({
-          requires2FA: true,
-          userId: user.id,
-        });
-        return response;
-      } else {
-        const verified = speakeasy.totp.verify({
-          secret: user.twoFactorSecret!,
-          encoding: "ascii",
-          token,
-          window: 1,
-        });
-
-        if (verified) {
-          return createSession(user, request);
-        }
-        return NextResponse.json(
-          { error: "Invalid 2FA code" },
-          { status: 401 }
-        );
+        // Do not expose userId — client re-sends email/password with TOTP
+        return NextResponse.json({ requires2FA: true });
       }
+      const verified = speakeasy.totp.verify({
+        secret: user.twoFactorSecret!,
+        encoding: "ascii",
+        token,
+        window: 1,
+      });
+
+      if (verified) {
+        return createSession(user, request);
+      }
+      return NextResponse.json({ error: "Invalid 2FA code" }, { status: 401 });
     }
 
     return createSession(user, request);
@@ -86,7 +92,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function createSession(user: { id: string; email: string; name: string | null; role: string }, request: NextRequest) {
+async function createSession(
+  user: { id: string; email: string; name: string | null; role: string },
+  request: NextRequest,
+) {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000); // 7 days
 
@@ -100,10 +109,12 @@ async function createSession(user: { id: string; email: string; name: string | n
         userAgent: request.headers.get("user-agent") || null,
       },
     });
-    await db.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    }).catch(() => {});
+    await db.user
+      .update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      })
+      .catch(() => {});
   } catch (err) {
     console.error("Session creation error:", err);
     throw new Error("Failed to create session in database");
@@ -131,7 +142,7 @@ async function createSession(user: { id: string; email: string; name: string | n
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
-    }
+    },
   );
 
   return response;

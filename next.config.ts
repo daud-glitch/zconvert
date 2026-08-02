@@ -96,7 +96,8 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_CONVERT_API_URL: process.env.NEXT_PUBLIC_CONVERT_API_URL || "",
   },
   typescript: {
-    ignoreBuildErrors: true,
+    // Fail the build on type errors — do not ship with ignoreBuildErrors.
+    ignoreBuildErrors: false,
   },
   reactStrictMode: true,
 
