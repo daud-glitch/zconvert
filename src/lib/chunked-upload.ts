@@ -4,8 +4,8 @@ import os from "os";
 
 /**
  * Chunk staging on local /tmp.
- * Requires a single web dyno (or sticky sessions). Multi-dyno without shared
- * storage will fail assemble with "Upload session not found".
+ * Completeness is derived from part files on disk (not only meta.received)
+ * so parallel chunk uploads cannot lose indices via meta.json races.
  */
 const ROOT = path.join(os.tmpdir(), "zconvert-chunk-uploads");
 const MAX_CHUNKS = 512;
@@ -17,6 +17,7 @@ export type ChunkMeta = {
   totalChunks: number;
   totalSize: number;
   filename: string;
+  /** Hint only — source of truth is chunk-*.part on disk */
   received: number[];
   createdAt: number;
 };
@@ -42,11 +43,49 @@ async function readMeta(dir: string): Promise<ChunkMeta | null> {
   }
 }
 
-async function writeMeta(dir: string, meta: ChunkMeta): Promise<void> {
-  await fs.writeFile(path.join(dir, "meta.json"), JSON.stringify(meta));
+async function writeMetaAtomic(dir: string, meta: ChunkMeta): Promise<void> {
+  const target = path.join(dir, "meta.json");
+  const tmp = path.join(
+    dir,
+    `meta.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`,
+  );
+  await fs.writeFile(tmp, JSON.stringify(meta));
+  await fs.rename(tmp, target);
 }
 
-/** Persist one chunk; returns how many unique chunks are stored. */
+/** Read which chunk indices exist as complete .part files. */
+async function listReceivedFromDisk(dir: string): Promise<number[]> {
+  let names: string[] = [];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const indices: number[] = [];
+  for (const name of names) {
+    const m = /^chunk-(\d+)\.part$/.exec(name);
+    if (!m) continue;
+    const n = Number(m[1]);
+    if (Number.isInteger(n) && n >= 0) indices.push(n);
+  }
+  return [...new Set(indices)].sort((a, b) => a - b);
+}
+
+async function writeChunkAtomic(
+  dir: string,
+  chunkIndex: number,
+  data: Buffer,
+): Promise<void> {
+  const finalPath = path.join(dir, `chunk-${chunkIndex}.part`);
+  const tmpPath = path.join(
+    dir,
+    `chunk-${chunkIndex}.${process.pid}.${Date.now()}.tmp`,
+  );
+  await fs.writeFile(tmpPath, data);
+  await fs.rename(tmpPath, finalPath);
+}
+
+/** Persist one chunk; returns how many unique chunks are stored on disk. */
 export async function saveUploadChunk(input: {
   uploadId: string;
   chunkIndex: number;
@@ -80,6 +119,9 @@ export async function saveUploadChunk(input: {
   const dir = uploadDir(uploadId);
   await fs.mkdir(dir, { recursive: true });
 
+  // Always write the part first (race-safe; each chunkIndex has its own file)
+  await writeChunkAtomic(dir, chunkIndex, data);
+
   let meta = await readMeta(dir);
   if (!meta) {
     meta = {
@@ -94,19 +136,18 @@ export async function saveUploadChunk(input: {
     if (meta.totalChunks !== chunkTotal || meta.totalSize !== totalSize) {
       throw new Error("Chunk metadata mismatch for this upload id");
     }
+    if (!meta.filename && filename) {
+      meta.filename = filename.slice(0, 500);
+    }
   }
 
-  const chunkPath = path.join(dir, `chunk-${chunkIndex}.part`);
-  await fs.writeFile(chunkPath, data);
+  // Source of truth: filesystem (fixes parallel upload meta races)
+  const received = await listReceivedFromDisk(dir);
+  meta.received = received;
+  await writeMetaAtomic(dir, meta);
 
-  if (!meta.received.includes(chunkIndex)) {
-    meta.received.push(chunkIndex);
-    meta.received.sort((a, b) => a - b);
-  }
-  await writeMeta(dir, meta);
-
-  const complete = meta.received.length === meta.totalChunks;
-  return { receivedCount: meta.received.length, complete };
+  const complete = received.length === chunkTotal;
+  return { receivedCount: received.length, complete };
 }
 
 /** Assemble all chunks into one buffer and delete the upload dir. */
@@ -125,9 +166,18 @@ export async function assembleUpload(
     await cleanupUpload(id).catch(() => undefined);
     throw new Error("Upload session expired. Re-upload the file.");
   }
-  if (meta.received.length !== meta.totalChunks) {
+
+  const received = await listReceivedFromDisk(dir);
+  const missing: number[] = [];
+  for (let i = 0; i < meta.totalChunks; i++) {
+    if (!received.includes(i)) missing.push(i);
+  }
+  if (missing.length > 0) {
     throw new Error(
-      `Upload incomplete: received ${meta.received.length}/${meta.totalChunks} chunks`,
+      `Upload incomplete: received ${received.length}/${meta.totalChunks} chunks` +
+        (missing.length <= 12
+          ? ` (missing ${missing.join(", ")})`
+          : ` (missing ${missing.slice(0, 8).join(", ")}…)`),
     );
   }
 
@@ -147,7 +197,7 @@ export async function assembleUpload(
   }
 
   const buffer = Buffer.concat(parts, size);
-  const filename = meta.filename;
+  const filename = meta.filename || "upload.bin";
   await cleanupUpload(id).catch(() => undefined);
   return { buffer, filename, totalSize: size };
 }

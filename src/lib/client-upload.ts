@@ -1,9 +1,10 @@
 /** Client helpers for reliable large media uploads (chunked on mobile/Heroku). */
 
 const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round-trips
-const PARALLEL_CHUNKS = 3;
+// Sequential uploads avoid race / flaky mobile drops; still fast enough with 4 MB parts
+const PARALLEL_CHUNKS = 1;
 const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
-const CHUNK_RETRIES = 2;
+const CHUNK_RETRIES = 4;
 const JOB_POLL_MS = 2000;
 const JOB_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min cap for long video encodes
 
@@ -57,7 +58,7 @@ async function postChunk(
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
       if (attempt < CHUNK_RETRIES) {
-        await sleep(250 * attempt);
+        await sleep(400 * attempt);
       }
     }
   }
