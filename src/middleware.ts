@@ -78,11 +78,11 @@ export function middleware(request: NextRequest) {
 
   // Apex → www (one canonical address, permanent)
   if (APEX_HOSTS.has(host)) {
-    const url = request.nextUrl.clone();
-    url.protocol = "https:";
-    url.hostname = CANONICAL_HOST;
-    url.port = "";
-    return NextResponse.redirect(url, 308);
+    const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+    return NextResponse.redirect(
+      new URL(`https://${CANONICAL_HOST}${path}`),
+      308,
+    );
   }
 
   if (request.method === "OPTIONS" && pathname.startsWith("/api/convert")) {
