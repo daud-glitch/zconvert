@@ -12,6 +12,12 @@ vi.mock("next/server", () => {
       type: "next",
       headers: new Map(),
     })),
+    redirect: vi.fn((url: URL, status?: number) => ({
+      type: "redirect",
+      url: String(url),
+      status: status ?? 307,
+      headers: new Map(),
+    })),
   };
 
   return {
@@ -27,9 +33,24 @@ import { NextResponse } from "next/server";
 function createMockRequest(
   pathname: string,
   sessionCookie?: string,
-): { nextUrl: URL; cookies: { get: (name: string) => { value: string } | undefined } } {
+  host = "localhost:3000",
+): {
+  nextUrl: URL;
+  cookies: { get: (name: string) => { value: string } | undefined };
+  headers: { get: (name: string) => string | null };
+  method: string;
+} {
+  const nextUrl = new URL(`http://${host}${pathname}`);
   return {
-    nextUrl: new URL(`http://localhost:3000${pathname}`),
+    nextUrl,
+    method: "GET",
+    headers: {
+      get: (name: string) => {
+        if (name.toLowerCase() === "host") return host;
+        if (name.toLowerCase() === "x-forwarded-host") return null;
+        return null;
+      },
+    },
     cookies: {
       get: (name: string) => {
         if (name === "session" && sessionCookie !== undefined) {
@@ -49,6 +70,29 @@ describe("middleware", () => {
     // Import fresh each test to avoid module state issues
     const mod = await import("../middleware");
     middleware = mod.middleware;
+  });
+
+  describe("canonical host redirect", () => {
+    it("redirects apex cloudconveter.tech to www", () => {
+      const req = createMockRequest("/", undefined, "cloudconveter.tech");
+      middleware(req as never);
+
+      expect(NextResponse.redirect).toHaveBeenCalled();
+      const url = (NextResponse.redirect as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as URL;
+      expect(url.hostname).toBe("www.cloudconveter.tech");
+      expect(url.pathname).toBe("/");
+      expect(
+        (NextResponse.redirect as ReturnType<typeof vi.fn>).mock.calls[0][1],
+      ).toBe(308);
+    });
+
+    it("does not redirect www host", () => {
+      const req = createMockRequest("/", undefined, "www.cloudconveter.tech");
+      middleware(req as never);
+      expect(NextResponse.redirect).not.toHaveBeenCalled();
+      expect(NextResponse.next).toHaveBeenCalled();
+    });
   });
 
   describe("public routes", () => {

@@ -2,7 +2,8 @@ import { MetadataRoute } from "next";
 import { formats } from "@/lib/formats";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://cloudconverter.dev";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech";
   
   const routes = [
     {

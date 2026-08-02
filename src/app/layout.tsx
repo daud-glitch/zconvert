@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://cloudconverter.dev",
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech",
   ),
   title: {
     default: "Cloud Converter — Universal File Converter",
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://cloudconverter.dev",
+    url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech",
     siteName: "Cloud Converter",
     title: "Cloud Converter — Universal File Converter",
     description:

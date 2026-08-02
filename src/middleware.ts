@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+/** Single public brand host — apex always redirects here. */
+const CANONICAL_HOST = "www.cloudconveter.tech";
+const APEX_HOSTS = new Set(["cloudconveter.tech"]);
+
 const publicRoutes = [
   "/api/convert",
   "/api/convert/image",
@@ -65,6 +69,22 @@ function hasSessionUser(sessionCookie: { value: string } | undefined): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Prefer Host header (Heroku / reverse proxies); fall back to URL hostname.
+  const rawHost =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    request.nextUrl.hostname;
+  const host = rawHost.toLowerCase().split(":")[0].trim();
+
+  // Apex → www (one canonical address, permanent)
+  if (APEX_HOSTS.has(host)) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.hostname = CANONICAL_HOST;
+    url.port = "";
+    return NextResponse.redirect(url, 308);
+  }
+
   if (request.method === "OPTIONS" && pathname.startsWith("/api/convert")) {
     return corsPreflightResponse();
   }
@@ -106,17 +126,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Run on pages + APIs so apex→www applies site-wide; skip static assets.
   matcher: [
-    "/api/:path*",
-    "/admin/:path*",
-    "/system/core/admin",
-    "/system/core/admin/:path*",
-    "/core/system/admin",
-    "/core/system/admin/:path*",
-    "/dashboard/:path*",
-    "/settings/:path*",
-    "/bookmarks/:path*",
-    "/profile/:path*",
-    "/login",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|map)$).*)",
   ],
 };
