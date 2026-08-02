@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import {
   formats,
   categoryMeta,
@@ -13,6 +14,15 @@ import {
   getFormatsCatalogVersion,
   syncFormatsCatalog,
 } from "@/lib/sync-formats-catalog";
+
+type CategoryWithFormats = Prisma.CategoryGetPayload<{
+  include: {
+    formats: {
+      where: { enabled: true };
+      orderBy: { ext: "asc" };
+    };
+  };
+}>;
 
 /** Attach rate limit headers to any response. */
 function withRateLimit(
@@ -43,11 +53,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let dbCategories: Awaited<
-      ReturnType<
-        NonNullable<ReturnType<typeof getOptionalDb>>["category"]["findMany"]
-      >
-    > = [];
+    let dbCategories: CategoryWithFormats[] = [];
     let version = `static:${formats.length}`;
     const prisma = getOptionalDb();
 
