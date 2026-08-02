@@ -4,6 +4,22 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+function withConnectionLimit(databaseUrl: string): string {
+  try {
+    const u = new URL(databaseUrl);
+    // Keep Heroku Postgres within free-tier connection room (one web dyno).
+    if (!u.searchParams.has("connection_limit")) {
+      u.searchParams.set("connection_limit", "3");
+    }
+    if (!u.searchParams.has("pool_timeout")) {
+      u.searchParams.set("pool_timeout", "20");
+    }
+    return u.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
 function createPrismaClient(): PrismaClient | null {
   if (!process.env.DATABASE_URL) {
     console.warn("[db] DATABASE_URL is not set — database features disabled.");
@@ -11,6 +27,9 @@ function createPrismaClient(): PrismaClient | null {
   }
   try {
     return new PrismaClient({
+      datasources: {
+        db: { url: withConnectionLimit(process.env.DATABASE_URL) },
+      },
       log: ["error"],
     });
   } catch (error) {
@@ -26,9 +45,8 @@ function createPrismaClient(): PrismaClient | null {
 export function getOptionalDb(): PrismaClient | null {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
   const client = createPrismaClient();
-  if (client && process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = client;
-  }
+  // Always cache — creating a client per request exhausts Postgres connections.
+  if (client) globalForPrisma.prisma = client;
   return client;
 }
 
