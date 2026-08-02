@@ -1361,7 +1361,7 @@ export function ConverterView() {
                                   <span className="flex items-center gap-1">
                                     <Clock className="w-3 h-3 animate-spin" />
                                     {item.progressPhase === "converting"
-                                      ? "Converting…"
+                                      ? "Encoding video… (may take a few minutes)"
                                       : item.progressPhase === "reading"
                                         ? "Reading file…"
                                         : "Uploading…"}
@@ -1386,6 +1386,11 @@ export function ConverterView() {
                                   {item.progressPhase === "uploading" ? (
                                     <span className="text-[10px] text-muted-foreground font-normal">
                                       Conversion starts after upload completes
+                                    </span>
+                                  ) : item.progressPhase === "converting" ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Keep this tab open — long video encode runs
+                                      in the background
                                     </span>
                                   ) : null}
                                 </span>

@@ -18,6 +18,7 @@ import {
   Shield,
   Zap,
 } from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -152,9 +153,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink"
               onClick={() => toggleView("converter")}
             >
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform shrink-0">
-                <RefreshCw className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
-              </div>
+              <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" />
               <div className="min-w-0">
                 <span className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate">
                   Cloud Converter

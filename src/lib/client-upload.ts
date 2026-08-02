@@ -1,9 +1,11 @@
 /** Client helpers for reliable large media uploads (chunked on mobile/Heroku). */
 
 const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round-trips
-const PARALLEL_CHUNKS = 3; // single-dyno friendly parallelism
+const PARALLEL_CHUNKS = 3;
 const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
 const CHUNK_RETRIES = 2;
+const JOB_POLL_MS = 2000;
+const JOB_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min cap for long video encodes
 
 export type UploadProgress = {
   percent: number;
@@ -62,9 +64,95 @@ async function postChunk(
   throw lastErr || new Error("Chunk upload failed");
 }
 
+/** Poll async job until binary is ready (video → video on Heroku). */
+async function waitForConvertJob(
+  jobId: string,
+  onProgress?: (p: UploadProgress) => void,
+  totalBytes = 1,
+): Promise<Response> {
+  const started = Date.now();
+  let tick = 0;
+  while (Date.now() - started < JOB_MAX_WAIT_MS) {
+    tick += 1;
+    // Pulse progress so UI stays in "converting" state with movement
+    const pulse = Math.min(99, 70 + (tick % 25));
+    onProgress?.({
+      percent: pulse,
+      phase: "converting",
+      loadedBytes: totalBytes,
+      totalBytes,
+    });
+
+    const st = await fetch(
+      `/api/convert/job?id=${encodeURIComponent(jobId)}`,
+      { cache: "no-store" },
+    );
+    if (st.status === 404) {
+      throw new Error("Conversion job expired. Please try again.");
+    }
+    const data = (await st.json().catch(() => ({}))) as {
+      status?: string;
+      error?: string;
+    };
+    if (data.status === "processing") {
+      await sleep(JOB_POLL_MS);
+      continue;
+    }
+    if (data.status === "error" || st.status === 422) {
+      throw new Error(data.error || "Video conversion failed");
+    }
+    if (data.status === "done") {
+      onProgress?.({
+        percent: 100,
+        phase: "converting",
+        loadedBytes: totalBytes,
+        totalBytes,
+      });
+      const fileRes = await fetch(
+        `/api/convert/job?id=${encodeURIComponent(jobId)}&download=1`,
+        { cache: "no-store" },
+      );
+      if (!fileRes.ok) {
+        const errText = await fileRes.text().catch(() => "");
+        let msg = `Download failed (${fileRes.status})`;
+        try {
+          const j = JSON.parse(errText) as { error?: string };
+          if (j.error) msg = j.error;
+        } catch {
+          if (errText) msg = errText.slice(0, 160);
+        }
+        throw new Error(msg);
+      }
+      return fileRes;
+    }
+    await sleep(JOB_POLL_MS);
+  }
+  throw new Error(
+    "Video conversion is taking too long. Try lower quality or a shorter clip.",
+  );
+}
+
 /**
- * Upload a file for conversion. Large media uses parallel chunk upload.
- * Conversion starts only after all chunks are stored.
+ * After convert POST, follow async job if server returned 202.
+ */
+async function finalizeConvertResponse(
+  res: Response,
+  onProgress?: (p: UploadProgress) => void,
+  totalBytes = 1,
+): Promise<Response> {
+  if (res.status !== 202) return res;
+  const data = (await res.json().catch(() => ({}))) as {
+    jobId?: string;
+    error?: string;
+  };
+  if (!data.jobId) {
+    throw new Error(data.error || "Video job did not start");
+  }
+  return waitForConvertJob(data.jobId, onProgress, totalBytes);
+}
+
+/**
+ * Upload a file for conversion. Video→video uses async job + poll (Heroku-safe).
  */
 export async function uploadAndConvert(options: {
   file: File;
@@ -122,12 +210,12 @@ export async function uploadAndConvert(options: {
       totalBytes: file.size,
     });
     report({
-      percent: 100,
+      percent: 85,
       phase: "converting",
       loadedBytes: file.size,
       totalBytes: file.size,
     });
-    return fetch(convertUrl, {
+    const res = await fetch(convertUrl, {
       method: "POST",
       headers: {
         ...convertHeaders,
@@ -136,6 +224,7 @@ export async function uploadAndConvert(options: {
       body: fileBytes,
       cache: "no-store",
     });
+    return finalizeConvertResponse(res, onProgress, file.size);
   }
 
   const uploadId =
@@ -168,7 +257,7 @@ export async function uploadAndConvert(options: {
           }
           await postChunk(uploadId, j, chunkTotal, file.size, fileName, bytes);
           loaded += bytes.byteLength;
-          const percent = Math.min(95, Math.round((loaded / file.size) * 95));
+          const percent = Math.min(85, Math.round((loaded / file.size) * 85));
           report({
             percent,
             phase: "uploading",
@@ -182,13 +271,13 @@ export async function uploadAndConvert(options: {
   }
 
   report({
-    percent: 100,
+    percent: 90,
     phase: "converting",
     loadedBytes: file.size,
     totalBytes: file.size,
   });
 
-  return fetch(convertUrl, {
+  const res = await fetch(convertUrl, {
     method: "POST",
     headers: {
       ...convertHeaders,
@@ -198,4 +287,5 @@ export async function uploadAndConvert(options: {
     body: new Uint8Array(0),
     cache: "no-store",
   });
+  return finalizeConvertResponse(res, onProgress, file.size);
 }

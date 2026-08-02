@@ -2762,28 +2762,37 @@ function applyVideoCodec(
 ): Ffmpeg.FfmpegCommand {
   const dest = outputExt.toLowerCase();
   let crf = videoCrfFromQuality(quality);
-  const large = inputBytes >= 20 * 1024 * 1024;
-  // Long video→video: prioritize finishing on limited dyno CPU (Heroku).
-  const preset = large || quality < 70 ? "ultrafast" : "veryfast";
+  const large = inputBytes >= 12 * 1024 * 1024;
+  // Prioritize finishing: ultrafast + capped height for almost all re-encodes.
+  const preset = "ultrafast";
   if (large) {
-    crf = Math.max(crf, 28);
+    crf = Math.max(crf, 30);
   }
 
-  // Cap resolution — biggest win for encode time on long clips
+  // Cap resolution (biggest encode-time win on Heroku dynos)
   let scale: string | null = null;
-  if (large || quality < 55) {
+  if (large || quality < 60) {
+    scale = "scale='min(720,iw)':-2";
+  } else if (quality < 80) {
     scale = "scale='min(1280,iw)':-2";
-  } else if (quality < 75) {
-    scale = "scale='min(1920,iw)':-2";
+  } else {
+    scale = "scale='min(1280,iw)':-2";
   }
 
   if (dest === "webm") {
-    // VP9 is very slow; use realtime-friendly settings for large inputs
-    const opts = large
-      ? ["-b:v", "900k", "-b:a", "96k", "-deadline", "realtime", "-cpu-used", "8"]
-      : ["-b:v", "1M", "-b:a", "128k", "-cpu-used", "4"];
+    // Prefer faster VP8 for large files (VP9 is very slow on 1× dyno)
+    const opts = [
+      "-b:v",
+      large ? "700k" : "1M",
+      "-b:a",
+      "96k",
+      "-deadline",
+      "realtime",
+      "-cpu-used",
+      "8",
+    ];
     let cmd = command
-      .videoCodec(large ? "libvpx" : "libvpx-vp9")
+      .videoCodec("libvpx")
       .audioCodec("libopus")
       .outputOptions(opts);
     if (scale) cmd = cmd.outputOptions(["-vf", scale]);
@@ -2799,7 +2808,6 @@ function applyVideoCodec(
     if (scale) cmd = cmd.outputOptions(["-vf", scale]);
     return cmd;
   }
-  // Default: H.264 + AAC — ultrafast for large files
   const outOpts = [
     "-preset",
     preset,
@@ -2811,6 +2819,9 @@ function applyVideoCodec(
     "yuv420p",
     "-movflags",
     "+faststart",
+    // Cap fps slightly for very long clips saves CPU
+    "-r",
+    large ? "24" : "30",
   ];
   if (scale) {
     outOpts.unshift("-vf", scale);
@@ -2818,6 +2829,7 @@ function applyVideoCodec(
   return command
     .videoCodec("libx264")
     .audioCodec("aac")
+    .audioBitrate(large ? "96k" : "128k")
     .outputOptions(outOpts);
 }
 

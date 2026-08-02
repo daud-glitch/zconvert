@@ -19,6 +19,11 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { logConversion } from "@/lib/conversion-log";
 import { parseMultipartUpload } from "@/lib/multipart";
+import {
+  createMediaJob,
+  markMediaJobDone,
+  markMediaJobError,
+} from "@/lib/media-job";
 
 function corsOrigin(): string {
   return process.env.ALLOWED_ORIGIN?.trim() || "*";
@@ -195,6 +200,87 @@ export async function handleConvertPost(
     const startTime = Date.now();
     const sessionUser = await getSessionUser(request);
     const category = sourceFormatInfo.category;
+
+    // Video → video re-encode is slow; Heroku HTTP kills long sync requests (H12).
+    // Run async job so the browser can poll without holding the request open.
+    const isVideoToVideo =
+      sourceFormatInfo.category === "video" &&
+      targetFormatInfo.category === "video";
+
+    if (isVideoToVideo) {
+      const job = await createMediaJob({
+        fileName: `${fileName.replace(/\.[^/.]+$/, "") || "video"}.${target}`,
+        contentType: getMimeType(target),
+      });
+      const jobId = job.id;
+      const ipAddr = ip === "unknown" ? null : ip;
+      const userId = sessionUser?.id ?? null;
+
+      // Detach conversion from the HTTP request (single dyno keeps job in memory).
+      void (async () => {
+        try {
+          const out = await runConvert(
+            buffer,
+            sourceExt,
+            target,
+            quality,
+            width,
+            height,
+          );
+          const conversionId = await logConversion({
+            userId,
+            fileName,
+            originalExt: sourceExt,
+            targetExt: target,
+            category,
+            inputSize: buffer.length,
+            outputSize: out.buffer.length,
+            status: "done",
+            duration: Date.now() - startTime,
+            ipAddress: ipAddr,
+          });
+          await markMediaJobDone(jobId, out.buffer, conversionId);
+        } catch (convertError) {
+          const errorMessage =
+            convertError instanceof Error
+              ? convertError.message
+              : "Unknown conversion error";
+          await logConversion({
+            userId,
+            fileName,
+            originalExt: sourceExt,
+            targetExt: target,
+            category,
+            inputSize: buffer.length,
+            outputSize: 0,
+            status: "error",
+            duration: Date.now() - startTime,
+            error: errorMessage,
+            ipAddress: ipAddr,
+          });
+          markMediaJobError(jobId, humanizeConversionError(errorMessage));
+        }
+      })();
+
+      return withRateLimit(
+        NextResponse.json(
+          {
+            jobId,
+            status: "processing",
+            message:
+              "Video encode started. This may take a few minutes — keep this tab open.",
+          },
+          {
+            status: 202,
+            headers: {
+              "Access-Control-Allow-Origin": corsOrigin(),
+              "Cache-Control": "no-store",
+            },
+          },
+        ),
+        rl,
+      );
+    }
 
     let result: Buffer;
     let pdfZipMeta: { pageCount: number } | undefined;

@@ -14,6 +14,7 @@ import {
   LogIn,
   KeyRound,
 } from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -125,9 +126,7 @@ function LoginForm() {
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-              <RefreshCw className="w-7 h-7 text-white" />
-            </div>
+            <BrandMark className="h-14 w-14 mb-4" rounded="rounded-2xl" />
             <h1 className="text-2xl font-bold tracking-tight">
               Cloud Converter
             </h1>

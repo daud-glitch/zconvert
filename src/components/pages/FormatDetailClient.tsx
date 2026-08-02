@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { BrandMark } from "@/components/common/BrandMark";
 import {
   RefreshCw,
   Moon,
@@ -151,9 +152,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-emerald-500 rounded-lg flex items-center justify-center">
-                <RefreshCw className="w-5 h-5 text-white" />
-              </div>
+              <BrandMark className="h-9 w-9" rounded="rounded-lg" />
               <span className="text-xl font-bold tracking-tight">
                 Cloud Converter
               </span>
