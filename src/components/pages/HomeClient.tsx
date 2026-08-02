@@ -480,6 +480,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 : [
                     { id: "t", label: "Terms", url: "/terms" },
                     { id: "p", label: "Privacy", url: "/privacy" },
+                    { id: "c", label: "Contact", url: "/contact" },
                   ]
               ).map((link) =>
                 link.url.startsWith("/") && !link.url.startsWith("//") ? (

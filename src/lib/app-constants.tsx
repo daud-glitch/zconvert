@@ -313,9 +313,9 @@ export const formatBadgeData: { label: string; category: string }[] = [
 // ─── Comparison Features ──────────────────────────────────────────────────────
 
 export const comparisonFeatures = [
-  { feature: "No Size Limits", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
-  { feature: "100% Private", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
-  { feature: "Free Forever", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
+  { feature: "Generous size limits", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
+  { feature: "Local history (browser)", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
+  { feature: "Free converter", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
   { feature: "REST API", transmute: true, cloudconvert: true, zamzar: false, onlineconvert: false },
   { feature: "SSO / SAML", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
   { feature: "Custom Formats", transmute: true, cloudconvert: true, zamzar: false, onlineconvert: true },

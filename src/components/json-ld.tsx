@@ -1,61 +1,42 @@
+const SITE =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech";
+
 export default function JsonLd() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: "Cloud Converter",
-    description: "Universal file converter supporting 100+ formats including images, documents, data files, subtitles, and more. Self-hosted, private, and free forever.",
-    url: "https://cloudconverter.dev",
+    description:
+      "Online file converter for images, documents, data, audio, video, and more. Temporary processing; converted results stay in your browser. Fair file size limits, no watermarks.",
+    url: SITE,
     applicationCategory: "UtilityApplication",
     operatingSystem: "Any",
     offers: {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      priceValidUntil: "2030-12-31",
-    },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "4.9",
-      ratingCount: "1250",
-      bestRating: "5",
-      worstRating: "1",
     },
     author: {
       "@type": "Organization",
-      name: "Cloud Converter Team",
-      url: "https://cloudconverter.dev",
+      name: "Cloud Converter",
+      url: SITE,
+      email: "support@cloudconveter.tech",
     },
     featureList: [
-      "Image conversion (PNG, JPG, WebP, AVIF, SVG, and 50+ formats)",
-      "Document conversion (PDF, DOCX, MD, HTML, and more)",
-      "Data file conversion (JSON, YAML, CSV, XML, and more)",
-      "Video and audio conversion",
-      "Ebook format conversion",
-      "Archive extraction and conversion",
-      "Subtitle format conversion",
-      "Font format conversion",
-      "No file size limits",
-      "100% private and self-hosted",
+      "Image conversion (PNG, JPG, WebP, AVIF, and more)",
+      "Document and data conversion",
+      "Audio and video conversion where ffmpeg is available",
+      "Batch conversion (up to 20 files)",
+      "Local conversion history in the browser",
       "No watermarks",
-      "Free forever",
-      "REST API access",
-      "Batch conversion",
-      "Quality presets",
-      "Resize and compress options",
+      "Temporary server processing",
     ],
-    screenshot: "https://cloudconverter.dev/og-image.svg",
+    screenshot: `${SITE.replace(/\/$/, "")}/og-image.svg`,
     softwareVersion: "1.0",
     inLanguage: "en-US",
     isAccessibleForFree: true,
-    mainEntity: {
-      "@type": "WebApplication",
-      name: "Cloud Converter",
-      url: "https://cloudconverter.dev",
-      applicationCategory: "UtilityApplication",
-      operatingSystem: "Any",
-      browserRequirements: "Modern browser with JavaScript enabled",
-    },
-    keywords: "file converter, image converter, format converter, PNG to WebP, PDF converter, JSON converter, free file converter, online converter",
+    keywords:
+      "file converter, image converter, cloudconveter, PNG to WebP, PDF converter, free online converter",
   };
 
   return (

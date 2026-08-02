@@ -480,6 +480,9 @@ export function ConverterView() {
       endTime: undefined,
       result: undefined,
       outputSize: undefined,
+      progress: 0,
+      progressPhase: "uploading",
+      error: undefined,
     });
 
     try {
@@ -492,6 +495,12 @@ export function ConverterView() {
         resizeWidth: item.resizeWidth,
         resizeHeight: item.resizeHeight,
         convertUrl: getConvertApiPath(item.ext),
+        onProgress: (p) => {
+          updateFile(item.id, {
+            progress: p.percent,
+            progressPhase: p.phase,
+          });
+        },
       });
 
       if (!response.ok) {
@@ -1290,9 +1299,37 @@ export function ConverterView() {
                                 </span>
                               )}
                               {item.status === "converting" && (
-                                <span className="text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
-                                  <Clock className="w-3 h-3 animate-spin" />
-                                  Converting...
+                                <span className="text-sky-600 dark:text-sky-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 animate-spin" />
+                                    {item.progressPhase === "converting"
+                                      ? "Converting…"
+                                      : item.progressPhase === "reading"
+                                        ? "Reading file…"
+                                        : "Uploading…"}
+                                    {typeof item.progress === "number"
+                                      ? ` ${item.progress}%`
+                                      : ""}
+                                  </span>
+                                  <span
+                                    className="h-1.5 w-full rounded-full bg-sky-100 dark:bg-sky-950 overflow-hidden"
+                                    role="progressbar"
+                                    aria-valuenow={item.progress ?? 0}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                  >
+                                    <span
+                                      className="block h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                                      style={{
+                                        width: `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
+                                      }}
+                                    />
+                                  </span>
+                                  {item.progressPhase === "uploading" ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Conversion starts after upload completes
+                                    </span>
+                                  ) : null}
                                 </span>
                               )}
                             </div>
@@ -2113,7 +2150,7 @@ export function ConverterView() {
           {[
             {
               icon: <Shield className="w-4 h-4" />,
-              title: "100% Private",
+              title: "Privacy-first",
               desc: "Temp process only — converted results stay in your browser.",
               color: "bg-emerald-500",
             },
@@ -2125,20 +2162,20 @@ export function ConverterView() {
             },
             {
               icon: <HardDrive className="w-4 h-4" />,
-              title: "No Limits",
-              desc: "No file size caps, no watermarks, no rate limits.",
+              title: "Clear limits",
+              desc: `Up to ${formatMaxUploadLabel()} per file, 20 per batch, fair use rate limits. No watermarks.`,
               color: "bg-violet-500",
             },
             {
               icon: <Layers className="w-4 h-4" />,
               title: "Batch Convert",
-              desc: "Process multiple files at once and download together.",
+              desc: "Queue up to 20 files and download results together.",
               color: "bg-sky-500",
             },
             {
               icon: <ArrowRightLeft className="w-4 h-4" />,
-              title: "132+ Formats",
-              desc: "Images, documents, data, subtitles, audio, and archives.",
+              title: "Many formats",
+              desc: "Images, documents, data, subtitles, audio, video, and archives.",
               color: "bg-teal-500",
             },
           ].map((feature) => (

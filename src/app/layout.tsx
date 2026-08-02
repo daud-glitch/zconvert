@@ -25,11 +25,12 @@ export const metadata: Metadata = {
     template: "%s | Cloud Converter",
   },
   description:
-    "Convert images, documents, data files, subtitles, and more. Self-hosted, private, no limits. Free online file converter supporting 100+ formats including PNG, WebP, PDF, JSON, and more.",
+    "Convert images, documents, data, audio, and video online. Temporary processing, local browser history, fair upload limits (up to 100 MB on this server), no watermarks.",
   keywords: [
     "file converter",
     "image converter",
     "format converter",
+    "cloudconveter",
     "PNG to WebP",
     "PDF converter",
     "JSON converter",
@@ -37,13 +38,12 @@ export const metadata: Metadata = {
     "image compression",
     "file format conversion",
     "document converter",
-    "self-hosted",
     "free file converter",
     "online converter",
     "convert images",
     "convert documents",
   ],
-  authors: [{ name: "Cloud Converter Team" }],
+  authors: [{ name: "Cloud Converter" }],
   creator: "Cloud Converter",
   publisher: "Cloud Converter",
   alternates: {
@@ -61,13 +61,13 @@ export const metadata: Metadata = {
     siteName: "Cloud Converter",
     title: "Cloud Converter — Universal File Converter",
     description:
-      "Convert images, documents, data files, subtitles, and more. Self-hosted, private, no limits. Free online file converter supporting 100+ formats.",
+      "Convert images, documents, data, audio, and video online. Temporary processing, local history, fair limits, no watermarks.",
     images: [
       {
         url: "/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "Cloud Converter - Universal File Converter",
+        alt: "Cloud Converter — www.cloudconveter.tech",
       },
     ],
   },
@@ -75,9 +75,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Cloud Converter — Universal File Converter",
     description:
-      "Convert images, documents, data files, subtitles, and more. Self-hosted, private, no limits.",
+      "Convert images, documents, data, audio, and video online. Fair limits, no watermarks.",
     images: ["/og-image.svg"],
-    creator: "@cloudconverter",
   },
   robots: {
     index: true,

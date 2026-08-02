@@ -28,9 +28,23 @@ model User {
   bookmarks   Bookmark[]
   apiKeys     ApiKey[]
   sessions    Session[]
+  passwordResets PasswordResetToken[]
 
   @@index([email])
   @@index([role])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Session {

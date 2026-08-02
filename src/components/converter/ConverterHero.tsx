@@ -62,7 +62,7 @@ export function ConverterHero({
               className="mb-4 sm:mb-5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 sm:px-3 py-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300"
             >
               <Sparkles className="mr-1.5 inline h-3 w-3" />
-              Free · Private · No watermarks
+              Free · Fair limits · No watermarks
             </Badge>
 
             <h1

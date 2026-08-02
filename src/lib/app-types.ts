@@ -16,6 +16,9 @@ export interface FileItem {
   startTime?: number;
   endTime?: number;
   outputSize?: number;
+  /** 0–100 upload/convert progress while status is converting */
+  progress?: number;
+  progressPhase?: "reading" | "uploading" | "converting";
   /** Set when a multi-page PDF was converted to per-page images in a ZIP. */
   outputPackage?: "zip";
   pageCount?: number;

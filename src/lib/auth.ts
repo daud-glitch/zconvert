@@ -19,14 +19,18 @@ export async function getSessionUser(
   }
 
   let token: string;
+  let cookieUserId: string | undefined;
   try {
-    const parsed = JSON.parse(sessionCookie.value);
+    const parsed = JSON.parse(sessionCookie.value) as {
+      token?: unknown;
+      userId?: unknown;
+    };
+    if (typeof parsed.token !== "string" || parsed.token.length < 32) {
+      return null;
+    }
     token = parsed.token;
+    if (typeof parsed.userId === "string") cookieUserId = parsed.userId;
   } catch {
-    return null;
-  }
-
-  if (!token) {
     return null;
   }
 
@@ -47,6 +51,11 @@ export async function getSessionUser(
   }
 
   if (!session) {
+    return null;
+  }
+
+  // Cookie userId must match session (stops forged userId-only cookies)
+  if (cookieUserId && cookieUserId !== session.userId) {
     return null;
   }
 

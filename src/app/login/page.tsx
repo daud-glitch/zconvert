@@ -214,6 +214,40 @@ function LoginForm() {
                     </span>
                   )}
                 </Button>
+
+                <div className="text-center">
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-muted-foreground hover:text-emerald-600"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+
+                {process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1" ? (
+                  <>
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-border" />
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="bg-card px-2 text-muted-foreground">
+                          or
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        window.location.href = "/api/auth/google";
+                      }}
+                    >
+                      Continue with Google
+                    </Button>
+                  </>
+                ) : null}
               </form>
             ) : (
               /* ── 2FA Code ── */
