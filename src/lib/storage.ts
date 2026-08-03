@@ -40,6 +40,22 @@ interface StoredFileV1 {
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
+/**
+ * Strict device isolation:
+ * - logged-in accountKey → only rows tagged with that same id
+ * - guest (null/undefined) → only untagged rows
+ * Never mix guest + account, or cross-account rows.
+ */
+export function matchesAccountKey(
+  entryKey: string | null | undefined,
+  accountKey: string | null | undefined,
+): boolean {
+  if (accountKey) {
+    return entryKey === accountKey;
+  }
+  return !entryKey;
+}
+
 function getDB() {
   if (typeof window === "undefined") return null;
   if (!dbPromise) {
@@ -157,12 +173,9 @@ export async function getLocalHistory(
   )) as LocalHistoryEntry[];
 
   // Index returns ascending; newest last
-  let list = [...all].reverse();
-  if (accountKey) {
-    list = list.filter(
-      (e) => !e.accountKey || e.accountKey === accountKey,
-    );
-  }
+  let list = [...all]
+    .reverse()
+    .filter((e) => matchesAccountKey(e.accountKey, accountKey));
   return list.slice(0, limit).map((e) => ({
     ...e,
     hasFile: Boolean(e.hasFile && e.data),
@@ -171,6 +184,7 @@ export async function getLocalHistory(
 
 export async function getLocalHistoryEntry(
   id: string,
+  accountKey?: string | null,
 ): Promise<LocalHistoryEntry | null> {
   const db = await getDB();
   if (!db) return null;
@@ -178,7 +192,8 @@ export async function getLocalHistoryEntry(
     | LocalHistoryEntry
     | undefined;
   if (!entry) {
-    // Fallback: legacy files-only row
+    // Fallback: legacy files-only row (always guest / untagged)
+    if (accountKey) return null;
     const file = (await db.get(FILES_STORE, id)) as StoredFileV1 | undefined;
     if (!file) return null;
     return {
@@ -196,7 +211,11 @@ export async function getLocalHistoryEntry(
       mimeType: file.mimeType,
       data: file.data,
       hasFile: true,
+      accountKey: null,
     };
+  }
+  if (!matchesAccountKey(entry.accountKey, accountKey)) {
+    return null;
   }
   return {
     ...entry,
@@ -206,8 +225,9 @@ export async function getLocalHistoryEntry(
 
 export async function getFileLocally(
   id: string,
+  accountKey?: string | null,
 ): Promise<{ id: string; fileName: string; data: Blob; mimeType: string; createdAt: number } | null> {
-  const entry = await getLocalHistoryEntry(id);
+  const entry = await getLocalHistoryEntry(id, accountKey);
   if (entry?.data) {
     return {
       id: entry.id,
@@ -217,29 +237,49 @@ export async function getFileLocally(
       createdAt: Date.parse(entry.createdAt) || Date.now(),
     };
   }
+  // Legacy files store has no account tag — only for guest/unscoped access
+  if (accountKey) return null;
   const db = await getDB();
   if (!db) return null;
   return (await db.get(FILES_STORE, id)) ?? null;
 }
 
 /** Remove only the file blob — keep history row so user can see past conversions. */
-export async function deleteFileOnlyLocally(id: string): Promise<void> {
+export async function deleteFileOnlyLocally(
+  id: string,
+  accountKey?: string | null,
+): Promise<void> {
   const db = await getDB();
   if (!db) return;
   const entry = (await db.get(HISTORY_STORE, id)) as
     | LocalHistoryEntry
     | undefined;
   if (entry) {
+    if (!matchesAccountKey(entry.accountKey, accountKey)) return;
     const { data: _drop, ...rest } = entry;
     await db.put(HISTORY_STORE, { ...rest, hasFile: false, data: undefined });
+  } else if (accountKey) {
+    return;
   }
   await db.delete(FILES_STORE, id);
 }
 
 /** Remove history row + file completely. */
-export async function deleteLocalConversion(id: string): Promise<void> {
+export async function deleteLocalConversion(
+  id: string,
+  accountKey?: string | null,
+): Promise<void> {
   const db = await getDB();
   if (!db) return;
+  const entry = (await db.get(HISTORY_STORE, id)) as
+    | LocalHistoryEntry
+    | undefined;
+  if (entry && !matchesAccountKey(entry.accountKey, accountKey)) {
+    return;
+  }
+  if (!entry && accountKey) {
+    return;
+  }
   await db.delete(HISTORY_STORE, id);
   await db.delete(FILES_STORE, id);
 }

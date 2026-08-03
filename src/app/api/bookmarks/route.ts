@@ -6,7 +6,14 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser(request);
     if (!user) {
-      return NextResponse.json({ data: [] });
+      return NextResponse.json(
+        { data: [] },
+        {
+          headers: {
+            "Cache-Control": "private, no-store, max-age=0",
+          },
+        },
+      );
     }
 
     const bookmarks = await db.bookmark.findMany({
@@ -14,7 +21,14 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ data: bookmarks });
+    return NextResponse.json(
+      { data: bookmarks },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+        },
+      },
+    );
   } catch {
     return NextResponse.json({ error: "Failed to fetch bookmarks" }, { status: 500 });
   }
@@ -69,7 +83,7 @@ export async function DELETE(request: NextRequest) {
 
     const { id } = await request.json();
 
-    await db.bookmark.delete({
+    await db.bookmark.deleteMany({
       where: {
         id,
         userId: user.id,

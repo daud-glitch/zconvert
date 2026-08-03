@@ -19,29 +19,44 @@ export function BookmarksView() {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     const fetchBookmarks = async () => {
       if (!currentUser) {
-        setIsLoading(false);
-        setBookmarks([]);
+        if (!cancelled) {
+          setIsLoading(false);
+          setBookmarks([]);
+        }
         return;
       }
       try {
-        setIsLoading(true);
-        const res = await fetch("/api/bookmarks");
+        if (!cancelled) {
+          setIsLoading(true);
+          setBookmarks([]);
+        }
+        const res = await fetch("/api/bookmarks", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await readJsonResponse<{
           data?: BookmarkRecord[];
           bookmarks?: BookmarkRecord[];
         }>(res);
-        setBookmarks(data.data || data.bookmarks || []);
+        if (!cancelled) {
+          setBookmarks(data.data || data.bookmarks || []);
+        }
       } catch (err) {
         console.error("Failed to fetch bookmarks:", err);
+        if (!cancelled) setBookmarks([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     void fetchBookmarks();
-  }, [currentUser]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
 
   const handleDelete = async (id: string) => {
     try {

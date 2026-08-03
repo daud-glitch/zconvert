@@ -63,7 +63,8 @@ export function HistoryView() {
   }, [loadHistory]);
 
   const handleDownload = async (record: LocalHistoryEntry) => {
-    const stored = await getFileLocally(record.id);
+    const accountKey = currentUser?.id ?? null;
+    const stored = await getFileLocally(record.id, accountKey);
     if (!stored) {
       alert("File is no longer in your browser storage. Convert again to keep a copy.");
       return;
@@ -88,9 +89,10 @@ export function HistoryView() {
     }
     setDeletingId(id);
     try {
-      await deleteLocalConversion(id);
+      const accountKey = currentUser?.id ?? null;
+      await deleteLocalConversion(id, accountKey);
       setConversions((prev) => prev.filter((c) => c.id !== id));
-      setStats(await getLocalStats(currentUser?.id ?? null));
+      setStats(await getLocalStats(accountKey));
     } catch (err) {
       console.error("Failed to delete conversion:", err);
       alert(err instanceof Error ? err.message : "Failed to delete");
@@ -109,13 +111,14 @@ export function HistoryView() {
     }
     setDeletingId(id);
     try {
-      await deleteFileOnlyLocally(id);
+      const accountKey = currentUser?.id ?? null;
+      await deleteFileOnlyLocally(id, accountKey);
       setConversions((prev) =>
         prev.map((c) =>
           c.id === id ? { ...c, hasFile: false, data: undefined } : c,
         ),
       );
-      setStats(await getLocalStats(currentUser?.id ?? null));
+      setStats(await getLocalStats(accountKey));
     } catch (err) {
       console.error("Failed to remove file:", err);
       alert(err instanceof Error ? err.message : "Failed to remove file");

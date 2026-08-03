@@ -151,13 +151,36 @@ export function ConverterView() {
     setTargetFormatsMap(map);
   }, [formatsData]);
 
+  // Isolate queue / recent / bookmarks when switching accounts on same browser
   useEffect(() => {
-    fetch("/api/bookmarks")
-      .then((r) => readJsonResponse<{ data?: BookmarkRecord[] }>(r))
-      .then((data) => setBookmarks(data.data || []))
-      .catch(() => {});
+    let cancelled = false;
+    const accountKey = currentUser?.id ?? null;
 
-    void getLocalHistory(5, currentUser?.id ?? null).then((rows) => {
+    setFiles([]);
+    uploadJobsRef.current.clear();
+    autoUploadChainRef.current = Promise.resolve();
+    setBatchProgress(null);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setPreviewName("");
+    setBookmarks([]);
+    setRecentConversions([]);
+
+    if (currentUser) {
+      void fetch("/api/bookmarks", { credentials: "same-origin" })
+        .then((r) => readJsonResponse<{ data?: BookmarkRecord[] }>(r))
+        .then((data) => {
+          if (!cancelled) setBookmarks(data.data || []);
+        })
+        .catch(() => {
+          if (!cancelled) setBookmarks([]);
+        });
+    }
+
+    void getLocalHistory(5, accountKey).then((rows) => {
+      if (cancelled) return;
       setRecentConversions(
         rows.map((r) => ({
           id: r.id,
@@ -174,6 +197,10 @@ export function ConverterView() {
         })),
       );
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentUser?.id]);
 
   const fetchRemoteFile = async (url: string) => {
