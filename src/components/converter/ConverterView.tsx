@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Download, RefreshCw, Plus, Settings,
-  History, Bookmark, Layers, Check, AlertCircle,
+  History, Layers, Check, AlertCircle,
   File as FileIcon, FileText, Globe, Shield, Clock, HardDrive,
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
   RotateCcw, Sparkles,
@@ -26,7 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { type FileItem, type ConversionRecord, type BookmarkRecord } from "@/lib/app-types";
+import { type FileItem, type ConversionRecord } from "@/lib/app-types";
 import { readJsonResponse } from "@/lib/http-json";
 import { readApiError } from "@/lib/api-errors";
 import { useFormats } from "@/hooks/use-formats";
@@ -100,7 +100,6 @@ export function ConverterView() {
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
   >({});
-  const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [toasts, setToasts] = useState<
     { id: string; message: string; type: "success" | "error" }[]
   >([]);
@@ -151,7 +150,7 @@ export function ConverterView() {
     setTargetFormatsMap(map);
   }, [formatsData]);
 
-  // Isolate queue / recent / bookmarks when switching accounts on same browser
+  // Isolate queue / recent when switching accounts on same browser
   useEffect(() => {
     let cancelled = false;
     const accountKey = currentUser?.id ?? null;
@@ -165,21 +164,11 @@ export function ConverterView() {
       return null;
     });
     setPreviewName("");
-    setBookmarks([]);
     setRecentConversions([]);
 
-    // History / bookmarks / recent list only for signed-in accounts.
+    // Recent list only for signed-in accounts (bookmarks live in Bookmarks section only).
     // Guests still convert in the queue with live status, but nothing is persisted.
     if (currentUser && accountKey) {
-      void fetch("/api/bookmarks", { credentials: "same-origin" })
-        .then((r) => readJsonResponse<{ data?: BookmarkRecord[] }>(r))
-        .then((data) => {
-          if (!cancelled) setBookmarks(data.data || []);
-        })
-        .catch(() => {
-          if (!cancelled) setBookmarks([]);
-        });
-
       void getLocalHistory(5, accountKey).then((rows) => {
         if (cancelled) return;
         setRecentConversions(
@@ -910,31 +899,9 @@ export function ConverterView() {
         showToast("Failed to save bookmark", "error");
         return;
       }
-      const listRes = await fetch("/api/bookmarks");
-      const data = await readJsonResponse<{ data?: BookmarkRecord[] }>(listRes);
-      setBookmarks(data.data || []);
-      showToast("Bookmark saved!");
+      showToast("Bookmark saved — open Bookmarks to manage");
     } catch {
       showToast("Failed to save bookmark", "error");
-    }
-  };
-
-  const applyBookmark = (bookmark: BookmarkRecord) => {
-    if (files.length > 0) {
-      const firstPending = files.find(
-        (f) => f.ext === bookmark.inputExt && f.status === "pending",
-      );
-      if (firstPending) {
-        updateFile(firstPending.id, {
-          targetFormat: bookmark.outputExt,
-        });
-        showToast(`Applied: ${bookmark.name}`);
-      } else {
-        showToast(
-          `No ${bookmark.inputExt.toUpperCase()} file in queue`,
-          "error",
-        );
-      }
     }
   };
 
@@ -1173,37 +1140,6 @@ export function ConverterView() {
           </div>
         </CardContent>
       </Card>
-
-      {/* ─── Bookmarks Quick Apply ─── */}
-      {bookmarks.length > 0 && (
-        <Card className="card-elevated">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Bookmark className="w-4 h-4 text-amber-500" />
-              Quick Presets
-              <Badge variant="secondary" className="ml-auto text-xs">
-                {bookmarks.length} saved
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex flex-wrap gap-2">
-              {bookmarks.slice(0, 8).map((bm) => (
-                <Button
-                  key={bm.id}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => applyBookmark(bm)}
-                >
-                  <ArrowRightLeft className="w-3 h-3 mr-1" />
-                  {bm.name}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* ─── File Queue ─── */}
       {batchProgress && batchProgress.total > 0 && (
