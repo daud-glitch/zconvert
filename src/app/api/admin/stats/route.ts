@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
       recentConversions,
       pairGroups,
       dailyStats,
+      trafficGroups,
+      totalPageViews30d,
       dbPing,
     ] = await Promise.all([
       db.conversion.count(),
@@ -54,6 +56,22 @@ export async function GET(request: NextRequest) {
         orderBy: { date: "desc" },
         take: 30,
       }),
+      db.pageView.groupBy({
+        by: ["source"],
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          },
+        },
+        _count: { _all: true },
+      }).catch(() => [] as { source: string | null; _count: { _all: number } }[]),
+      db.pageView.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          },
+        },
+      }).catch(() => 0),
       db.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     ]);
 
@@ -82,6 +100,23 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 15);
+
+    const pageViewTotal30d =
+      typeof totalPageViews30d === "number" ? totalPageViews30d : 0;
+    const trafficSources = (Array.isArray(trafficGroups) ? trafficGroups : [])
+      .map((g) => {
+        const count = g._count._all;
+        return {
+          source: g.source || "Unknown",
+          count,
+          percent:
+            pageViewTotal30d > 0
+              ? Math.round((count / pageViewTotal30d) * 1000) / 10
+              : 0,
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
 
     const processUptimeSec = Math.floor(process.uptime());
 
@@ -119,6 +154,12 @@ export async function GET(request: NextRequest) {
           storageUsed: Number(d.storageUsed),
         }))
         .reverse(),
+      trafficSources,
+      trafficTotals: {
+        pageViews: pageViewTotal30d,
+        uniqueSources: trafficSources.length,
+        days: 30,
+      },
       system: {
         apiOnline: true,
         databaseConnected: dbPing,

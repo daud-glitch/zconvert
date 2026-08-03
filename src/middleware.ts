@@ -15,6 +15,7 @@ const publicRoutes = [
   "/api/convert/chunk",
   "/api/formats",
   "/api/bookmarks",
+  "/api/analytics",
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/me",

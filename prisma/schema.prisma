@@ -236,16 +236,22 @@ model AppSettings {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 model PageView {
-  id        String   @id @default(cuid())
-  path      String
-  ipHash    String?
-  userId    String?
-  userAgent String?
-  referrer  String?
-  country   String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  path        String
+  ipHash      String?
+  userId      String?
+  userAgent   String?
+  referrer    String?
+  /// Computed label: Direct, Google, facebook.com, utm source, etc.
+  source      String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  country     String?
+  createdAt   DateTime @default(now())
 
   @@index([path])
+  @@index([source])
   @@index([createdAt])
 }
 

@@ -102,6 +102,17 @@ export interface AdminStats {
     pageViews: number;
     storageUsed: number;
   }[];
+  /** Referrer / UTM traffic sources (last 30 days) */
+  trafficSources?: {
+    source: string;
+    count: number;
+    percent: number;
+  }[];
+  trafficTotals?: {
+    pageViews: number;
+    uniqueSources: number;
+    days: number;
+  };
   system?: {
     apiOnline: boolean;
     databaseConnected: boolean;

@@ -11,6 +11,7 @@ import {
   Calendar,
   Database,
   LayoutGrid,
+  Globe2,
 } from "lucide-react";
 import {
   Card,
@@ -97,6 +98,10 @@ export function AdminAnalytics() {
     return [label, d.conversions] as [string, number];
   });
 
+  const trafficSources = stats?.trafficSources || [];
+  const trafficTotals = stats?.trafficTotals;
+  const trafficMax = trafficSources[0]?.count || 0;
+
   const barColors = [
     "bg-emerald-500",
     "bg-violet-500",
@@ -162,6 +167,118 @@ export function AdminAnalytics() {
           {errorCount} failed conversions recorded in the database.
         </p>
       )}
+
+      <Card className="card-elevated">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Globe2 className="w-4 h-4 text-sky-500" />
+            Traffic Sources
+            {trafficTotals ? (
+              <Badge variant="secondary" className="ml-auto text-xs font-normal">
+                Last {trafficTotals.days} days · {trafficTotals.pageViews} views
+              </Badge>
+            ) : null}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Where visitors came from (referrer + UTM). Direct = typed URL /
+            bookmark / no referrer.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {trafficSources.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-2.5">
+                {trafficSources.map((row, i) => {
+                  const pctBar =
+                    trafficMax > 0
+                      ? Math.round((row.count / trafficMax) * 100)
+                      : 0;
+                  return (
+                    <div key={row.source} className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-muted-foreground w-5 text-right">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1 gap-2">
+                          <span className="text-xs font-medium truncate">
+                            {row.source}
+                          </span>
+                          <span className="text-xs font-semibold shrink-0 tabular-nums">
+                            {row.count}
+                            <span className="text-muted-foreground font-normal ml-1">
+                              ({row.percent}%)
+                            </span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${barColors[i % barColors.length] || "bg-gray-500"}`}
+                            style={{ width: `${pctBar}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="h-52 min-h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={trafficSources.slice(0, 10).map((t) => ({
+                      name:
+                        t.source.length > 14
+                          ? `${t.source.slice(0, 12)}…`
+                          : t.source,
+                      views: t.count,
+                    }))}
+                    layout="vertical"
+                    margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
+                  >
+                    <XAxis
+                      type="number"
+                      allowDecimals={false}
+                      axisLine={false}
+                      tickLine={false}
+                      style={{ fontSize: "10px" }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={88}
+                      axisLine={false}
+                      tickLine={false}
+                      style={{ fontSize: "10px" }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "hsl(var(--muted))", opacity: 0.7 }}
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        borderColor: "hsl(var(--border))",
+                        fontSize: "11px",
+                        borderRadius: "8px",
+                      }}
+                    />
+                    <Bar
+                      dataKey="views"
+                      fill="#0ea5e9"
+                      radius={[0, 4, 4, 0]}
+                      maxBarSize={16}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-sm text-muted-foreground space-y-1">
+              <p>No traffic data yet.</p>
+              <p className="text-xs">
+                Page views are recorded after deploy when visitors open the site
+                (analytics can be toggled in Settings).
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Popular Format Pairs */}

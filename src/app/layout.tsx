@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import JsonLd from "@/components/json-ld";
 import { AppProvider } from "@/lib/app-context";
+import { TrafficTracker } from "@/components/analytics/TrafficTracker";
 
 /** One UI font only — lighter first load (no separate mono Google font). */
 const geistSans = Geist({
@@ -113,7 +114,10 @@ export default function RootLayout({
           }}
         />
         <JsonLd />
-        <AppProvider>{children}</AppProvider>
+        <AppProvider>
+          {children}
+          <TrafficTracker />
+        </AppProvider>
         <Toaster />
       </body>
     </html>
