@@ -875,6 +875,7 @@ export function ConverterView() {
   ]);
 
   const downloadAll = () => {
+    if (!canBulkExport) return;
     files.filter((f) => f.status === "done").forEach(downloadFile);
   };
 
@@ -939,8 +940,21 @@ export function ConverterView() {
 
   const pendingCount = files.filter((f) => f.status === "pending").length;
   const doneCount = files.filter((f) => f.status === "done").length;
+  const convertingCount = files.filter((f) => f.status === "converting").length;
   const mergeableCount = files.filter((f) => getMergeSourceBlob(f) !== null).length;
   const errorCount = files.filter((f) => f.status === "error").length;
+  /** Any convert in flight — lock bulk actions and per-row convert controls. */
+  const isQueueBusy =
+    convertingCount > 0 || Boolean(batchProgress);
+  /**
+   * Download All / ZIP only after every queue item has finished (done or error)
+   * and nothing is still converting — avoids extra load mid-batch.
+   */
+  const canBulkExport =
+    doneCount > 0 &&
+    pendingCount === 0 &&
+    convertingCount === 0 &&
+    !batchProgress;
 
   const allTargetFormats = (() => {
     const all = new Set<string>();
@@ -1300,7 +1314,7 @@ export function ConverterView() {
                 </span>
               </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
-                {pendingCount > 1 && (
+                {pendingCount > 1 && !isQueueBusy && (
                   <div className="flex items-center gap-1.5">
                     <FileStack className="w-3.5 h-3.5 text-violet-500" />
                     <Select onValueChange={applyUniversalFormat}>
@@ -1325,16 +1339,25 @@ export function ConverterView() {
                   size="sm"
                   className="hidden sm:inline-flex"
                   onClick={convertAll}
-                  disabled={pendingCount === 0 || Boolean(batchProgress)}
+                  disabled={pendingCount === 0 || isQueueBusy}
                 >
-                  <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                  {isQueueBusy ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                  )}
                   Convert All
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={downloadAll}
-                  disabled={doneCount === 0}
+                  disabled={!canBulkExport}
+                  title={
+                    canBulkExport
+                      ? "Download all converted files"
+                      : "Available when every file has finished converting"
+                  }
                 >
                   <Download className="w-3.5 h-3.5 mr-1" />
                   Download All
@@ -1343,6 +1366,7 @@ export function ConverterView() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
+                    if (!canBulkExport) return;
                     const doneFiles = files.filter(
                       (f) => f.status === "done" && f.result,
                     );
@@ -1372,7 +1396,12 @@ export function ConverterView() {
                       showToast("Failed to create ZIP", "error");
                     }
                   }}
-                  disabled={doneCount === 0}
+                  disabled={!canBulkExport}
+                  title={
+                    canBulkExport
+                      ? "Download all as ZIP"
+                      : "Available when every file has finished converting"
+                  }
                 >
                   <DownloadCloud className="w-3.5 h-3.5 mr-1" />
                   ZIP
@@ -1382,7 +1411,9 @@ export function ConverterView() {
                     variant="outline"
                     size="sm"
                     className="border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    disabled={isQueueBusy}
                     onClick={async () => {
+                      if (isQueueBusy) return;
                       const filesToMerge = files.filter(
                         (f) => getMergeSourceBlob(f) !== null,
                       );
@@ -1441,7 +1472,7 @@ export function ConverterView() {
                       ),
                     )
                   }
-                  disabled={doneCount + errorCount === 0}
+                  disabled={doneCount + errorCount === 0 || isQueueBusy}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" />
                   <span className="hidden sm:inline">Clear Done</span>
@@ -1451,7 +1482,13 @@ export function ConverterView() {
                   variant="ghost"
                   size="sm"
                   onClick={clearAll}
+                  disabled={isQueueBusy}
                   aria-label="Clear all files"
+                  title={
+                    isQueueBusy
+                      ? "Remove individual files with X while converting"
+                      : "Clear queue"
+                  }
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
@@ -1724,7 +1761,9 @@ export function ConverterView() {
                                   updateFile(item.id, { targetFormat: val });
                                 }
                               }}
-                              disabled={item.status === "converting"}
+                              disabled={
+                                item.status === "converting" || isQueueBusy
+                              }
                             >
                               <SelectTrigger className="w-[5.5rem] sm:w-24 h-8 text-xs">
                                 <SelectValue placeholder="Format" />
@@ -1772,9 +1811,9 @@ export function ConverterView() {
                             )}
                           </div>
 
-                          {/* Actions */}
+                          {/* Actions — while queue is busy, only Remove (X) stays active */}
                           <div className="flex items-center gap-1 shrink-0">
-                            {item.status === "pending" && (
+                            {item.status === "pending" && !isQueueBusy && (
                               <>
                                 {getCategoryFromExt(item.ext) === "image" && (
                                   <CollapsibleTrigger asChild>
@@ -1812,12 +1851,20 @@ export function ConverterView() {
                                 </Button>
                               </>
                             )}
-                            {item.status === "converting" && (
-                              <div className="w-8 h-8 flex items-center justify-center">
+                            {(item.status === "converting" ||
+                              (item.status === "pending" && isQueueBusy)) && (
+                              <div
+                                className="w-8 h-8 flex items-center justify-center"
+                                title={
+                                  item.status === "converting"
+                                    ? "Converting…"
+                                    : "Waiting in queue — remove with X to skip"
+                                }
+                              >
                                 <Clock className="w-4 h-4 text-sky-600" />
                               </div>
                             )}
-                            {item.status === "done" && (
+                            {item.status === "done" && !isQueueBusy && (
                               <>
                                 <Button
                                   variant="ghost"
@@ -1886,7 +1933,7 @@ export function ConverterView() {
                                 )}
                               </>
                             )}
-                            {item.status === "error" && (
+                            {item.status === "error" && !isQueueBusy && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1902,7 +1949,8 @@ export function ConverterView() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => removeFile(item.id)}
-                              title="Remove"
+                              title="Remove from queue"
+                              aria-label="Remove from queue"
                             >
                               <X className="w-4 h-4 text-muted-foreground" />
                             </Button>
@@ -2610,12 +2658,14 @@ export function ConverterView() {
           <Button
             className="w-full h-12 rounded-xl bg-emerald-500 text-base font-semibold hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
             onClick={convertAll}
-            disabled={Boolean(batchProgress)}
+            disabled={isQueueBusy}
           >
-            {batchProgress ? (
+            {isQueueBusy ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {batchProgress.current}/{batchProgress.total} converting…
+                {batchProgress
+                  ? `${batchProgress.current}/${batchProgress.total} converting…`
+                  : "Converting…"}
               </>
             ) : (
               <>
