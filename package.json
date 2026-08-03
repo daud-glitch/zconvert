@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "node scripts/ensure-ffmpeg.js && next build",
-    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && npx prisma generate && npx prisma db push && next build",
-    "start": "node scripts/ensure-ffmpeg.js && next start",
+    "build": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && next build",
+    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && npx prisma generate && npx prisma db push && next build",
+    "start": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && next start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,7 +19,8 @@
     "db:seed": "node prisma/seed.js",
     "db:reset": "prisma migrate reset",
     "ensure-ffmpeg": "node scripts/ensure-ffmpeg.js",
-    "worker": "node scripts/ensure-ffmpeg.js && npx tsx src/worker/convert-worker.ts"
+    "ensure-rar": "node scripts/ensure-rar.js",
+    "worker": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && npx tsx src/worker/convert-worker.ts"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",

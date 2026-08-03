@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -218,14 +219,25 @@ export async function convertViaCalibre(
 export async function createRarWithToolchain(
   files: ArchiveEntry[],
 ): Promise<Buffer | null> {
-  // Allow RAR_BIN even when EXTERNAL_TOOLCHAIN_ENABLED=0 (RAR is optional/free CLI)
-  if (
-    process.env.EXTERNAL_TOOLCHAIN_ENABLED === "0" &&
-    !process.env.RAR_BIN?.trim()
-  ) {
+  if (process.env.DISABLE_RAR === "1" || process.env.DISABLE_RAR === "true") {
     return null;
   }
   if (!files.length) return null;
+
+  // Lazily ensure vendor rar on long-running dynos (Heroku start already runs ensure-rar)
+  try {
+    const vendorRar = path.join(
+      process.cwd(),
+      "vendor",
+      "rar",
+      process.platform === "win32" ? "Rar.exe" : "rar",
+    );
+    if (!existsSync(vendorRar) && process.platform === "linux") {
+      console.warn("[rar] vendor rar missing — run: npm run ensure-rar");
+    }
+  } catch {
+    // ignore
+  }
 
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-rar-"));
   const inDir = path.join(tmp, "in");
@@ -247,10 +259,10 @@ export async function createRarWithToolchain(
   }
 
   try {
-    // WinRAR/rar: `rar a archive.rar *` from the content directory
+    // rar/WinRAR: add recursively, strip base path (ep1), non-interactive
     const done = await runFirstAvailable(
       getRarCandidates(),
-      ["a", "-r", "-ep1", outPath, "."],
+      ["a", "-r", "-ep1", "-idq", "-y", outPath, "."],
       { cwd: inDir, timeoutMs: TOOLCHAIN_TIMEOUT_MS },
     );
     if (!done) return null;
@@ -266,3 +278,5 @@ export async function createRarWithToolchain(
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+
