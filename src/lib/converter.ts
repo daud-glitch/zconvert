@@ -934,6 +934,70 @@ function wrapHtml(content: string, title: string = "Document"): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1a1a1a;}h1,h2,h3{margin-top:1.5em;}code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:0.9em;}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px 12px;text-align:left;}th{background:#f8f8f8;}</style></head><body>${content}</body></html>`;
 }
 
+/**
+ * Microsoft Word can open “Word HTML” saved as .doc without LibreOffice.
+ * Used when soffice is not installed (e.g. typical Heroku dyno).
+ */
+function htmlAsMicrosoftWordDoc(htmlOrBody: string, title = "Document"): Buffer {
+  let body = htmlOrBody;
+  const fullDoc = /<html[\s>]/i.test(htmlOrBody);
+  if (fullDoc) {
+    const bodyMatch = htmlOrBody.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (bodyMatch) body = bodyMatch[1];
+  }
+  // Strip scripts; keep markup Word understands
+  body = body.replace(/<script[\s\S]*?<\/script>/gi, "");
+
+  const safeTitle = title
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+  const wordDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:w="urn:schemas-microsoft-com:office:word"
+ xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Cloud Converter">
+<title>${safeTitle}</title>
+<!--[if gte mso 9]><xml>
+ <w:WordDocument>
+  <w:View>Print</w:View>
+  <w:Zoom>100</w:Zoom>
+  <w:DoNotOptimizeForBrowser/>
+ </w:WordDocument>
+</xml><![endif]-->
+<style>
+<!--
+ /* Font Definitions */
+ @page Section1 { size: 595.3pt 841.9pt; margin: 72.0pt; }
+ div.Section1 { page: Section1; }
+ body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
+ h1 { font-size: 20pt; }
+ h2 { font-size: 16pt; }
+ h3 { font-size: 14pt; }
+ pre, code { font-family: Consolas, 'Courier New', monospace; }
+ table { border-collapse: collapse; }
+ td, th { border: 1px solid #999; padding: 4pt 6pt; }
+-->
+</style>
+</head>
+<body lang="EN-US">
+<div class="Section1">
+${body}
+</div>
+</body>
+</html>`;
+
+  // UTF-8 BOM helps Word detect encoding for non-ASCII content
+  return Buffer.concat([
+    Buffer.from([0xef, 0xbb, 0xbf]),
+    Buffer.from(wordDoc, "utf-8"),
+  ]);
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, "")
@@ -1905,15 +1969,31 @@ async function convertDocument(
   }
 
   if (dest === "doc") {
-    const docxBuffer = await convertDocument(input, inputExt, "docx");
-    const viaLibreOffice = await convertViaLibreOffice(
-      docxBuffer,
-      "docx",
-      "doc",
-      "MS Word 97",
-    );
-    if (viaLibreOffice) return viaLibreOffice;
-    throw new Error(libreOfficeUnavailableMessage());
+    // Prefer true binary DOC via LibreOffice when available.
+    try {
+      const docxBuffer = await convertDocument(input, inputExt, "docx");
+      const viaLibreOffice = await convertViaLibreOffice(
+        docxBuffer,
+        "docx",
+        "doc",
+        "MS Word 97",
+      );
+      if (viaLibreOffice) return viaLibreOffice;
+    } catch (err) {
+      console.warn(
+        "[convertDocument] LibreOffice/DOCX path for .doc failed, using Word-HTML fallback:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+
+    // Fallback without soffice: Word-compatible HTML saved as .doc (opens in Word / LibreOffice / Google Docs).
+    try {
+      const htmlBuffer = await convertDocument(input, inputExt, "html");
+      return htmlAsMicrosoftWordDoc(htmlBuffer.toString("utf-8"), "Document");
+    } catch (err) {
+      console.error("[convertDocument] Word-HTML .doc fallback failed:", err);
+      throw new Error(libreOfficeUnavailableMessage());
+    }
   }
 
   // Extract text from binary document formats first
