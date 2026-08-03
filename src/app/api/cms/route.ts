@@ -57,7 +57,12 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    return NextResponse.json({ features, links, ads });
+    const res = NextResponse.json({ features, links, ads });
+    res.headers.set(
+      "Cache-Control",
+      "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
+    );
+    return res;
   } catch (error) {
     console.error("[api/cms]", error);
     return NextResponse.json({

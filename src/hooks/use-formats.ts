@@ -5,15 +5,50 @@ import { type FormatsData } from "@/lib/app-types";
 import { readJsonResponse } from "@/lib/http-json";
 
 export const FORMATS_CHANNEL = "zconvert-formats";
-const POLL_MS = 8_000;
+/** Poll for admin updates less often — saves bandwidth under traffic. */
+const POLL_MS = 60_000;
+const STORAGE_KEY = "zconvert-formats-cache-v1";
+const STORAGE_TTL_MS = 10 * 60_000; // 10 min soft cache
 
 export type FormatsInvalidateMessage = {
   type: "invalidate";
   version?: string;
 };
 
+type StoredFormats = {
+  savedAt: number;
+  data: FormatsData;
+};
+
+function readStoredFormats(): FormatsData | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredFormats;
+    if (!parsed?.data?.grouped) return null;
+    if (Date.now() - parsed.savedAt > STORAGE_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredFormats(data: FormatsData) {
+  try {
+    const payload: StoredFormats = { savedAt: Date.now(), data };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // quota / private mode
+  }
+}
+
 /** Notify other tabs/views that the formats catalog changed. */
 export function notifyFormatsChanged(version?: string) {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
   try {
     const bc = new BroadcastChannel(FORMATS_CHANNEL);
     const msg: FormatsInvalidateMessage = { type: "invalidate", version };
@@ -32,8 +67,7 @@ export function notifyFormatsChanged(version?: string) {
 }
 
 /**
- * Live formats catalog: loads `/api/formats`, polls for version changes,
- * and reacts to same-browser admin updates via BroadcastChannel.
+ * Formats catalog: session cache + intermittent poll (not every few seconds).
  */
 export function useFormats(options: { pollMs?: number; enabled?: boolean } = {}) {
   const { pollMs = POLL_MS, enabled = true } = options;
@@ -46,13 +80,14 @@ export function useFormats(options: { pollMs?: number; enabled?: boolean } = {})
     versionRef.current = next.version;
     setData(next);
     setError(null);
+    writeStoredFormats(next);
   }, []);
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
       if (!opts.silent) setLoading(true);
       try {
-        const res = await fetch("/api/formats", { cache: "no-store" });
+        const res = await fetch("/api/formats");
         const json = await readJsonResponse<FormatsData & { error?: string }>(
           res,
         );
@@ -71,18 +106,27 @@ export function useFormats(options: { pollMs?: number; enabled?: boolean } = {})
     [applyData],
   );
 
+  // Hydration-safe: paint from sessionStorage then refresh
   useEffect(() => {
     if (!enabled) return;
-    void load();
+    const cached = readStoredFormats();
+    if (cached) {
+      versionRef.current = cached.version;
+      setData(cached);
+      setLoading(false);
+      void load({ silent: true });
+    } else {
+      void load();
+    }
   }, [enabled, load]);
 
-  // Poll for version changes (admin ↔ public sync)
+  // Slow poll for version changes (admin ↔ public)
   useEffect(() => {
     if (!enabled || pollMs <= 0) return;
     const id = window.setInterval(() => {
       void (async () => {
         try {
-          const res = await fetch("/api/formats", { cache: "no-store" });
+          const res = await fetch("/api/formats");
           const json = await readJsonResponse<FormatsData & { error?: string }>(
             res,
           );
@@ -103,6 +147,11 @@ export function useFormats(options: { pollMs?: number; enabled?: boolean } = {})
     if (!enabled) return;
 
     const onMessage = () => {
+      try {
+        sessionStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
       void load({ silent: true });
     };
 

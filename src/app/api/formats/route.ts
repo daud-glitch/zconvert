@@ -151,7 +151,11 @@ export async function GET(request: NextRequest) {
       version,
     });
     res.headers.set("X-Formats-Version", version);
-    res.headers.set("Cache-Control", "no-store");
+    // Browser + CDN: short cache; admin edits still propagate via poll / invalidate
+    res.headers.set(
+      "Cache-Control",
+      "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
+    );
     return withRateLimit(res, rl);
   } catch (error) {
     const message =

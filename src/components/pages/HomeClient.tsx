@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
 import {
   RefreshCw,
   X,
@@ -17,6 +18,7 @@ import {
   Globe,
   Shield,
   Zap,
+  Loader2,
 } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -30,22 +32,63 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type ViewType } from "@/lib/formats";
 import { navItems } from "@/lib/app-constants";
-import { ConverterView } from "@/components/converter/ConverterView";
-import { FormatsView } from "@/components/formats/FormatsView";
-import { HistoryView } from "@/components/history/HistoryView";
-import { BookmarksView } from "@/components/bookmarks/BookmarksView";
-import { ProfileView } from "@/components/profile/ProfileView";
-import { AdminView } from "@/components/admin/AdminView";
 import { useApp } from "@/lib/app-context";
-import { AuthDialog } from "@/components/auth/AuthDialog";
-import { CmsAdSlot } from "@/components/cms/CmsAdSlot";
-import { CmsFeatureCards } from "@/components/cms/CmsFeatureCards";
 import {
   useCmsBundle,
   linksByGroup,
   adsByLocation,
 } from "@/hooks/use-cms";
 import Link from "next/link";
+
+/** Lazy page chunks — only the active view’s JS loads. */
+function ViewFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
+      <Loader2 className="h-7 w-7 animate-spin text-emerald-500" aria-hidden />
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
+}
+
+const ConverterView = dynamic(
+  () =>
+    import("@/components/converter/ConverterView").then((m) => m.ConverterView),
+  { loading: () => <ViewFallback /> },
+);
+const FormatsView = dynamic(
+  () => import("@/components/formats/FormatsView").then((m) => m.FormatsView),
+  { loading: () => <ViewFallback /> },
+);
+const HistoryView = dynamic(
+  () => import("@/components/history/HistoryView").then((m) => m.HistoryView),
+  { loading: () => <ViewFallback /> },
+);
+const BookmarksView = dynamic(
+  () =>
+    import("@/components/bookmarks/BookmarksView").then((m) => m.BookmarksView),
+  { loading: () => <ViewFallback /> },
+);
+const ProfileView = dynamic(
+  () => import("@/components/profile/ProfileView").then((m) => m.ProfileView),
+  { loading: () => <ViewFallback /> },
+);
+const AdminView = dynamic(
+  () => import("@/components/admin/AdminView").then((m) => m.AdminView),
+  { loading: () => <ViewFallback /> },
+);
+const AuthDialog = dynamic(
+  () => import("@/components/auth/AuthDialog").then((m) => m.AuthDialog),
+  { ssr: false },
+);
+const CmsAdSlot = dynamic(
+  () => import("@/components/cms/CmsAdSlot").then((m) => m.CmsAdSlot),
+  { loading: () => null },
+);
+const CmsFeatureCards = dynamic(
+  () =>
+    import("@/components/cms/CmsFeatureCards").then((m) => m.CmsFeatureCards),
+  { loading: () => null },
+);
 
 export default function HomeClient({ defaultView }: { defaultView?: ViewType }) {
   const {
@@ -329,11 +372,31 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             </div>
           )}
           {currentView === "converter" && <ConverterView />}
-          {currentView === "formats" && <FormatsView />}
-          {currentView === "history" && <HistoryView />}
-          {currentView === "bookmarks" && <BookmarksView />}
-          {currentView === "profile" && <ProfileView />}
-          {currentView === "admin" && <AdminView />}
+          {currentView === "formats" && (
+            <Suspense fallback={<ViewFallback />}>
+              <FormatsView />
+            </Suspense>
+          )}
+          {currentView === "history" && (
+            <Suspense fallback={<ViewFallback />}>
+              <HistoryView />
+            </Suspense>
+          )}
+          {currentView === "bookmarks" && (
+            <Suspense fallback={<ViewFallback />}>
+              <BookmarksView />
+            </Suspense>
+          )}
+          {currentView === "profile" && (
+            <Suspense fallback={<ViewFallback />}>
+              <ProfileView />
+            </Suspense>
+          )}
+          {currentView === "admin" && (
+            <Suspense fallback={<ViewFallback />}>
+              <AdminView />
+            </Suspense>
+          )}
           {currentView === "converter" && (
             <CmsFeatureCards features={features} />
           )}

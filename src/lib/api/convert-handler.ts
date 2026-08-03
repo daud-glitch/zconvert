@@ -24,6 +24,11 @@ import {
   markMediaJobDone,
   markMediaJobError,
 } from "@/lib/media-job";
+import {
+  ConvertQueueFullError,
+  convertQueueDepth,
+  withConvertSlot,
+} from "@/lib/convert-queue";
 
 function corsOrigin(): string {
   return process.env.ALLOWED_ORIGIN?.trim() || "*";
@@ -203,6 +208,9 @@ export async function handleConvertPost(
 
     // Video → video re-encode is slow; Heroku HTTP kills long sync requests (H12).
     // Run async job so the browser can poll without holding the request open.
+    const isVideoJob =
+      sourceFormatInfo.category === "video" ||
+      targetFormatInfo.category === "video";
     const isVideoToVideo =
       sourceFormatInfo.category === "video" &&
       targetFormatInfo.category === "video";
@@ -217,29 +225,32 @@ export async function handleConvertPost(
       const userId = sessionUser?.id ?? null;
 
       // Detach conversion from the HTTP request (single dyno keeps job in memory).
+      // Still honor video concurrency slot so multiple videos don't melt the dyno.
       void (async () => {
         try {
-          const out = await runConvert(
-            buffer,
-            sourceExt,
-            target,
-            quality,
-            width,
-            height,
-          );
-          const conversionId = await logConversion({
-            userId,
-            fileName,
-            originalExt: sourceExt,
-            targetExt: target,
-            category,
-            inputSize: buffer.length,
-            outputSize: out.buffer.length,
-            status: "done",
-            duration: Date.now() - startTime,
-            ipAddress: ipAddr,
+          await withConvertSlot(true, async () => {
+            const out = await runConvert(
+              buffer,
+              sourceExt,
+              target,
+              quality,
+              width,
+              height,
+            );
+            const conversionId = await logConversion({
+              userId,
+              fileName,
+              originalExt: sourceExt,
+              targetExt: target,
+              category,
+              inputSize: buffer.length,
+              outputSize: out.buffer.length,
+              status: "done",
+              duration: Date.now() - startTime,
+              ipAddress: ipAddr,
+            });
+            await markMediaJobDone(jobId, out.buffer, conversionId);
           });
-          await markMediaJobDone(jobId, out.buffer, conversionId);
         } catch (convertError) {
           const errorMessage =
             convertError instanceof Error
@@ -262,13 +273,17 @@ export async function handleConvertPost(
         }
       })();
 
+      const depth = convertQueueDepth();
       return withRateLimit(
         NextResponse.json(
           {
             jobId,
             status: "processing",
+            queueWaiting: depth.waiting,
             message:
-              "Video encode started. This may take a few minutes — keep this tab open.",
+              depth.waiting > 0
+                ? `Video encode queued (about #${depth.waiting} waiting). Keep this tab open.`
+                : "Video encode started. This may take a few minutes — keep this tab open.",
           },
           {
             status: 202,
@@ -286,20 +301,24 @@ export async function handleConvertPost(
     let pdfZipMeta: { pageCount: number } | undefined;
 
     try {
-      if (sourceExt === "pdf" && isPdfRasterTarget(target)) {
-        const { convertPdfToRasterOutput } = await import("@/lib/pdf-utils");
-        const baseName = fileName.replace(/\.pdf$/i, "");
-        const pdfOut = await convertPdfToRasterOutput(
-          buffer,
-          target,
-          quality,
-          baseName,
-        );
-        result = pdfOut.data;
-        if (pdfOut.type === "zip") {
-          pdfZipMeta = { pageCount: pdfOut.pageCount };
+      const runBody = async () => {
+        if (sourceExt === "pdf" && isPdfRasterTarget(target)) {
+          const { convertPdfToRasterOutput } = await import("@/lib/pdf-utils");
+          const baseName = fileName.replace(/\.pdf$/i, "");
+          const pdfOut = await convertPdfToRasterOutput(
+            buffer,
+            target,
+            quality,
+            baseName,
+          );
+          return {
+            result: pdfOut.data,
+            pdfZipMeta:
+              pdfOut.type === "zip"
+                ? { pageCount: pdfOut.pageCount }
+                : undefined,
+          };
         }
-      } else {
         const out = await runConvert(
           buffer,
           sourceExt,
@@ -308,10 +327,32 @@ export async function handleConvertPost(
           width,
           height,
         );
-        result = out.buffer;
-        pdfZipMeta = out.pdfZipMeta;
-      }
+        return { result: out.buffer, pdfZipMeta: out.pdfZipMeta };
+      };
+
+      const ran = await withConvertSlot(isVideoJob, runBody);
+      result = ran.result;
+      pdfZipMeta = ran.pdfZipMeta;
     } catch (convertError) {
+      if (convertError instanceof ConvertQueueFullError) {
+        return withRateLimit(
+          NextResponse.json(
+            {
+              error: convertError.message,
+              queuePosition: convertError.position,
+            },
+            {
+              status: 503,
+              headers: {
+                "Retry-After": "15",
+                "Access-Control-Allow-Origin": corsOrigin(),
+                "Cache-Control": "no-store",
+              },
+            },
+          ),
+          rl,
+        );
+      }
       const errorMessage =
         convertError instanceof Error
           ? convertError.message
