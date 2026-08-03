@@ -119,6 +119,23 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
     setCurrentView(defaultView || "converter");
   }, [defaultView, setCurrentView]);
 
+  // Warm formats catalog after first paint (idle) — converter needs it on file pick
+  useEffect(() => {
+    const warm = () => {
+      void fetch("/api/formats").catch(() => {});
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(warm, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = globalThis.setTimeout(warm, 400);
+    return () => globalThis.clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem("theme");
     let next = false;

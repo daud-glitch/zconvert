@@ -18,7 +18,9 @@ export interface FileItem {
   outputSize?: number;
   /** 0–100 upload/convert progress (upload while pending, convert while converting) */
   progress?: number;
-  progressPhase?: "reading" | "uploading" | "converting";
+  progressPhase?: "reading" | "uploading" | "converting" | "queued";
+  /** Shown while waiting in server convert line */
+  queueMessage?: string;
   /** Server staging session from auto-upload; convert uses X-Upload-Id */
   uploadId?: string;
   /** True while auto-upload (staging) is in progress */

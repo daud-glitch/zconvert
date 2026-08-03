@@ -7,12 +7,18 @@ const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
 const CHUNK_RETRIES = 4;
 const JOB_POLL_MS = 2000;
 const JOB_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min cap for long video encodes
+/** How many times to wait+retry when server convert queue is full (503). */
+const QUEUE_RETRIES = 3;
+const QUEUE_RETRY_MS = 12_000;
 
 export type UploadProgress = {
   percent: number;
-  phase: "reading" | "uploading" | "converting";
+  phase: "reading" | "uploading" | "converting" | "queued";
   loadedBytes: number;
   totalBytes: number;
+  /** 1-based estimated place in server queue when phase is queued */
+  queuePosition?: number;
+  queueMessage?: string;
 };
 
 function sleep(ms: number) {
@@ -70,18 +76,24 @@ async function waitForConvertJob(
   jobId: string,
   onProgress?: (p: UploadProgress) => void,
   totalBytes = 1,
+  initialQueueWaiting = 0,
 ): Promise<Response> {
   const started = Date.now();
   let tick = 0;
   while (Date.now() - started < JOB_MAX_WAIT_MS) {
     tick += 1;
-    // Pulse progress so UI stays in "converting" state with movement
     const pulse = Math.min(99, 70 + (tick % 25));
     onProgress?.({
       percent: pulse,
-      phase: "converting",
+      phase: initialQueueWaiting > 0 && tick < 3 ? "queued" : "converting",
       loadedBytes: totalBytes,
       totalBytes,
+      queuePosition:
+        initialQueueWaiting > 0 ? initialQueueWaiting : undefined,
+      queueMessage:
+        initialQueueWaiting > 0
+          ? `In line for encode (about #${initialQueueWaiting})…`
+          : undefined,
     });
 
     const st = await fetch(
@@ -134,22 +146,74 @@ async function waitForConvertJob(
 }
 
 /**
- * After convert POST, follow async job if server returned 202.
+ * POST convert; on 503 queue-full wait and retry a few times.
+ * Follows 202 async video jobs.
  */
-async function finalizeConvertResponse(
-  res: Response,
-  onProgress?: (p: UploadProgress) => void,
-  totalBytes = 1,
+async function postConvertWithQueue(
+  url: string,
+  init: RequestInit,
+  onProgress: ((p: UploadProgress) => void) | undefined,
+  totalBytes: number,
 ): Promise<Response> {
-  if (res.status !== 202) return res;
-  const data = (await res.json().catch(() => ({}))) as {
-    jobId?: string;
-    error?: string;
-  };
-  if (!data.jobId) {
-    throw new Error(data.error || "Video job did not start");
+  let lastMessage =
+    "Server is busy converting other files. Wait a moment and try again.";
+
+  for (let attempt = 0; attempt <= QUEUE_RETRIES; attempt++) {
+    const res = await fetch(url, { ...init, cache: "no-store" });
+
+    if (res.status === 503) {
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        queuePosition?: number;
+      };
+      const position =
+        typeof data.queuePosition === "number" ? data.queuePosition : attempt + 1;
+      lastMessage =
+        data.error ||
+        `Server busy — you are about #${position} in line. Retrying…`;
+      onProgress?.({
+        percent: 88,
+        phase: "queued",
+        loadedBytes: totalBytes,
+        totalBytes,
+        queuePosition: position,
+        queueMessage: lastMessage,
+      });
+      if (attempt >= QUEUE_RETRIES) {
+        throw new Error(lastMessage);
+      }
+      await sleep(QUEUE_RETRY_MS);
+      continue;
+    }
+
+    if (res.status === 202) {
+      const data = (await res.json().catch(() => ({}))) as {
+        jobId?: string;
+        error?: string;
+        queueWaiting?: number;
+        message?: string;
+      };
+      if (!data.jobId) {
+        throw new Error(data.error || "Video job did not start");
+      }
+      const waiting = data.queueWaiting ?? 0;
+      if (waiting > 0 || data.message) {
+        onProgress?.({
+          percent: 72,
+          phase: waiting > 0 ? "queued" : "converting",
+          loadedBytes: totalBytes,
+          totalBytes,
+          queuePosition: waiting > 0 ? waiting : undefined,
+          queueMessage: data.message,
+        });
+      }
+      return waitForConvertJob(data.jobId, onProgress, totalBytes, waiting);
+    }
+
+    return res;
   }
-  return waitForConvertJob(data.jobId, onProgress, totalBytes);
+
+  throw new Error(lastMessage);
 }
 
 function newUploadId(): string {
@@ -284,17 +348,20 @@ export async function uploadAndConvert(options: {
       loadedBytes: file.size,
       totalBytes: file.size,
     });
-    const res = await fetch(convertUrl, {
-      method: "POST",
-      headers: {
-        ...convertHeaders,
-        "Content-Type": file.type || "application/octet-stream",
-        "X-Upload-Id": stagedUploadId,
+    return postConvertWithQueue(
+      convertUrl,
+      {
+        method: "POST",
+        headers: {
+          ...convertHeaders,
+          "Content-Type": file.type || "application/octet-stream",
+          "X-Upload-Id": stagedUploadId,
+        },
+        body: new Uint8Array(0),
       },
-      body: new Uint8Array(0),
-      cache: "no-store",
-    });
-    return finalizeConvertResponse(res, onProgress, file.size);
+      onProgress,
+      file.size,
+    );
   }
 
   if (file.size <= SINGLE_SHOT_MAX) {
@@ -320,16 +387,19 @@ export async function uploadAndConvert(options: {
       loadedBytes: file.size,
       totalBytes: file.size,
     });
-    const res = await fetch(convertUrl, {
-      method: "POST",
-      headers: {
-        ...convertHeaders,
-        "Content-Type": file.type || "application/octet-stream",
+    return postConvertWithQueue(
+      convertUrl,
+      {
+        method: "POST",
+        headers: {
+          ...convertHeaders,
+          "Content-Type": file.type || "application/octet-stream",
+        },
+        body: fileBytes,
       },
-      body: fileBytes,
-      cache: "no-store",
-    });
-    return finalizeConvertResponse(res, onProgress, file.size);
+      onProgress,
+      file.size,
+    );
   }
 
   const uploadId = newUploadId();
@@ -379,15 +449,18 @@ export async function uploadAndConvert(options: {
     totalBytes: file.size,
   });
 
-  const res = await fetch(convertUrl, {
-    method: "POST",
-    headers: {
-      ...convertHeaders,
-      "Content-Type": file.type || "application/octet-stream",
-      "X-Upload-Id": uploadId,
+  return postConvertWithQueue(
+    convertUrl,
+    {
+      method: "POST",
+      headers: {
+        ...convertHeaders,
+        "Content-Type": file.type || "application/octet-stream",
+        "X-Upload-Id": uploadId,
+      },
+      body: new Uint8Array(0),
     },
-    body: new Uint8Array(0),
-    cache: "no-store",
-  });
-  return finalizeConvertResponse(res, onProgress, file.size);
+    onProgress,
+    file.size,
+  );
 }

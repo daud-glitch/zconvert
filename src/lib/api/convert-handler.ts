@@ -29,6 +29,12 @@ import {
   convertQueueDepth,
   withConvertSlot,
 } from "@/lib/convert-queue";
+import {
+  canEnqueueConvertJob,
+  countQueuedConvertJobs,
+  enqueueConvertJob,
+  isConvertWorkerEnabled,
+} from "@/lib/convert-job-store";
 
 function corsOrigin(): string {
   return process.env.ALLOWED_ORIGIN?.trim() || "*";
@@ -206,8 +212,6 @@ export async function handleConvertPost(
     const sessionUser = await getSessionUser(request);
     const category = sourceFormatInfo.category;
 
-    // Video → video re-encode is slow; Heroku HTTP kills long sync requests (H12).
-    // Run async job so the browser can poll without holding the request open.
     const isVideoJob =
       sourceFormatInfo.category === "video" ||
       targetFormatInfo.category === "video";
@@ -215,17 +219,64 @@ export async function handleConvertPost(
       sourceFormatInfo.category === "video" &&
       targetFormatInfo.category === "video";
 
+    const ipAddr = ip === "unknown" ? null : ip;
+    const userId = sessionUser?.id ?? null;
+    const outFileName = `${fileName.replace(/\.[^/.]+$/, "") || "file"}.${target}`;
+
+    // Prefer Postgres-backed worker dyno (does not block web CPU).
+    // Only files ≤ CONVERT_JOB_MAX_MB (default 20MB) fit inline in DB.
+    if (canEnqueueConvertJob(buffer.length)) {
+      const enqueued = await enqueueConvertJob({
+        buffer,
+        isVideo: isVideoJob,
+        fileName: outFileName,
+        contentType: getMimeType(target),
+        sourceExt,
+        targetExt: target,
+        quality,
+        width,
+        height,
+        category,
+        userId,
+        ipAddress: ipAddr,
+      });
+      if (enqueued) {
+        const waiting = await countQueuedConvertJobs().catch(() => 0);
+        return withRateLimit(
+          NextResponse.json(
+            {
+              jobId: enqueued.id,
+              status: "processing",
+              queueWaiting: Math.max(0, waiting - 1),
+              message:
+                waiting > 1
+                  ? `Queued on convert worker (about #${waiting} in line). Keep this tab open.`
+                  : isVideoJob
+                    ? "Queued on convert worker. Video may take a few minutes — keep this tab open."
+                    : "Queued on convert worker. Keep this tab open.",
+            },
+            {
+              status: 202,
+              headers: {
+                "Access-Control-Allow-Origin": corsOrigin(),
+                "Cache-Control": "no-store",
+              },
+            },
+          ),
+          rl,
+        );
+      }
+    }
+
+    // Fallback: long video encodes async on THIS dyno (memory job) when worker
+    // is off or file is too large for the DB job queue.
     if (isVideoToVideo) {
       const job = await createMediaJob({
-        fileName: `${fileName.replace(/\.[^/.]+$/, "") || "video"}.${target}`,
+        fileName: outFileName,
         contentType: getMimeType(target),
       });
       const jobId = job.id;
-      const ipAddr = ip === "unknown" ? null : ip;
-      const userId = sessionUser?.id ?? null;
 
-      // Detach conversion from the HTTP request (single dyno keeps job in memory).
-      // Still honor video concurrency slot so multiple videos don't melt the dyno.
       void (async () => {
         try {
           await withConvertSlot(true, async () => {
@@ -274,6 +325,10 @@ export async function handleConvertPost(
       })();
 
       const depth = convertQueueDepth();
+      const extra =
+        isConvertWorkerEnabled() && buffer.length > 0
+          ? " (file larger than worker DB limit — encoding on web dyno)"
+          : "";
       return withRateLimit(
         NextResponse.json(
           {
@@ -282,8 +337,8 @@ export async function handleConvertPost(
             queueWaiting: depth.waiting,
             message:
               depth.waiting > 0
-                ? `Video encode queued (about #${depth.waiting} waiting). Keep this tab open.`
-                : "Video encode started. This may take a few minutes — keep this tab open.",
+                ? `Video encode queued (about #${depth.waiting} waiting). Keep this tab open.${extra}`
+                : `Video encode started. This may take a few minutes — keep this tab open.${extra}`,
           },
           {
             status: 202,

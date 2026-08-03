@@ -157,6 +157,14 @@ export function humanizeConversionError(message: string): string {
     return "Too many conversions right now. Wait a minute and try again.";
   }
   if (
+    lower.includes("busy converting") ||
+    lower.includes("in line") ||
+    lower.includes("queue") ||
+    lower.includes("about #")
+  ) {
+    return msg.length > 180 ? msg.slice(0, 180) : msg;
+  }
+  if (
     lower.includes("timed out") ||
     lower.includes("timeout") ||
     lower.includes("deadline") ||

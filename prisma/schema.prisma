@@ -261,3 +261,38 @@ model DailyStats {
 
   @@unique([date])
 }
+
+// ─── Convert job queue (web ↔ worker dyno via Postgres) ───────────────────────
+
+/**
+ * Async convert jobs shared between web and worker processes.
+ * Input/output stored as BYTEA (capped by CONVERT_JOB_MAX_MB, default ~20MB).
+ * Larger files stay on the web dyno (in-process / memory jobs).
+ */
+model ConvertJob {
+  id           String    @id
+  status       String // queued | processing | done | error
+  isVideo      Boolean   @default(false)
+  fileName     String
+  contentType  String    @default("application/octet-stream")
+  sourceExt    String
+  targetExt    String
+  quality      Int       @default(85)
+  width        Int?
+  height       Int?
+  category     String?
+  userId       String?
+  ipAddress    String?
+  inputData    Bytes?
+  outputData   Bytes?
+  error        String?
+  conversionId String?
+  createdAt    DateTime  @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  expiresAt    DateTime
+
+  @@index([status, createdAt])
+  @@index([status, isVideo, createdAt])
+  @@index([expiresAt])
+}

@@ -663,6 +663,7 @@ export function ConverterView() {
       progress: stagedUploadId ? 90 : 0,
       progressPhase: stagedUploadId ? "converting" : "uploading",
       error: undefined,
+      queueMessage: undefined,
       // Staging is consumed by convert; clear local flag immediately
       uploading: false,
       uploadId: undefined,
@@ -684,6 +685,7 @@ export function ConverterView() {
           updateFile(item.id, {
             progress: p.percent,
             progressPhase: p.phase,
+            queueMessage: p.queueMessage,
           });
         },
       });
@@ -1563,14 +1565,19 @@ export function ConverterView() {
                                 <span className="text-sky-600 dark:text-sky-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
                                   <span className="flex items-center gap-1">
                                     <Clock className="w-3 h-3 animate-spin" />
-                                    {item.progressPhase === "converting"
-                                      ? isVideoItem(item.ext, item.targetFormat)
-                                        ? "Encoding video… (may take a few minutes)"
-                                        : "Converting…"
-                                      : item.progressPhase === "reading"
-                                        ? "Reading file…"
-                                        : "Uploading…"}
-                                    {typeof item.progress === "number"
+                                    {item.progressPhase === "queued"
+                                      ? item.queueMessage
+                                        ? item.queueMessage.slice(0, 80)
+                                        : "In line… waiting for a free slot"
+                                      : item.progressPhase === "converting"
+                                        ? isVideoItem(item.ext, item.targetFormat)
+                                          ? "Encoding video… (may take a few minutes)"
+                                          : "Converting…"
+                                        : item.progressPhase === "reading"
+                                          ? "Reading file…"
+                                          : "Uploading…"}
+                                    {typeof item.progress === "number" &&
+                                    item.progressPhase !== "queued"
                                       ? ` ${item.progress}%`
                                       : ""}
                                   </span>
@@ -1582,7 +1589,11 @@ export function ConverterView() {
                                     aria-valuemax={100}
                                   >
                                     <span
-                                      className="block h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                                      className={`block h-full rounded-full transition-[width] duration-300 ${
+                                        item.progressPhase === "queued"
+                                          ? "bg-amber-500"
+                                          : "bg-sky-500"
+                                      }`}
                                       style={{
                                         width: `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
                                       }}
@@ -1591,6 +1602,10 @@ export function ConverterView() {
                                   {item.progressPhase === "uploading" ? (
                                     <span className="text-[10px] text-muted-foreground font-normal">
                                       Conversion starts after upload completes
+                                    </span>
+                                  ) : item.progressPhase === "queued" ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Busy server — auto-retry. Keep this tab open.
                                     </span>
                                   ) : item.progressPhase === "converting" &&
                                     isVideoItem(item.ext, item.targetFormat) ? (

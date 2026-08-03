@@ -7,9 +7,13 @@ const globalForPrisma = globalThis as unknown as {
 function withConnectionLimit(databaseUrl: string): string {
   try {
     const u = new URL(databaseUrl);
-    // Keep Heroku Postgres within free-tier connection room (one web dyno).
+    // Keep Heroku Postgres within free-tier connection room (web + worker).
+    const defaultLimit = process.env.DYNO?.startsWith("worker") ? "2" : "3";
     if (!u.searchParams.has("connection_limit")) {
-      u.searchParams.set("connection_limit", "3");
+      u.searchParams.set(
+        "connection_limit",
+        process.env.PRISMA_CONNECTION_LIMIT || defaultLimit,
+      );
     }
     if (!u.searchParams.has("pool_timeout")) {
       u.searchParams.set("pool_timeout", "20");
