@@ -378,12 +378,37 @@ export async function extractWith7zip(
 ): Promise<ArchiveEntry[]> {
   const { unpack } = await import("7zip-min");
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-7z-"));
-  const inPath = path.join(tmp, `archive.${ext}`);
+  // Always use a real archive extension so 7za auto-detects correctly
+  const safeExt = (ext || "bin").toLowerCase().replace(/^\./, "") || "bin";
+  const inPath = path.join(tmp, `archive.${safeExt}`);
   const outDir = path.join(tmp, "out");
   try {
     await fs.mkdir(outDir, { recursive: true });
     await fs.writeFile(inPath, input);
-    await unpack(inPath, outDir);
+    try {
+      await unpack(inPath, outDir);
+    } catch (err) {
+      // RAR sometimes rejects when path uses alternate extensions; retry as .rar
+      if (safeExt !== "rar" && looksLikeRarMagic(input)) {
+        const rarPath = path.join(tmp, "archive.rar");
+        await fs.writeFile(rarPath, input);
+        try {
+          await unpack(rarPath, outDir);
+        } catch (retryErr) {
+          throw new Error(
+            `Could not extract archive (.${safeExt}): ${
+              retryErr instanceof Error ? retryErr.message : String(err)
+            }`,
+          );
+        }
+      } else {
+        throw new Error(
+          `Could not extract .${safeExt.toUpperCase()} archive: ${
+            err instanceof Error ? err.message : "unknown error"
+          }. The file may be corrupt, password-protected, or an unsupported RAR/7z variant.`,
+        );
+      }
+    }
     const files: ArchiveEntry[] = [];
     async function walk(dir: string, prefix = ""): Promise<void> {
       const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -404,6 +429,17 @@ export async function extractWith7zip(
   } finally {
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+function looksLikeRarMagic(buf: Buffer): boolean {
+  // "Rar!" signature (RAR 1.5+) or RAR5
+  return (
+    buf.length >= 4 &&
+    buf[0] === 0x52 &&
+    buf[1] === 0x61 &&
+    buf[2] === 0x72 &&
+    buf[3] === 0x21
+  );
 }
 
 export async function packTo7zip(

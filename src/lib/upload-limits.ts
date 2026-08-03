@@ -104,7 +104,7 @@ export function calibreUnavailableMessage(): string {
 }
 
 export function rarUnavailableMessage(): string {
-  return "RAR output requires an external RAR CLI (WinRAR/rar). Set RAR_BIN to enable, or choose ZIP/TAR.GZ instead.";
+  return "RAR packaging is not available on this server. Choose ZIP, 7Z, or TAR.GZ instead — or set RAR_BIN to a WinRAR/rar CLI path.";
 }
 
 export function zstdUnavailableMessage(): string {
@@ -173,6 +173,37 @@ export function humanizeConversionError(message: string): string {
   ) {
     return "Conversion took too long and was stopped. For long video try a shorter clip, lower quality, or convert to audio only.";
   }
+
+  // Archive errors first — never mislabel as audio
+  if (
+    lower.includes("rar_bin") ||
+    lower.includes("winrar") ||
+    (lower.includes("rar") &&
+      (lower.includes("external rar") ||
+        lower.includes("packaging is not available") ||
+        lower.includes("choose zip")))
+  ) {
+    return rarUnavailableMessage();
+  }
+  if (
+    lower.includes("failed to extract") ||
+    lower.includes("could not extract") ||
+    lower.includes("corrupt archive") ||
+    lower.includes("invalid archive") ||
+    lower.includes("empty archive") ||
+    lower.includes("7z packing failed") ||
+    (lower.includes("archive") &&
+      (lower.includes("not supported") ||
+        lower.includes("not implemented") ||
+        lower.includes("unsupported")))
+  ) {
+    const cleaned = msg
+      .replace(/[A-Za-z]:\\[^\s]+/g, "")
+      .replace(/\/app\/[^\s]+/g, "")
+      .trim();
+    return cleaned.length > 180 ? `${cleaned.slice(0, 177)}…` : cleaned;
+  }
+
   if (
     lower.includes("ffmpeg") &&
     (lower.includes("not found") ||
@@ -183,16 +214,31 @@ export function humanizeConversionError(message: string): string {
   ) {
     return "Audio/video engine is unavailable on this server. Try again later.";
   }
-  if (
-    lower.includes("exited with code") ||
-    lower.includes("conversion failed") ||
+
+  // Audio only when clearly media/ffmpeg-related (do NOT match bare "conversion failed")
+  const looksLikeFfmpegMedia =
+    lower.includes("ffmpeg") ||
+    lower.includes("audio conversion to") ||
+    lower.includes("libvorbis") ||
+    lower.includes("libopus") ||
+    lower.includes("libmp3lame") ||
     lower.includes("does not contain any stream") ||
     lower.includes("unknown encoder") ||
     lower.includes("error while opening encoder") ||
-    lower.includes("audio conversion to") ||
     (lower.includes("size=") &&
       (lower.includes("0kib") || lower.includes("0kb")) &&
-      lower.includes("n/a"))
+      lower.includes("n/a"));
+
+  if (
+    looksLikeFfmpegMedia &&
+    (lower.includes("exited with code") ||
+      lower.includes("conversion failed") ||
+      lower.includes("empty output") ||
+      lower.includes("does not contain any stream") ||
+      lower.includes("unknown encoder") ||
+      lower.includes("error while opening encoder") ||
+      lower.includes("audio conversion to") ||
+      (lower.includes("size=") && lower.includes("n/a")))
   ) {
     return "Audio conversion failed. Retry or try another format (WAV/MP3). The file may be incomplete or use an unsupported codec.";
   }

@@ -59,10 +59,13 @@ function getCalibreCandidates(): string[] {
 function getRarCandidates(): string[] {
   return unique([
     ...splitCandidates(process.env.RAR_BIN),
+    path.join(process.cwd(), "vendor", "rar", process.platform === "win32" ? "Rar.exe" : "rar"),
+    path.join(process.cwd(), "vendor", "rar", "rar"),
     "rar",
     "rar.exe",
-    "C:\\Program Files\\WinRAR\\rar.exe",
     "C:\\Program Files\\WinRAR\\Rar.exe",
+    "C:\\Program Files\\WinRAR\\rar.exe",
+    "C:\\Program Files (x86)\\WinRAR\\Rar.exe",
   ]);
 }
 
@@ -215,24 +218,48 @@ export async function convertViaCalibre(
 export async function createRarWithToolchain(
   files: ArchiveEntry[],
 ): Promise<Buffer | null> {
-  if (!TOOLCHAIN_ENABLED) return null;
+  // Allow RAR_BIN even when EXTERNAL_TOOLCHAIN_ENABLED=0 (RAR is optional/free CLI)
+  if (
+    process.env.EXTERNAL_TOOLCHAIN_ENABLED === "0" &&
+    !process.env.RAR_BIN?.trim()
+  ) {
+    return null;
+  }
+  if (!files.length) return null;
+
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-rar-"));
   const inDir = path.join(tmp, "in");
   const outPath = path.join(tmp, "archive.rar");
   await fs.mkdir(inDir, { recursive: true });
 
   for (const file of files) {
-    const filePath = path.join(inDir, file.name);
+    // Normalize archive entry paths (no absolute / parent traversal)
+    const safeName = file.name
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter((p) => p && p !== "." && p !== "..")
+      .join("/");
+    if (!safeName) continue;
+    const filePath = path.join(inDir, safeName);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, file.data);
   }
 
   try {
-    const done = await runFirstAvailable(getRarCandidates(), ["a", outPath, "."], {
-      cwd: inDir,
-    });
+    // WinRAR/rar: `rar a archive.rar *` from the content directory
+    const done = await runFirstAvailable(
+      getRarCandidates(),
+      ["a", "-r", "-ep1", outPath, "."],
+      { cwd: inDir, timeoutMs: TOOLCHAIN_TIMEOUT_MS },
+    );
     if (!done) return null;
-    return await fs.readFile(outPath);
+    try {
+      const buf = await fs.readFile(outPath);
+      return buf.length > 0 ? buf : null;
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   } finally {

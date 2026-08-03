@@ -2680,6 +2680,27 @@ async function convertArchive(
     );
   }
 
+  // Reject obvious non-archives before extract (small corrupt stubs etc.)
+  if (src === "rar" && input.length >= 4) {
+    const isRar =
+      input[0] === 0x52 &&
+      input[1] === 0x61 &&
+      input[2] === 0x72 &&
+      input[3] === 0x21;
+    if (!isRar) {
+      throw new Error(
+        "Invalid archive: file does not look like a real RAR (wrong magic header). Re-download or re-export the RAR and try again.",
+      );
+    }
+  }
+  if (src === "zip" && input.length >= 2) {
+    if (!(input[0] === 0x50 && input[1] === 0x4b)) {
+      throw new Error(
+        "Invalid archive: file does not look like a real ZIP. Re-select the file and try again.",
+      );
+    }
+  }
+
   let files: ArchiveEntry[] = [];
   try {
     files = await extractArchiveEntries(input, src);
@@ -2689,7 +2710,14 @@ async function convertArchive(
     );
   }
 
+  // Do not silently re-wrap the raw binary as a single entry for extract fails
+  // on known containers — that produces “successful” but useless archives.
   if (files.length === 0) {
+    if (src === "rar" || src === "7z" || src === "zip") {
+      throw new Error(
+        `Empty archive or extract produced no files from .${src.toUpperCase()}. The archive may be password-protected, corrupt, or incomplete.`,
+      );
+    }
     files.push({ name: "archive_content", data: input });
   }
 
@@ -2705,7 +2733,10 @@ async function convertArchive(
 
   if (dest === "rar") {
     const rarBuffer = await createRarWithToolchain(files);
-    if (rarBuffer) return rarBuffer;
+    if (rarBuffer && rarBuffer.length > 0) return rarBuffer;
+    // RAR is proprietary — cannot legally create RAR without WinRAR/rar CLI.
+    // Offer a clear path: repack as ZIP is a better UX than opaque failure only
+    // when user specifically asked RAR we keep error but mention alternatives.
     throw new Error(rarUnavailableMessage());
   }
 
