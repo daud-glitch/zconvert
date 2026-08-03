@@ -13,7 +13,7 @@ import { categoryLightBg, categoryTextColors } from "@/lib/app-constants";
 import { Input } from "@/components/ui/input";
 
 export function BookmarksView() {
-  const { currentUser, setCurrentView } = useApp();
+  const { currentUser, setCurrentView, openAuth } = useApp();
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,11 +105,9 @@ export function BookmarksView() {
           </p>
           <Button 
             className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-11 px-8 rounded-xl shadow-lg shadow-amber-500/20"
-            onClick={() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onClick={() => openAuth("login")}
           >
-            Go to Login
+            Sign in / Sign up
           </Button>
         </div>
       ) : filteredBookmarks.length === 0 ? (

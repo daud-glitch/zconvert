@@ -20,6 +20,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { type FileItem, type ConversionRecord, type BookmarkRecord } from "@/lib/app-types";
 import { readJsonResponse } from "@/lib/http-json";
@@ -51,7 +56,7 @@ import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
-import { uploadAndConvert } from "@/lib/client-upload";
+import { uploadAndConvert, stageFileUpload } from "@/lib/client-upload";
 import {
   audioUnavailableMessage,
   videoUnavailableMessage,
@@ -88,7 +93,7 @@ function mergeOutputFileName(item: FileItem): string {
 }
 
 export function ConverterView() {
-  const { currentUser } = useApp();
+  const { currentUser, openAuth } = useApp();
   const [files, setFiles] = useState<FileItem[]>([]);
   const { data: formatsData } = useFormats();
   const [dragOver, setDragOver] = useState(false);
@@ -114,6 +119,14 @@ export function ConverterView() {
     total: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filesRef = useRef<FileItem[]>([]);
+  const autoUploadChainRef = useRef(Promise.resolve());
+  /** In-flight staging promises keyed by file item id */
+  const uploadJobsRef = useRef(
+    new Map<string, Promise<string | null>>(),
+  );
+
+  filesRef.current = files;
 
   const showToast = (
     message: string,
@@ -206,8 +219,98 @@ export function ConverterView() {
     getCategoryFromExt(ext) === "video" ||
     (target ? getCategoryFromExt(target) === "video" : false);
 
+  /** Stage file on server as soon as it enters the queue (upload only, no convert). */
+  const stageFileItem = (item: FileItem): Promise<string | null> => {
+    const existing = uploadJobsRef.current.get(item.id);
+    if (existing) return existing;
+
+    const job = (async (): Promise<string | null> => {
+      if (!filesRef.current.some((f) => f.id === item.id)) return null;
+      updateFile(item.id, {
+        uploading: true,
+        uploadReady: false,
+        uploadError: undefined,
+        progress: 0,
+        progressPhase: "uploading",
+      });
+      try {
+        const uploadId = await stageFileUpload({
+          file: item.file,
+          fileName: item.name,
+          onProgress: (p) => {
+            updateFile(item.id, {
+              progress: p.percent,
+              progressPhase: "uploading",
+              uploading: true,
+            });
+          },
+        });
+        if (!filesRef.current.some((f) => f.id === item.id)) return null;
+        updateFile(item.id, {
+          uploadId,
+          uploading: false,
+          uploadReady: true,
+          uploadError: undefined,
+          progress: undefined,
+          progressPhase: undefined,
+        });
+        return uploadId;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Upload failed";
+        if (filesRef.current.some((f) => f.id === item.id)) {
+          updateFile(item.id, {
+            uploading: false,
+            uploadReady: false,
+            uploadId: undefined,
+            uploadError: message,
+            progress: undefined,
+            progressPhase: undefined,
+          });
+          showToast(`${item.name}: upload failed — ${message}`, "error");
+        }
+        return null;
+      } finally {
+        uploadJobsRef.current.delete(item.id);
+      }
+    })();
+
+    uploadJobsRef.current.set(item.id, job);
+    return job;
+  };
+
+  /** Queue-friendly auto upload: starts staging when files are added. */
+  const enqueueAutoUpload = (items: FileItem[]) => {
+    if (items.length === 0) return;
+
+    autoUploadChainRef.current = autoUploadChainRef.current
+      .then(async () => {
+        // Upload in small parallel batches (fast, limited bandwidth contention)
+        const BATCH = 3;
+        for (let i = 0; i < items.length; i += BATCH) {
+          const slice = items.slice(i, i + BATCH);
+          await Promise.all(
+            slice.map((item) => {
+              if (!filesRef.current.some((f) => f.id === item.id)) {
+                return Promise.resolve(null);
+              }
+              const live = filesRef.current.find((f) => f.id === item.id);
+              if (!live || live.status !== "pending" || live.uploadReady) {
+                return Promise.resolve(null);
+              }
+              return stageFileItem(live);
+            }),
+          );
+        }
+      })
+      .catch(() => {
+        // Keep chain alive after a failed batch leg
+      });
+  };
+
   const addFiles = (newFiles: FileList | File[]) => {
     const fileArray = Array.from(newFiles);
+    let added: FileItem[] = [];
 
     setFiles((prev) => {
       // Drop finished/failed items when a new upload starts; keep in-flight work.
@@ -281,6 +384,8 @@ export function ConverterView() {
             startTime: undefined,
             endTime: undefined,
             outputSize: undefined,
+            uploading: false,
+            uploadReady: false,
           });
           if (isVid) videosAdded += 1;
           else otherAdded += 1;
@@ -312,8 +417,15 @@ export function ConverterView() {
         );
       }
 
+      added = supported;
       return [...activePrev, ...supported];
     });
+
+    // Auto-upload only (stage on server). Convert still waits for Convert button.
+    if (added.length > 0) {
+      const toUpload = added;
+      setTimeout(() => enqueueAutoUpload(toUpload), 0);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -425,7 +537,7 @@ export function ConverterView() {
   };
 
   const duplicateFile = (item: FileItem) => {
-    const newItem = {
+    const newItem: FileItem = {
       ...item,
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       status: "pending" as const,
@@ -433,11 +545,19 @@ export function ConverterView() {
       endTime: undefined,
       result: undefined,
       outputSize: undefined,
+      // Fresh staging session (server consume is one-shot per uploadId)
+      uploadId: undefined,
+      uploading: false,
+      uploadReady: false,
+      uploadError: undefined,
+      progress: undefined,
+      progressPhase: undefined,
     };
     const itemIndex = files.findIndex((f) => f.id === item.id);
     const newFiles = [...files];
     newFiles.splice(itemIndex + 1, 0, newItem);
     setFiles(newFiles);
+    setTimeout(() => enqueueAutoUpload([newItem]), 0);
   };
 
   const removeFile = (id: string) => {
@@ -448,15 +568,18 @@ export function ConverterView() {
     setFiles([]);
   };
 
-  const convertFile = async (item: FileItem) => {
+  const convertFile = async (raw: FileItem): Promise<boolean> => {
+    // Latest queue row (auto-upload may have set uploadId; user may change format)
+    const item = filesRef.current.find((f) => f.id === raw.id) || raw;
+
     if (!item.targetFormat) {
       showToast(`Please select a target format for ${item.name}`, "error");
-      return;
+      return false;
     }
 
     // Video: never run two heavy jobs at once (memory / dyno timeouts)
     if (isVideoItem(item.ext, item.targetFormat)) {
-      const otherVideoBusy = files.some(
+      const otherVideoBusy = filesRef.current.some(
         (f) =>
           f.id !== item.id &&
           f.status === "converting" &&
@@ -467,7 +590,7 @@ export function ConverterView() {
           "Another video is converting. Wait for it to finish (one video at a time).",
           "error",
         );
-        return;
+        return false;
       }
     }
 
@@ -482,17 +605,17 @@ export function ConverterView() {
           pageCount: undefined,
         });
         showToast(`${item.name} ready to merge as PDF`);
-        return;
+        return true;
       }
       showToast(`File is already in .${item.ext.toUpperCase()} format`, "error");
-      return;
+      return false;
     }
 
     if (item.file.size > MAX_UPLOAD_BYTES) {
       const msg = payloadTooLargeMessage(item.file.size);
       updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
       showToast(msg, "error");
-      return;
+      return true;
     }
 
     if (
@@ -503,7 +626,7 @@ export function ConverterView() {
       const msg = audioUnavailableMessage();
       updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
       showToast(msg, "error");
-      return;
+      return true;
     }
 
     if (
@@ -514,7 +637,21 @@ export function ConverterView() {
       const msg = videoUnavailableMessage();
       updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
       showToast(msg, "error");
-      return;
+      return true;
+    }
+
+    // Wait for auto-upload if still in progress, then convert with staged uploadId
+    let stagedUploadId = item.uploadId;
+    const inflight = uploadJobsRef.current.get(item.id);
+    if (!stagedUploadId && inflight) {
+      updateFile(item.id, {
+        status: "converting",
+        progressPhase: "uploading",
+        progress: item.progress ?? 0,
+        startTime: Date.now(),
+        error: undefined,
+      });
+      stagedUploadId = (await inflight) ?? undefined;
     }
 
     updateFile(item.id, {
@@ -523,9 +660,13 @@ export function ConverterView() {
       endTime: undefined,
       result: undefined,
       outputSize: undefined,
-      progress: 0,
-      progressPhase: "uploading",
+      progress: stagedUploadId ? 90 : 0,
+      progressPhase: stagedUploadId ? "converting" : "uploading",
       error: undefined,
+      // Staging is consumed by convert; clear local flag immediately
+      uploading: false,
+      uploadId: undefined,
+      uploadReady: false,
     });
 
     try {
@@ -538,6 +679,7 @@ export function ConverterView() {
         resizeWidth: item.resizeWidth,
         resizeHeight: item.resizeHeight,
         convertUrl: getConvertApiPath(item.ext),
+        uploadId: stagedUploadId,
         onProgress: (p) => {
           updateFile(item.id, {
             progress: p.percent,
@@ -590,6 +732,8 @@ export function ConverterView() {
         outputSize: blob.size,
         outputPackage,
         pageCount: Number.isFinite(pageCount) ? pageCount : undefined,
+        progress: undefined,
+        progressPhase: undefined,
       });
 
       setRecentConversions((prev) => [
@@ -616,6 +760,7 @@ export function ConverterView() {
       } else {
         showToast(`${item.name} converted successfully!`);
       }
+      return true;
     } catch (err) {
       const message = humanizeConversionError(
         err instanceof Error ? err.message : "Conversion failed",
@@ -628,6 +773,8 @@ export function ConverterView() {
         endTime,
         progress: undefined,
         progressPhase: undefined,
+        uploadId: undefined,
+        uploadReady: false,
       });
       void saveLocalConversion({
         id: item.id,
@@ -643,6 +790,7 @@ export function ConverterView() {
         accountKey: currentUser?.id ?? null,
       });
       showToast(message, "error");
+      return true;
     }
   };
 
@@ -695,8 +843,13 @@ export function ConverterView() {
 
   const saveBookmark = async (item: FileItem) => {
     if (!item.targetFormat) return;
+    if (!currentUser) {
+      openAuth("login");
+      showToast("Sign in or sign up to save bookmarks", "error");
+      return;
+    }
     try {
-      await fetch("/api/bookmarks", {
+      const res = await fetch("/api/bookmarks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -710,8 +863,17 @@ export function ConverterView() {
             : "other",
         }),
       });
-      const res = await fetch("/api/bookmarks");
-      const data = await readJsonResponse<{ data?: BookmarkRecord[] }>(res);
+      if (res.status === 401) {
+        openAuth("login");
+        showToast("Sign in or sign up to save bookmarks", "error");
+        return;
+      }
+      if (!res.ok) {
+        showToast("Failed to save bookmark", "error");
+        return;
+      }
+      const listRes = await fetch("/api/bookmarks");
+      const data = await readJsonResponse<{ data?: BookmarkRecord[] }>(listRes);
       setBookmarks(data.data || []);
       showToast("Bookmark saved!");
     } catch {
@@ -1356,6 +1518,47 @@ export function ConverterView() {
                                   {item.error || "Failed"}
                                 </span>
                               )}
+                              {item.status === "pending" && item.uploading && (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
+                                  <span className="flex items-center gap-1">
+                                    <Upload className="w-3 h-3" />
+                                    Uploading…
+                                    {typeof item.progress === "number"
+                                      ? ` ${item.progress}%`
+                                      : ""}
+                                  </span>
+                                  <span
+                                    className="h-1.5 w-full rounded-full bg-emerald-100 dark:bg-emerald-950 overflow-hidden"
+                                    role="progressbar"
+                                    aria-valuenow={item.progress ?? 0}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                  >
+                                    <span
+                                      className="block h-full rounded-full bg-emerald-500 transition-[width] duration-300"
+                                      style={{
+                                        width: `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
+                                      }}
+                                    />
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    File uploads now — convert when ready
+                                  </span>
+                                </span>
+                              )}
+                              {item.status === "pending" &&
+                                item.uploadReady &&
+                                !item.uploading && (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                    <Check className="w-3 h-3" />
+                                    Uploaded — ready to convert
+                                  </span>
+                                )}
+                              {item.status === "pending" && item.uploadError && (
+                                <span className="text-amber-600 dark:text-amber-400 font-medium break-words">
+                                  Upload failed — convert will re-upload
+                                </span>
+                              )}
                               {item.status === "converting" && (
                                 <span className="text-sky-600 dark:text-sky-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
                                   <span className="flex items-center gap-1">
@@ -1439,7 +1642,7 @@ export function ConverterView() {
                                   item.status === "done" ||
                                   item.status === "error"
                                 ) {
-                                  updateFile(item.id, {
+                                  const reset: Partial<FileItem> = {
                                     targetFormat: val,
                                     status: "pending",
                                     result: undefined,
@@ -1447,7 +1650,19 @@ export function ConverterView() {
                                     outputPackage: undefined,
                                     pageCount: undefined,
                                     endTime: undefined,
-                                  });
+                                    uploadId: undefined,
+                                    uploadReady: false,
+                                    uploading: false,
+                                    uploadError: undefined,
+                                  };
+                                  updateFile(item.id, reset);
+                                  // Re-stage after failed/reconvert path
+                                  setTimeout(() => {
+                                    const live = filesRef.current.find(
+                                      (f) => f.id === item.id,
+                                    );
+                                    if (live) enqueueAutoUpload([live]);
+                                  }, 0);
                                 } else {
                                   updateFile(item.id, { targetFormat: val });
                                 }
@@ -1581,15 +1796,37 @@ export function ConverterView() {
                                     <Eye className="w-4 h-4 text-sky-500" />
                                   </Button>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => saveBookmark(item)}
-                                  title="Save as bookmark"
-                                >
-                                  <BookmarkPlus className="w-4 h-4 text-amber-500" />
-                                </Button>
+                                {currentUser ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => saveBookmark(item)}
+                                    title="Save as bookmark"
+                                  >
+                                    <BookmarkPlus className="w-4 h-4 text-amber-500" />
+                                  </Button>
+                                ) : (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => openAuth("login")}
+                                        aria-label="Sign in to bookmark"
+                                      >
+                                        <BookmarkPlus className="w-4 h-4 text-amber-500/70" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="max-w-[220px] text-center"
+                                    >
+                                      Sign in or sign up to save bookmarks
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
                               </>
                             )}
                             {item.status === "error" && (

@@ -152,8 +152,88 @@ async function finalizeConvertResponse(
   return waitForConvertJob(data.jobId, onProgress, totalBytes);
 }
 
+function newUploadId(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, "")
+    : `up${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Stage a file on the server via chunked upload (no conversion).
+ * Returns uploadId for a later convert POST with X-Upload-Id.
+ */
+export async function stageFileUpload(options: {
+  file: File;
+  fileName: string;
+  onProgress?: (p: UploadProgress) => void;
+}): Promise<string> {
+  const { file, fileName, onProgress } = options;
+
+  if (!file.size) {
+    throw new Error("The selected file is empty. Pick another file.");
+  }
+
+  const report = (p: UploadProgress) => {
+    try {
+      onProgress?.(p);
+    } catch {
+      // ignore
+    }
+  };
+
+  const uploadId = newUploadId();
+  const chunkTotal = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
+  let loaded = 0;
+
+  report({
+    percent: 0,
+    phase: "uploading",
+    loadedBytes: 0,
+    totalBytes: file.size,
+  });
+
+  for (let i = 0; i < chunkTotal; i += PARALLEL_CHUNKS) {
+    const batch: Promise<void>[] = [];
+    for (let j = i; j < Math.min(i + PARALLEL_CHUNKS, chunkTotal); j++) {
+      const start = j * CHUNK_BYTES;
+      const end = Math.min(start + CHUNK_BYTES, file.size);
+      batch.push(
+        (async () => {
+          const slice = file.slice(start, end);
+          const bytes = await slice.arrayBuffer();
+          if (bytes.byteLength !== end - start) {
+            throw new Error(
+              `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
+            );
+          }
+          await postChunk(uploadId, j, chunkTotal, file.size, fileName, bytes);
+          loaded += bytes.byteLength;
+          const percent = Math.min(99, Math.round((loaded / file.size) * 100));
+          report({
+            percent,
+            phase: "uploading",
+            loadedBytes: loaded,
+            totalBytes: file.size,
+          });
+        })(),
+      );
+    }
+    await Promise.all(batch);
+  }
+
+  report({
+    percent: 100,
+    phase: "uploading",
+    loadedBytes: file.size,
+    totalBytes: file.size,
+  });
+
+  return uploadId;
+}
+
 /**
  * Upload a file for conversion. Video→video uses async job + poll (Heroku-safe).
+ * Pass `uploadId` when the file was already staged with stageFileUpload().
  */
 export async function uploadAndConvert(options: {
   file: File;
@@ -164,6 +244,8 @@ export async function uploadAndConvert(options: {
   resizeWidth?: number | null;
   resizeHeight?: number | null;
   convertUrl: string;
+  /** Pre-staged session from stageFileUpload — skips re-upload */
+  uploadId?: string | null;
   onProgress?: (p: UploadProgress) => void;
 }): Promise<Response> {
   const {
@@ -174,6 +256,7 @@ export async function uploadAndConvert(options: {
     resizeWidth,
     resizeHeight,
     convertUrl,
+    uploadId: stagedUploadId,
     onProgress,
   } = options;
 
@@ -192,6 +275,27 @@ export async function uploadAndConvert(options: {
       // ignore
     }
   };
+
+  // Already staged on server — convert only
+  if (stagedUploadId) {
+    report({
+      percent: 90,
+      phase: "converting",
+      loadedBytes: file.size,
+      totalBytes: file.size,
+    });
+    const res = await fetch(convertUrl, {
+      method: "POST",
+      headers: {
+        ...convertHeaders,
+        "Content-Type": file.type || "application/octet-stream",
+        "X-Upload-Id": stagedUploadId,
+      },
+      body: new Uint8Array(0),
+      cache: "no-store",
+    });
+    return finalizeConvertResponse(res, onProgress, file.size);
+  }
 
   if (file.size <= SINGLE_SHOT_MAX) {
     report({
@@ -228,10 +332,7 @@ export async function uploadAndConvert(options: {
     return finalizeConvertResponse(res, onProgress, file.size);
   }
 
-  const uploadId =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID().replace(/-/g, "")
-      : `up${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
+  const uploadId = newUploadId();
 
   const chunkTotal = Math.ceil(file.size / CHUNK_BYTES);
   let loaded = 0;

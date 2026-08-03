@@ -18,6 +18,7 @@ import { BrandMark } from "@/components/common/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
 function LoginForm() {
   const router = useRouter();
@@ -135,9 +136,26 @@ function LoginForm() {
             </p>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
+          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
             {!requires2FA ? (
-              /* ── Email + Password ── */
+              <>
+                <GoogleAuthButton
+                  label="Continue with Google"
+                  disabled={loading}
+                  withDivider={false}
+                />
+
+                <div className="relative py-0.5">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      or continue with email
+                    </span>
+                  </div>
+                </div>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="email" className="text-sm font-medium">
@@ -214,40 +232,25 @@ function LoginForm() {
                   )}
                 </Button>
 
-                <div className="text-center">
+                <div className="text-center space-y-1">
                   <Link
                     href="/forgot-password"
-                    className="text-xs text-muted-foreground hover:text-emerald-600"
+                    className="text-xs text-muted-foreground hover:text-emerald-600 block"
                   >
                     Forgot password?
                   </Link>
-                </div>
-
-                {process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1" ? (
-                  <>
-                    <div className="relative py-1">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-border" />
-                      </div>
-                      <div className="relative flex justify-center text-xs">
-                        <span className="bg-card px-2 text-muted-foreground">
-                          or
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        window.location.href = "/api/auth/google";
-                      }}
+                  <p className="text-xs text-muted-foreground">
+                    No account?{" "}
+                    <Link
+                      href="/signup"
+                      className="text-emerald-600 hover:underline font-medium"
                     >
-                      Continue with Google
-                    </Button>
-                  </>
-                ) : null}
+                      Sign up
+                    </Link>
+                  </p>
+                </div>
               </form>
+              </>
             ) : (
               /* ── 2FA Code ── */
               <form onSubmit={handleSubmit} className="space-y-4">

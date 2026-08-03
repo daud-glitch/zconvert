@@ -48,13 +48,21 @@ import {
 import Link from "next/link";
 
 export default function HomeClient({ defaultView }: { defaultView?: ViewType }) {
-  const { currentView, setCurrentView, currentUser, logout, loading } = useApp();
+  const {
+    currentView,
+    setCurrentView,
+    currentUser,
+    logout,
+    loading,
+    authDialogOpen,
+    authDialogMode,
+    openAuth,
+    closeAuth,
+  } = useApp();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [themeReady, setThemeReady] = useState(false);
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const { features, links, ads } = useCmsBundle();
   const footerLegal = linksByGroup(links, "footer_legal");
   const footerProduct = linksByGroup(links, "footer_product");
@@ -132,11 +140,6 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   const toggleView = (view: ViewType) => {
     setCurrentView(view);
     setMobileNavOpen(false);
-  };
-
-  const openAuth = (mode: "login" | "signup") => {
-    setAuthMode(mode);
-    setAuthDialogOpen(true);
   };
 
   return (
@@ -524,8 +527,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
       {/* ── Overlays ───────────────────────────────────────────────── */}
       <AuthDialog
         isOpen={authDialogOpen}
-        onClose={() => setAuthDialogOpen(false)}
-        initialMode={authMode}
+        onClose={closeAuth}
+        initialMode={authDialogMode}
       />
 
       {/* Shortcuts Overlay */}

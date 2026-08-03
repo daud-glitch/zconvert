@@ -13,6 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApp } from "@/lib/app-context";
 import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck } from "lucide-react";
+import {
+  GoogleAuthButton,
+  isGoogleAuthEnabled,
+} from "@/components/auth/GoogleAuthButton";
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -34,6 +38,7 @@ export function AuthDialog({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { login, refreshUser } = useApp();
+  const googleOn = isGoogleAuthEnabled();
 
   useEffect(() => {
     if (isOpen) {
@@ -122,151 +127,179 @@ export function AuthDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+        <div className="space-y-4 pt-4">
           {error && (
             <div className="p-3 text-sm bg-destructive/10 border border-destructive/20 text-destructive rounded-lg">
               {error}
             </div>
           )}
 
-          {requires2FA ? (
-            <div className="space-y-2">
-              <Label htmlFor="totp">Authentication Code</Label>
-              <div className="relative">
-                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="totp"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder="000000"
-                  className="pl-10 tracking-widest"
-                  value={totpToken}
-                  onChange={(e) =>
-                    setTotpToken(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  required
-                  autoFocus
-                />
+          {/* Google first so login + signup modal both surface it clearly */}
+          {!requires2FA && googleOn && (
+            <GoogleAuthButton
+              label={
+                mode === "signup"
+                  ? "Sign up with Google"
+                  : "Continue with Google"
+              }
+              disabled={isLoading}
+              withDivider={false}
+            />
+          )}
+
+          {!requires2FA && googleOn && (
+            <div className="relative py-0.5">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-background px-2 text-muted-foreground">
+                  or continue with email
+                </span>
               </div>
             </div>
-          ) : (
-            <>
-              {mode === "signup" && (
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {requires2FA ? (
+              <div className="space-y-2">
+                <Label htmlFor="totp">Authentication Code</Label>
+                <div className="relative">
+                  <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="totp"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="000000"
+                    className="pl-10 tracking-widest"
+                    value={totpToken}
+                    onChange={(e) =>
+                      setTotpToken(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                {mode === "signup" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        placeholder="John Doe"
+                        className="pl-10"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required={mode === "signup"}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="email">Email Address</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      id="name"
-                      placeholder="John Doe"
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
                       className="pl-10"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required={mode === "signup"}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
                     />
                   </div>
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="name@example.com"
-                    className="pl-10"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      className="pl-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-            disabled={isLoading || (requires2FA && totpToken.length < 6)}
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <ArrowRight className="w-4 h-4 mr-2" />
+              </>
             )}
-            {requires2FA
-              ? "Verify Code"
-              : mode === "login"
-                ? "Sign In"
-                : "Sign Up"}
-          </Button>
 
-          {!requires2FA && (
-            <div className="text-center text-sm text-muted-foreground mt-4">
-              {mode === "login" ? (
-                <>
-                  Don&apos;t have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("signup");
-                      setError(null);
-                    }}
-                    className="text-emerald-600 hover:underline font-medium"
-                  >
-                    Create one
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("login");
-                      setError(null);
-                    }}
-                    className="text-emerald-600 hover:underline font-medium"
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {requires2FA && (
-            <button
-              type="button"
-              className="w-full text-sm text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setRequires2FA(false);
-                setTotpToken("");
-                setError(null);
-              }}
+            <Button
+              type="submit"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={isLoading || (requires2FA && totpToken.length < 6)}
             >
-              Back to password
-            </button>
-          )}
-        </form>
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <ArrowRight className="w-4 h-4 mr-2" />
+              )}
+              {requires2FA
+                ? "Verify Code"
+                : mode === "login"
+                  ? "Sign In"
+                  : "Sign Up"}
+            </Button>
+
+            {!requires2FA && (
+              <div className="text-center text-sm text-muted-foreground">
+                {mode === "login" ? (
+                  <>
+                    Don&apos;t have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signup");
+                        setError(null);
+                      }}
+                      className="text-emerald-600 hover:underline font-medium"
+                    >
+                      Create one
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("login");
+                        setError(null);
+                      }}
+                      className="text-emerald-600 hover:underline font-medium"
+                    >
+                      Sign in
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {requires2FA && (
+              <button
+                type="button"
+                className="w-full text-sm text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setRequires2FA(false);
+                  setTotpToken("");
+                  setError(null);
+                }}
+              >
+                Back to password
+              </button>
+            )}
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

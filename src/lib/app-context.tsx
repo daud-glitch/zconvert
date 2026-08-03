@@ -38,6 +38,8 @@ type ApiEnvelope = {
   twoFactorRequired?: boolean;
 };
 
+export type AuthDialogMode = "login" | "signup";
+
 type AppContextValue = {
   user: AppUser | null;
   currentUser: AppUser | null;
@@ -48,6 +50,10 @@ type AppContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  authDialogOpen: boolean;
+  authDialogMode: AuthDialogMode;
+  openAuth: (mode?: AuthDialogMode) => void;
+  closeAuth: () => void;
   login: (
     email: string,
     password: string,
@@ -76,6 +82,10 @@ const defaultContextValue: AppContextValue = {
   isLoading: true,
   isAuthenticated: false,
   isAdmin: false,
+  authDialogOpen: false,
+  authDialogMode: "login",
+  openAuth: noop as (mode?: AuthDialogMode) => void,
+  closeAuth: noop,
   login: async () => defaultAuthResult,
   signup: async () => defaultAuthResult,
   logout: asyncOk,
@@ -144,6 +154,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [currentView, setCurrentView] = useState("converter");
   const [loading, setLoading] = useState(true);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authDialogMode, setAuthDialogMode] =
+    useState<AuthDialogMode>("login");
+
+  const openAuth = useCallback((mode: AuthDialogMode = "login") => {
+    setAuthDialogMode(mode);
+    setAuthDialogOpen(true);
+  }, []);
+
+  const closeAuth = useCallback(() => {
+    setAuthDialogOpen(false);
+  }, []);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -266,12 +288,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isLoading: loading,
       isAuthenticated: Boolean(user),
       isAdmin: user?.role === "admin",
+      authDialogOpen,
+      authDialogMode,
+      openAuth,
+      closeAuth,
       login,
       signup,
       logout,
       refreshUser,
     }),
-    [currentView, loading, login, logout, refreshUser, signup, user],
+    [
+      authDialogMode,
+      authDialogOpen,
+      closeAuth,
+      currentView,
+      loading,
+      login,
+      logout,
+      openAuth,
+      refreshUser,
+      signup,
+      user,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

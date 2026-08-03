@@ -16,9 +16,17 @@ export interface FileItem {
   startTime?: number;
   endTime?: number;
   outputSize?: number;
-  /** 0–100 upload/convert progress while status is converting */
+  /** 0–100 upload/convert progress (upload while pending, convert while converting) */
   progress?: number;
   progressPhase?: "reading" | "uploading" | "converting";
+  /** Server staging session from auto-upload; convert uses X-Upload-Id */
+  uploadId?: string;
+  /** True while auto-upload (staging) is in progress */
+  uploading?: boolean;
+  /** Staging finished successfully (file on server) */
+  uploadReady?: boolean;
+  /** Staging error message (convert can still re-upload from local File) */
+  uploadError?: string;
   /** Set when a multi-page PDF was converted to per-page images in a ZIP. */
   outputPackage?: "zip";
   pageCount?: number;
