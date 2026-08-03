@@ -41,19 +41,15 @@ interface StoredFileV1 {
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 /**
- * Strict device isolation:
- * - logged-in accountKey → only rows tagged with that same id
- * - guest (null/undefined) → only untagged rows
- * Never mix guest + account, or cross-account rows.
+ * History / downloads are account-only.
+ * Guest (no accountKey) never matches — nothing is shown or stored for guests.
  */
 export function matchesAccountKey(
   entryKey: string | null | undefined,
   accountKey: string | null | undefined,
 ): boolean {
-  if (accountKey) {
-    return entryKey === accountKey;
-  }
-  return !entryKey;
+  if (!accountKey) return false;
+  return entryKey === accountKey;
 }
 
 function getDB() {
@@ -97,6 +93,9 @@ export async function saveLocalConversion(
     data?: Blob;
   },
 ): Promise<void> {
+  // Durable history is account-bound only.
+  if (!entry.accountKey) return;
+
   const db = await getDB();
   if (!db) return;
 
@@ -117,7 +116,7 @@ export async function saveLocalConversion(
     createdAt,
     mimeType: entry.mimeType,
     hasFile,
-    accountKey: entry.accountKey ?? null,
+    accountKey: entry.accountKey,
     ...(hasFile && entry.data ? { data: entry.data } : {}),
   };
 
@@ -164,6 +163,9 @@ export async function getLocalHistory(
   limit = 100,
   accountKey?: string | null,
 ): Promise<LocalHistoryEntry[]> {
+  // Unauthenticated users have no durable history on this device.
+  if (!accountKey) return [];
+
   const db = await getDB();
   if (!db) return [];
 
@@ -173,7 +175,7 @@ export async function getLocalHistory(
   )) as LocalHistoryEntry[];
 
   // Index returns ascending; newest last
-  let list = [...all]
+  const list = [...all]
     .reverse()
     .filter((e) => matchesAccountKey(e.accountKey, accountKey));
   return list.slice(0, limit).map((e) => ({
@@ -186,34 +188,13 @@ export async function getLocalHistoryEntry(
   id: string,
   accountKey?: string | null,
 ): Promise<LocalHistoryEntry | null> {
+  if (!accountKey) return null;
   const db = await getDB();
   if (!db) return null;
   const entry = (await db.get(HISTORY_STORE, id)) as
     | LocalHistoryEntry
     | undefined;
-  if (!entry) {
-    // Fallback: legacy files-only row (always guest / untagged)
-    if (accountKey) return null;
-    const file = (await db.get(FILES_STORE, id)) as StoredFileV1 | undefined;
-    if (!file) return null;
-    return {
-      id: file.id,
-      fileName: file.fileName,
-      originalExt: "",
-      targetExt: "",
-      category: "other",
-      inputSize: 0,
-      outputSize: file.data.size,
-      status: "done",
-      duration: null,
-      error: null,
-      createdAt: new Date(file.createdAt).toISOString(),
-      mimeType: file.mimeType,
-      data: file.data,
-      hasFile: true,
-      accountKey: null,
-    };
-  }
+  if (!entry) return null;
   if (!matchesAccountKey(entry.accountKey, accountKey)) {
     return null;
   }
@@ -228,20 +209,14 @@ export async function getFileLocally(
   accountKey?: string | null,
 ): Promise<{ id: string; fileName: string; data: Blob; mimeType: string; createdAt: number } | null> {
   const entry = await getLocalHistoryEntry(id, accountKey);
-  if (entry?.data) {
-    return {
-      id: entry.id,
-      fileName: entry.fileName,
-      data: entry.data,
-      mimeType: entry.mimeType || entry.data.type || "application/octet-stream",
-      createdAt: Date.parse(entry.createdAt) || Date.now(),
-    };
-  }
-  // Legacy files store has no account tag — only for guest/unscoped access
-  if (accountKey) return null;
-  const db = await getDB();
-  if (!db) return null;
-  return (await db.get(FILES_STORE, id)) ?? null;
+  if (!entry?.data) return null;
+  return {
+    id: entry.id,
+    fileName: entry.fileName,
+    data: entry.data,
+    mimeType: entry.mimeType || entry.data.type || "application/octet-stream",
+    createdAt: Date.parse(entry.createdAt) || Date.now(),
+  };
 }
 
 /** Remove only the file blob — keep history row so user can see past conversions. */
@@ -249,18 +224,15 @@ export async function deleteFileOnlyLocally(
   id: string,
   accountKey?: string | null,
 ): Promise<void> {
+  if (!accountKey) return;
   const db = await getDB();
   if (!db) return;
   const entry = (await db.get(HISTORY_STORE, id)) as
     | LocalHistoryEntry
     | undefined;
-  if (entry) {
-    if (!matchesAccountKey(entry.accountKey, accountKey)) return;
-    const { data: _drop, ...rest } = entry;
-    await db.put(HISTORY_STORE, { ...rest, hasFile: false, data: undefined });
-  } else if (accountKey) {
-    return;
-  }
+  if (!entry || !matchesAccountKey(entry.accountKey, accountKey)) return;
+  const { data: _drop, ...rest } = entry;
+  await db.put(HISTORY_STORE, { ...rest, hasFile: false, data: undefined });
   await db.delete(FILES_STORE, id);
 }
 
@@ -269,17 +241,13 @@ export async function deleteLocalConversion(
   id: string,
   accountKey?: string | null,
 ): Promise<void> {
+  if (!accountKey) return;
   const db = await getDB();
   if (!db) return;
   const entry = (await db.get(HISTORY_STORE, id)) as
     | LocalHistoryEntry
     | undefined;
-  if (entry && !matchesAccountKey(entry.accountKey, accountKey)) {
-    return;
-  }
-  if (!entry && accountKey) {
-    return;
-  }
+  if (!entry || !matchesAccountKey(entry.accountKey, accountKey)) return;
   await db.delete(HISTORY_STORE, id);
   await db.delete(FILES_STORE, id);
 }

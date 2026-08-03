@@ -168,7 +168,9 @@ export function ConverterView() {
     setBookmarks([]);
     setRecentConversions([]);
 
-    if (currentUser) {
+    // History / bookmarks / recent list only for signed-in accounts.
+    // Guests still convert in the queue with live status, but nothing is persisted.
+    if (currentUser && accountKey) {
       void fetch("/api/bookmarks", { credentials: "same-origin" })
         .then((r) => readJsonResponse<{ data?: BookmarkRecord[] }>(r))
         .then((data) => {
@@ -177,26 +179,26 @@ export function ConverterView() {
         .catch(() => {
           if (!cancelled) setBookmarks([]);
         });
-    }
 
-    void getLocalHistory(5, accountKey).then((rows) => {
-      if (cancelled) return;
-      setRecentConversions(
-        rows.map((r) => ({
-          id: r.id,
-          fileName: r.fileName,
-          originalExt: r.originalExt,
-          targetExt: r.targetExt,
-          category: r.category,
-          inputSize: r.inputSize,
-          outputSize: r.outputSize,
-          status: r.status,
-          duration: r.duration,
-          error: r.error,
-          createdAt: r.createdAt,
-        })),
-      );
-    });
+      void getLocalHistory(5, accountKey).then((rows) => {
+        if (cancelled) return;
+        setRecentConversions(
+          rows.map((r) => ({
+            id: r.id,
+            fileName: r.fileName,
+            originalExt: r.originalExt,
+            targetExt: r.targetExt,
+            category: r.category,
+            inputSize: r.inputSize,
+            outputSize: r.outputSize,
+            status: r.status,
+            duration: r.duration,
+            error: r.error,
+            createdAt: r.createdAt,
+          })),
+        );
+      });
+    }
 
     return () => {
       cancelled = true;
@@ -737,22 +739,24 @@ export function ConverterView() {
       const startTime = item.startTime || endTime;
       const outputExt = outputPackage === "zip" ? "zip" : item.targetFormat;
 
-      // User history + file stay in browser IndexedDB only
-      await saveLocalConversion({
-        id: conversionId,
-        fileName: item.name,
-        originalExt: item.ext,
-        targetExt: outputExt,
-        category: getCategoryFromExt(item.ext) || "other",
-        inputSize: item.size,
-        outputSize: blob.size,
-        status: "done",
-        duration: endTime - startTime,
-        error: null,
-        mimeType: blob.type || "application/octet-stream",
-        data: blob,
-        accountKey: currentUser?.id ?? null,
-      });
+      // Durable history only when signed in (account-scoped IndexedDB)
+      if (currentUser?.id) {
+        await saveLocalConversion({
+          id: conversionId,
+          fileName: item.name,
+          originalExt: item.ext,
+          targetExt: outputExt,
+          category: getCategoryFromExt(item.ext) || "other",
+          inputSize: item.size,
+          outputSize: blob.size,
+          status: "done",
+          duration: endTime - startTime,
+          error: null,
+          mimeType: blob.type || "application/octet-stream",
+          data: blob,
+          accountKey: currentUser.id,
+        });
+      }
 
       updateFile(item.id, {
         status: "done",
@@ -765,22 +769,24 @@ export function ConverterView() {
         progressPhase: undefined,
       });
 
-      setRecentConversions((prev) => [
-        {
-          id: conversionId,
-          fileName: item.name,
-          originalExt: item.ext,
-          targetExt: outputExt,
-          category: getCategoryFromExt(item.ext) || "other",
-          inputSize: item.size,
-          outputSize: blob.size,
-          status: "done",
-          duration: endTime - startTime,
-          error: null,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev.filter((c) => c.id !== conversionId),
-      ].slice(0, 5));
+      if (currentUser?.id) {
+        setRecentConversions((prev) => [
+          {
+            id: conversionId,
+            fileName: item.name,
+            originalExt: item.ext,
+            targetExt: outputExt,
+            category: getCategoryFromExt(item.ext) || "other",
+            inputSize: item.size,
+            outputSize: blob.size,
+            status: "done",
+            duration: endTime - startTime,
+            error: null,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev.filter((c) => c.id !== conversionId),
+        ].slice(0, 5));
+      }
 
       if (outputPackage === "zip" && pageCount) {
         showToast(
@@ -805,19 +811,21 @@ export function ConverterView() {
         uploadId: undefined,
         uploadReady: false,
       });
-      void saveLocalConversion({
-        id: item.id,
-        fileName: item.name,
-        originalExt: item.ext,
-        targetExt: item.targetFormat,
-        category: getCategoryFromExt(item.ext) || "other",
-        inputSize: item.size,
-        outputSize: 0,
-        status: "error",
-        duration: endTime - startTime,
-        error: message,
-        accountKey: currentUser?.id ?? null,
-      });
+      if (currentUser?.id) {
+        void saveLocalConversion({
+          id: item.id,
+          fileName: item.name,
+          originalExt: item.ext,
+          targetExt: item.targetFormat,
+          category: getCategoryFromExt(item.ext) || "other",
+          inputSize: item.size,
+          outputSize: 0,
+          status: "error",
+          duration: endTime - startTime,
+          error: message,
+          accountKey: currentUser.id,
+        });
+      }
       showToast(message, "error");
       return true;
     }
@@ -2434,8 +2442,10 @@ export function ConverterView() {
         </Card>
       )}
 
-      {/* ─── Recent Conversions ─── */}
-      {recentConversions.filter((c) => isConversionSuccess(c.status)).length > 0 && (
+      {/* ─── Recent Conversions (signed-in only) ─── */}
+      {currentUser &&
+        recentConversions.filter((c) => isConversionSuccess(c.status)).length >
+          0 && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">

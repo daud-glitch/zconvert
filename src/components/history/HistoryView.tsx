@@ -13,6 +13,7 @@ import {
   AlertCircle,
   HardDrive,
   FileX,
+  Lock,
 } from "lucide-react";
 import { useApp } from "@/lib/app-context";
 import {
@@ -32,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 export function HistoryView() {
-  const { currentUser } = useApp();
+  const { currentUser, openAuth } = useApp();
   const [conversions, setConversions] = useState<LocalHistoryEntry[]>([]);
   const [stats, setStats] = useState<Awaited<
     ReturnType<typeof getLocalStats>
@@ -42,9 +43,15 @@ export function HistoryView() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
+    if (!currentUser?.id) {
+      setConversions([]);
+      setStats(null);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
-      const accountKey = currentUser?.id ?? null;
+      const accountKey = currentUser.id;
       const [records, localStats] = await Promise.all([
         getLocalHistory(200, accountKey),
         getLocalStats(accountKey),
@@ -53,6 +60,8 @@ export function HistoryView() {
       setStats(localStats);
     } catch (err) {
       console.error("Failed to load local history:", err);
+      setConversions([]);
+      setStats(null);
     } finally {
       setIsLoading(false);
     }
@@ -63,8 +72,8 @@ export function HistoryView() {
   }, [loadHistory]);
 
   const handleDownload = async (record: LocalHistoryEntry) => {
-    const accountKey = currentUser?.id ?? null;
-    const stored = await getFileLocally(record.id, accountKey);
+    if (!currentUser?.id) return;
+    const stored = await getFileLocally(record.id, currentUser.id);
     if (!stored) {
       alert("File is no longer in your browser storage. Convert again to keep a copy.");
       return;
@@ -80,6 +89,7 @@ export function HistoryView() {
   };
 
   const handleDeleteRecord = async (id: string) => {
+    if (!currentUser?.id) return;
     if (
       !confirm(
         "Delete this conversion from your browser? The file and history entry will be removed permanently from this device.",
@@ -89,7 +99,7 @@ export function HistoryView() {
     }
     setDeletingId(id);
     try {
-      const accountKey = currentUser?.id ?? null;
+      const accountKey = currentUser.id;
       await deleteLocalConversion(id, accountKey);
       setConversions((prev) => prev.filter((c) => c.id !== id));
       setStats(await getLocalStats(accountKey));
@@ -102,6 +112,7 @@ export function HistoryView() {
   };
 
   const handleRemoveFileOnly = async (id: string) => {
+    if (!currentUser?.id) return;
     if (
       !confirm(
         "Remove only the stored file to free space? History entry will remain.",
@@ -111,7 +122,7 @@ export function HistoryView() {
     }
     setDeletingId(id);
     try {
-      const accountKey = currentUser?.id ?? null;
+      const accountKey = currentUser.id;
       await deleteFileOnlyLocally(id, accountKey);
       setConversions((prev) =>
         prev.map((c) =>
@@ -143,40 +154,67 @@ export function HistoryView() {
             Conversion History
           </h1>
           <p className="text-muted-foreground">
-            Stored only on this device
-            {stats ? (
-              <>
-                {" "}
-                · {stats.total} entries · {stats.withFiles} files kept ·{" "}
-                {formatBytes(stats.totalOutputSize)}
-              </>
-            ) : null}
+            {currentUser
+              ? (
+                <>
+                  Stored on this device for your account
+                  {stats ? (
+                    <>
+                      {" "}
+                      · {stats.total} entries · {stats.withFiles} files kept ·{" "}
+                      {formatBytes(stats.totalOutputSize)}
+                    </>
+                  ) : null}
+                </>
+              )
+              : "Sign in to save and view conversion history"}
           </p>
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search conversions..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+        {currentUser ? (
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search conversions..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        ) : null}
       </div>
 
-      <Card className="border-emerald-200 bg-emerald-50/30 dark:bg-emerald-950/10 mb-6">
-        <CardContent className="p-4 flex items-center gap-3">
-          <HardDrive className="w-5 h-5 text-emerald-600 shrink-0" />
-          <p className="text-xs text-emerald-800 dark:text-emerald-300">
-            <strong>Local database:</strong> Your conversion history and
-            converted files stay in this browser (IndexedDB). Keep them or
-            delete anytime. Clearing browser data removes them. Signup does not
-            upload your files — the server may keep anonymized usage stats only.
-          </p>
-        </CardContent>
-      </Card>
+      {currentUser ? (
+        <Card className="border-emerald-200 bg-emerald-50/30 dark:bg-emerald-950/10 mb-6">
+          <CardContent className="p-4 flex items-center gap-3">
+            <HardDrive className="w-5 h-5 text-emerald-600 shrink-0" />
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">
+              <strong>Account history:</strong> Conversions and files are kept
+              in this browser for your signed-in account only. Other accounts on
+              this device cannot see them. Clearing browser data removes them.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {isLoading ? (
+      {!currentUser ? (
+        <div className="text-center py-20 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
+          <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
+            <Lock className="w-8 h-8 text-emerald-500" />
+          </div>
+          <h3 className="text-xl font-bold">Account Required</h3>
+          <p className="text-muted-foreground max-w-sm">
+            Sign in to save history and download previous conversions. Guest
+            converts still work with live status in the converter — nothing is
+            stored without an account.
+          </p>
+          <Button
+            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-11 px-8 rounded-xl shadow-lg shadow-emerald-500/20"
+            onClick={() => openAuth("login")}
+          >
+            Sign in / Sign up
+          </Button>
+        </div>
+      ) : isLoading ? (
         <div className="grid gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
@@ -191,7 +229,7 @@ export function HistoryView() {
           </div>
           <h3 className="text-lg font-semibold">No conversions yet</h3>
           <p className="text-muted-foreground">
-            Convert a file and it will appear here on this device.
+            Convert a file while signed in and it will appear here on this device.
           </p>
         </div>
       ) : (
@@ -223,62 +261,71 @@ export function HistoryView() {
                         <Badge variant="outline" className="text-[10px] uppercase">
                           {record.originalExt} &rarr; {record.targetExt}
                         </Badge>
+                        {ok ? (
+                          <Badge className="bg-emerald-500 text-[10px]">
+                            Done
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Error
+                          </Badge>
+                        )}
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatDate(record.createdAt)}
                         </span>
                         <span>
-                          {formatBytes(record.inputSize)} &rarr;{" "}
+                          {formatBytes(record.inputSize)} →{" "}
                           {formatBytes(record.outputSize)}
                         </span>
+                        {record.hasFile ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            File in browser
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            File removed
+                          </span>
+                        )}
                       </div>
+                      {!ok && record.error ? (
+                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {record.error}
+                        </p>
+                      ) : null}
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {ok ? (
-                        record.hasFile ? (
-                          <>
-                            <Button
-                              size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                              onClick={() => handleDownload(record)}
-                            >
-                              <Download className="w-4 h-4 mr-1" />
-                              Download
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs"
-                              disabled={deletingId === record.id}
-                              onClick={() => handleRemoveFileOnly(record.id)}
-                              title="Free space — keep history"
-                            >
-                              <FileX className="w-4 h-4 mr-1" />
-                              Remove file
-                            </Button>
-                          </>
-                        ) : (
-                          <Badge
-                            variant="secondary"
-                            className="bg-amber-100 text-amber-700 border-amber-200"
-                          >
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            File removed
-                          </Badge>
-                        )
-                      ) : (
-                        <Badge variant="destructive">Failed</Badge>
-                      )}
-
+                    <div className="flex items-center gap-2 shrink-0">
+                      {ok && record.hasFile ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleDownload(record)}
+                          title="Download from browser storage"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      ) : null}
+                      {ok && record.hasFile ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={deletingId === record.id}
+                          onClick={() => void handleRemoveFileOnly(record.id)}
+                          title="Free space — keep history"
+                        >
+                          <FileX className="w-4 h-4" />
+                        </Button>
+                      ) : null}
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        className="text-muted-foreground hover:text-destructive"
+                        className="text-red-600 hover:text-red-700"
                         disabled={deletingId === record.id}
-                        onClick={() => handleDeleteRecord(record.id)}
+                        onClick={() => void handleDeleteRecord(record.id)}
                         title="Delete history + file"
                       >
                         <Trash2 className="w-4 h-4" />

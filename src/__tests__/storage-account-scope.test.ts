@@ -9,10 +9,10 @@ describe("matchesAccountKey", () => {
     expect(matchesAccountKey(undefined, "user-a")).toBe(false);
   });
 
-  it("shows only guest/untagged rows when logged out", () => {
-    expect(matchesAccountKey(null, null)).toBe(true);
-    expect(matchesAccountKey(undefined, null)).toBe(true);
-    expect(matchesAccountKey(null, undefined)).toBe(true);
+  it("never shows history without a logged-in account", () => {
+    expect(matchesAccountKey(null, null)).toBe(false);
+    expect(matchesAccountKey(undefined, null)).toBe(false);
+    expect(matchesAccountKey(null, undefined)).toBe(false);
     expect(matchesAccountKey("user-a", null)).toBe(false);
     expect(matchesAccountKey("user-a", undefined)).toBe(false);
   });
