@@ -286,6 +286,29 @@ async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
 }
 
 /**
+ * Drop progress-footer noise (size=0KiB time=N/A) so operators/users see real encoder errors.
+ */
+function scrubFfmpegErrorMessage(raw: string): string {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const useful = lines.filter(
+    (l) =>
+      /error|unknown|invalid|failed|encoder|cannot|does not|opening|unsupported/i.test(
+        l,
+      ) &&
+      !/^size=\s*/i.test(l) &&
+      !/bitrate=N\/A/i.test(l) &&
+      !/speed=N\/A/i.test(l),
+  );
+  if (useful.length) {
+    return useful.slice(-4).join(" | ").slice(0, 400);
+  }
+  return raw.slice(0, 400);
+}
+
+/**
  * Run ffmpeg via temp files (reliable for large audio/video on servers).
  * Always cleans temp dir; kills hung encodes so workers don't stick.
  */
@@ -353,17 +376,27 @@ async function convertWithFfmpegFiles(
     await new Promise<void>((resolve, reject) => {
       let settled = false;
       let command = ffmpeg(inPath);
-      // Phone/camera uploads often need longer probe + tolerate minor stream glitches
-      command = command.inputOptions([
-        "-fflags",
-        "+genpts+igndts+discardcorrupt",
-        "-analyzeduration",
-        "100M",
-        "-probesize",
-        "50M",
-        "-err_detect",
-        "ignore_err",
-      ]);
+      // Audio-only encodes: lighter probe flags (cover-art MP3s / pure streams)
+      // Video: longer probe + tolerate phone/camera stream glitches
+      if (audioFormats.has(destExt)) {
+        command = command.inputOptions([
+          "-analyzeduration",
+          "50M",
+          "-probesize",
+          "25M",
+        ]);
+      } else {
+        command = command.inputOptions([
+          "-fflags",
+          "+genpts+igndts+discardcorrupt",
+          "-analyzeduration",
+          "100M",
+          "-probesize",
+          "50M",
+          "-err_detect",
+          "ignore_err",
+        ]);
+      }
       command = configure(command);
 
       const finish = (fn: () => void) => {
@@ -413,7 +446,7 @@ async function convertWithFfmpegFiles(
               );
               return;
             }
-            reject(err);
+            reject(new Error(scrubFfmpegErrorMessage(raw) || raw));
           });
         })
         .on("end", () => finish(() => resolve()))
@@ -2794,37 +2827,179 @@ function audioBitrateFromQuality(quality: number): string {
   return "64k";
 }
 
+function audioVbrQuality(quality: number): string {
+  if (quality >= 90) return "6";
+  if (quality >= 70) return "5";
+  if (quality >= 50) return "4";
+  return "3";
+}
+
+/**
+ * Cover-art MP3s / multi-stream files: always pin first audio stream and drop
+ * video/subtitles so the muxer never ends with "output has no stream" (exit 234).
+ */
+function pinAudioStream(command: Ffmpeg.FfmpegCommand): Ffmpeg.FfmpegCommand {
+  return command.outputOptions(["-map", "0:a:0?", "-vn", "-sn", "-dn"]);
+}
+
+type AudioEncodeStrategy = {
+  label: string;
+  configure: (command: Ffmpeg.FfmpegCommand) => Ffmpeg.FfmpegCommand;
+};
+
+/**
+ * Ordered encode paths per container. First success wins.
+ * Minimal/static ffmpeg builds often break on libvorbis+bitrate alone — Opus-in-Ogg
+ * and vorbis -q:a are more reliable.
+ */
+function getAudioEncodeStrategies(
+  outputExt: string,
+  quality: number,
+): AudioEncodeStrategy[] {
+  const bitrate = audioBitrateFromQuality(quality);
+  const q = audioVbrQuality(quality);
+  const dest = outputExt.toLowerCase();
+  const withPin = (
+    label: string,
+    apply: (c: Ffmpeg.FfmpegCommand) => Ffmpeg.FfmpegCommand,
+  ): AudioEncodeStrategy => ({
+    label,
+    configure: (command) => apply(pinAudioStream(command)),
+  });
+
+  if (dest === "ogg") {
+    return [
+      withPin("ogg/libopus", (c) =>
+        c
+          .audioCodec("libopus")
+          .audioFrequency(48000)
+          .audioBitrate(bitrate)
+          .outputOptions(["-application", "audio", "-vbr", "on"]),
+      ),
+      withPin("ogg/libvorbis-q", (c) =>
+        c.audioCodec("libvorbis").outputOptions(["-q:a", q]),
+      ),
+      withPin("ogg/libvorbis-b", (c) =>
+        c.audioCodec("libvorbis").audioBitrate(bitrate),
+      ),
+      withPin("ogg/vorbis-experimental", (c) =>
+        c
+          .audioCodec("vorbis")
+          .outputOptions(["-strict", "-2", "-q:a", q]),
+      ),
+    ];
+  }
+  if (dest === "opus") {
+    return [
+      withPin("opus/libopus", (c) =>
+        c
+          .audioCodec("libopus")
+          .audioFrequency(48000)
+          .audioBitrate(bitrate)
+          .format("opus")
+          .outputOptions(["-application", "audio", "-vbr", "on"]),
+      ),
+      withPin("opus/ogg-libopus", (c) =>
+        c
+          .audioCodec("libopus")
+          .audioFrequency(48000)
+          .audioBitrate(bitrate)
+          .format("ogg"),
+      ),
+    ];
+  }
+  if (dest === "mp3") {
+    return [
+      withPin("mp3/libmp3lame", (c) =>
+        c.audioCodec("libmp3lame").audioBitrate(bitrate),
+      ),
+      withPin("mp3/mp3", (c) => c.audioCodec("mp3").audioBitrate(bitrate)),
+    ];
+  }
+  if (dest === "wav") {
+    return [
+      withPin("wav/pcm_s16le", (c) =>
+        c.audioCodec("pcm_s16le").audioFrequency(44100),
+      ),
+      withPin("wav/pcm_s24le", (c) => c.audioCodec("pcm_s24le")),
+    ];
+  }
+  if (dest === "flac") {
+    return [withPin("flac", (c) => c.audioCodec("flac"))];
+  }
+  if (dest === "m4a") {
+    return [
+      withPin("m4a/aac-mp4", (c) =>
+        c
+          .audioCodec("aac")
+          .audioBitrate(bitrate)
+          .format("mp4")
+          .outputOptions(["-movflags", "+faststart"]),
+      ),
+      withPin("m4a/aac-ipod", (c) =>
+        c.audioCodec("aac").audioBitrate(bitrate).format("ipod"),
+      ),
+    ];
+  }
+  if (dest === "aac") {
+    return [
+      withPin("aac/adts", (c) =>
+        c.audioCodec("aac").audioBitrate(bitrate).format("adts"),
+      ),
+      withPin("aac/mp4", (c) =>
+        c.audioCodec("aac").audioBitrate(bitrate).format("mp4"),
+      ),
+    ];
+  }
+  if (dest === "wma") {
+    return [
+      withPin("wma/wmav2", (c) =>
+        c.audioCodec("wmav2").audioBitrate(bitrate).format("asf"),
+      ),
+    ];
+  }
+  return [
+    withPin("audio/default", (c) => c.audioBitrate(bitrate)),
+  ];
+}
+
+/** @deprecated use getAudioEncodeStrategies — kept for video mux paths */
 function applyAudioCodec(
   command: Ffmpeg.FfmpegCommand,
   outputExt: string,
   quality: number = 85,
 ): Ffmpeg.FfmpegCommand {
-  const bitrate = audioBitrateFromQuality(quality);
-  if (outputExt === "mp3") {
-    return command.audioCodec("libmp3lame").audioBitrate(bitrate);
+  const strategies = getAudioEncodeStrategies(outputExt, quality);
+  return strategies[0]!.configure(command);
+}
+
+function isRecoverableAudioEncodeError(err: Error): boolean {
+  const m = err.message.toLowerCase();
+  // Hard failures: missing binary, empty input, unreadable file
+  if (
+    /not found|not runnable|empty media|not a media file|could not read this|temp media write failed|timed out/i.test(
+      m,
+    )
+  ) {
+    return false;
   }
-  if (outputExt === "aac") {
-    return command.audioCodec("aac").audioBitrate(bitrate);
-  }
-  if (outputExt === "m4a") {
-    return command.audioCodec("aac").audioBitrate(bitrate);
-  }
-  if (outputExt === "ogg") {
-    return command.audioCodec("libvorbis").audioBitrate(bitrate);
-  }
-  if (outputExt === "flac") {
-    return command.audioCodec("flac");
-  }
-  if (outputExt === "wav") {
-    return command.audioCodec("pcm_s16le");
-  }
-  if (outputExt === "opus") {
-    return command.audioCodec("libopus").audioBitrate(bitrate);
-  }
-  if (outputExt === "wma") {
-    return command.audioCodec("wmav2").audioBitrate(bitrate);
-  }
-  return command;
+  return (
+    /exited with code|unknown encoder|encoder|invalid argument|empty output|could not write header|error initializing|conversion failed|does not contain any stream|error while opening|error opening output|size=\s*0/i.test(
+      m,
+    ) || /ffmpeg/i.test(m)
+  );
+}
+
+function humanizeAudioEncodeFailure(
+  err: Error | null,
+  dest: string,
+): Error {
+  const scrubbed = err ? scrubFfmpegErrorMessage(err.message) : "";
+  return new Error(
+    `Audio conversion to .${dest.toUpperCase()} failed${
+      scrubbed ? ` (${scrubbed})` : ""
+    }. Try again, or convert to WAV/MP3. If it keeps failing, the file may be incomplete or damaged.`,
+  );
 }
 
 function videoCrfFromQuality(quality: number): number {
@@ -2927,13 +3102,30 @@ async function convertAudio(
     );
   }
 
-  return convertWithFfmpegFiles(
-    input,
-    src,
-    dest,
-    (command) => applyAudioCodec(command.noVideo(), dest, quality),
-    audioUnavailableMessage(),
-  );
+  const strategies = getAudioEncodeStrategies(dest, quality);
+  let lastError: Error | null = null;
+  for (const strategy of strategies) {
+    try {
+      console.log(`[ffmpeg] audio try ${strategy.label} (${src}→${dest})`);
+      return await convertWithFfmpegFiles(
+        input,
+        src,
+        dest,
+        strategy.configure,
+        audioUnavailableMessage(),
+      );
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.error(
+        `[ffmpeg] audio strategy failed (${strategy.label}):`,
+        lastError.message,
+      );
+      if (!isRecoverableAudioEncodeError(lastError)) {
+        throw lastError;
+      }
+    }
+  }
+  throw humanizeAudioEncodeFailure(lastError, dest);
 }
 
 async function convertVideo(
@@ -2945,15 +3137,34 @@ async function convertVideo(
   const src = inputExt.toLowerCase();
   const dest = outputExt.toLowerCase();
 
-  // Video → audio extract
+  // Video → audio extract (same robust multi-strategy path as pure audio)
   if (audioFormats.has(dest)) {
-    return convertWithFfmpegFiles(
-      input,
-      src,
-      dest,
-      (command) => applyAudioCodec(command.noVideo(), dest, quality),
-      videoUnavailableMessage(),
-    );
+    const strategies = getAudioEncodeStrategies(dest, quality);
+    let lastError: Error | null = null;
+    for (const strategy of strategies) {
+      try {
+        console.log(
+          `[ffmpeg] video→audio try ${strategy.label} (${src}→${dest})`,
+        );
+        return await convertWithFfmpegFiles(
+          input,
+          src,
+          dest,
+          strategy.configure,
+          videoUnavailableMessage(),
+        );
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.error(
+          `[ffmpeg] video→audio strategy failed (${strategy.label}):`,
+          lastError.message,
+        );
+        if (!isRecoverableAudioEncodeError(lastError)) {
+          throw lastError;
+        }
+      }
+    }
+    throw humanizeAudioEncodeFailure(lastError, dest);
   }
 
   if (!videoFormats.has(dest)) {

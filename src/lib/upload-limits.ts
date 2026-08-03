@@ -184,6 +184,19 @@ export function humanizeConversionError(message: string): string {
     return "Audio/video engine is unavailable on this server. Try again later.";
   }
   if (
+    lower.includes("exited with code") ||
+    lower.includes("conversion failed") ||
+    lower.includes("does not contain any stream") ||
+    lower.includes("unknown encoder") ||
+    lower.includes("error while opening encoder") ||
+    lower.includes("audio conversion to") ||
+    (lower.includes("size=") &&
+      (lower.includes("0kib") || lower.includes("0kb")) &&
+      lower.includes("n/a"))
+  ) {
+    return "Audio conversion failed. Retry or try another format (WAV/MP3). The file may be incomplete or use an unsupported codec.";
+  }
+  if (
     lower.includes("invalid data found") ||
     lower.includes("error opening input") ||
     lower.includes("could not read this") ||
