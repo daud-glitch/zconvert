@@ -8,6 +8,12 @@ import {
   Music,
   Sparkles,
   Upload,
+  Film,
+  Type,
+  Captions,
+  Archive,
+  Presentation,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +80,12 @@ const CATEGORY_ICONS = [
   { icon: FileText, label: "Document", color: "text-sky-500" },
   { icon: Database, label: "Data", color: "text-rose-500" },
   { icon: Music, label: "Audio", color: "text-amber-500" },
+  { icon: Film, label: "Video", color: "text-fuchsia-500" },
+  { icon: Type, label: "Fonts", color: "text-pink-500" },
+  { icon: Captions, label: "Subtitle", color: "text-cyan-500" },
+  { icon: Archive, label: "Archive", color: "text-slate-500" },
+  { icon: Presentation, label: "Presentation", color: "text-orange-500" },
+  { icon: BookOpen, label: "Ebooks", color: "text-teal-500" },
 ];
 
 type ConverterHeroProps = {
@@ -175,7 +187,7 @@ export function ConverterHero({
             </p>
           </div>
 
-          <div className="hidden lg:flex w-[300px] shrink-0 flex-col items-center gap-3">
+          <div className="hidden lg:flex w-[320px] shrink-0 flex-col items-center gap-3">
             {/* Neat rows of format chips — no random scatter / overlap */}
             <div className="flex w-full flex-col items-center gap-2">
               <div className="flex flex-wrap items-center justify-center gap-1.5">
@@ -210,14 +222,14 @@ export function ConverterHero({
               </div>
             </div>
 
-            <div className="w-full grid grid-cols-2 gap-2 rounded-2xl border border-border/60 bg-background p-3.5 shadow-sm">
+            <div className="w-full grid grid-cols-2 gap-2 rounded-2xl border border-border/60 bg-background p-3 shadow-sm">
               {CATEGORY_ICONS.map(({ icon: Icon, label, color }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-2 rounded-xl bg-muted/55 px-3 py-2.5 text-xs font-medium"
+                  className="flex items-center gap-2 rounded-xl bg-muted/55 px-2.5 py-2 text-[11px] font-medium leading-tight"
                 >
                   <Icon className={`h-3.5 w-3.5 shrink-0 ${color}`} />
-                  {label}
+                  <span className="truncate">{label}</span>
                 </div>
               ))}
             </div>
