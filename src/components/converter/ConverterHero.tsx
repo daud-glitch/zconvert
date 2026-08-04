@@ -194,7 +194,7 @@ export function ConverterHero({
                 {FLOATING_FORMATS.slice(0, 4).map((chip) => (
                   <span
                     key={chip.ext}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide shadow-sm ${chip.chip}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-bold tracking-wide shadow-sm ${chip.chip}`}
                   >
                     .{chip.ext}
                   </span>
@@ -204,7 +204,7 @@ export function ConverterHero({
                 {FLOATING_FORMATS.slice(4, 9).map((chip) => (
                   <span
                     key={chip.ext}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide shadow-sm ${chip.chip}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-bold tracking-wide shadow-sm ${chip.chip}`}
                   >
                     .{chip.ext}
                   </span>
@@ -214,7 +214,7 @@ export function ConverterHero({
                 {FLOATING_FORMATS.slice(9).map((chip) => (
                   <span
                     key={chip.ext}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide shadow-sm ${chip.chip}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-bold tracking-wide shadow-sm ${chip.chip}`}
                   >
                     .{chip.ext}
                   </span>
@@ -226,9 +226,9 @@ export function ConverterHero({
               {CATEGORY_ICONS.map(({ icon: Icon, label, color }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-2 rounded-xl bg-muted/55 px-2.5 py-2 text-[11px] font-medium leading-tight"
+                  className="flex items-center gap-2 rounded-xl bg-muted/55 px-2.5 py-2.5 text-[13px] font-medium leading-tight"
                 >
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${color}`} />
+                  <Icon className={`h-4 w-4 shrink-0 ${color}`} />
                   <span className="truncate">{label}</span>
                 </div>
               ))}
