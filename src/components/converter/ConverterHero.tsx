@@ -15,11 +15,75 @@ import { useApp } from "@/lib/app-context";
 import { formatMaxUploadLabel } from "@/lib/upload-limits";
 
 const FLOATING_FORMATS = [
-  { ext: "PNG", pos: "top-[18%] right-[8%]" },
-  { ext: "PDF", pos: "top-[42%] right-[18%]" },
-  { ext: "MP3", pos: "bottom-[28%] right-[6%]" },
-  { ext: "WEBP", pos: "top-[28%] right-[28%]" },
-  { ext: "CSV", pos: "bottom-[18%] right-[22%]" },
+  // image
+  {
+    ext: "PNG",
+    pos: "top-[4%] right-[6%]",
+    chip: "border-emerald-400/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shadow-emerald-500/10",
+  },
+  {
+    ext: "JPG",
+    pos: "top-[2%] left-[8%]",
+    chip: "border-lime-400/40 bg-lime-500/15 text-lime-700 dark:text-lime-300 shadow-lime-500/10",
+  },
+  {
+    ext: "WEBP",
+    pos: "top-[18%] right-[26%]",
+    chip: "border-teal-400/40 bg-teal-500/15 text-teal-700 dark:text-teal-300 shadow-teal-500/10",
+  },
+  {
+    ext: "AVIF",
+    pos: "top-[12%] left-[0%]",
+    chip: "border-cyan-400/40 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 shadow-cyan-500/10",
+  },
+  // document
+  {
+    ext: "PDF",
+    pos: "top-[36%] right-[2%]",
+    chip: "border-rose-400/45 bg-rose-500/15 text-rose-700 dark:text-rose-300 shadow-rose-500/10",
+  },
+  {
+    ext: "DOCX",
+    pos: "top-[30%] left-[2%]",
+    chip: "border-sky-400/45 bg-sky-500/15 text-sky-700 dark:text-sky-300 shadow-sky-500/10",
+  },
+  {
+    ext: "MD",
+    pos: "top-[48%] right-[28%]",
+    chip: "border-indigo-400/40 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 shadow-indigo-500/10",
+  },
+  // data
+  {
+    ext: "CSV",
+    pos: "top-[54%] left-[4%]",
+    chip: "border-orange-400/45 bg-orange-500/15 text-orange-700 dark:text-orange-300 shadow-orange-500/10",
+  },
+  {
+    ext: "JSON",
+    pos: "top-[42%] right-[34%]",
+    chip: "border-amber-400/45 bg-amber-500/15 text-amber-800 dark:text-amber-300 shadow-amber-500/10",
+  },
+  // media / archive
+  {
+    ext: "MP3",
+    pos: "bottom-[36%] right-[4%]",
+    chip: "border-violet-400/45 bg-violet-500/15 text-violet-700 dark:text-violet-300 shadow-violet-500/10",
+  },
+  {
+    ext: "MP4",
+    pos: "bottom-[42%] left-[0%]",
+    chip: "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 shadow-fuchsia-500/10",
+  },
+  {
+    ext: "ZIP",
+    pos: "bottom-[30%] right-[22%]",
+    chip: "border-yellow-400/45 bg-yellow-500/15 text-yellow-800 dark:text-yellow-300 shadow-yellow-500/10",
+  },
+  {
+    ext: "WAV",
+    pos: "bottom-[28%] left-[18%]",
+    chip: "border-pink-400/40 bg-pink-500/15 text-pink-700 dark:text-pink-300 shadow-pink-500/10",
+  },
 ];
 
 const CATEGORY_ICONS = [
@@ -128,16 +192,16 @@ export function ConverterHero({
             </p>
           </div>
 
-          <div className="hidden lg:block relative w-[280px] shrink-0 h-[220px]">
+          <div className="hidden lg:block relative w-[300px] shrink-0 h-[280px]">
             {FLOATING_FORMATS.map((chip) => (
               <span
                 key={chip.ext}
-                className={`absolute ${chip.pos} rounded-xl border border-border/80 bg-background px-3 py-1.5 text-xs font-bold tracking-wide shadow-md`}
+                className={`absolute ${chip.pos} z-10 rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide shadow-md ${chip.chip}`}
               >
                 .{chip.ext}
               </span>
             ))}
-            <div className="absolute inset-x-4 bottom-0 grid grid-cols-2 gap-2 rounded-2xl border border-border/50 bg-background p-3">
+            <div className="absolute inset-x-3 bottom-1 grid grid-cols-2 gap-2 rounded-2xl border border-border/50 bg-background/95 p-3 shadow-sm backdrop-blur-sm">
               {CATEGORY_ICONS.map(({ icon: Icon, label, color }) => (
                 <div
                   key={label}
