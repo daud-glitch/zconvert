@@ -2498,66 +2498,6 @@ export function ConverterView() {
         </Card>
       )}
 
-      {/* ─── Feature Cards ─── */}
-      <section>
-        <h2 className="section-header mb-6">Why Cloud Converter?</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-          {[
-            {
-              icon: <Shield className="w-4 h-4" />,
-              title: "Privacy-first",
-              desc: "Temp process only — converted results stay in your browser.",
-              color: "bg-emerald-500",
-            },
-            {
-              icon: <Zap className="w-4 h-4" />,
-              title: "Lightning Fast",
-              desc: "Server-side processing powered by high-speed engines.",
-              color: "bg-amber-500",
-            },
-            {
-              icon: <HardDrive className="w-4 h-4" />,
-              title: "Clear limits",
-              desc: `Up to ${formatMaxUploadLabel()} per file; 20 non-video / 1 video at a time. Fair rate limits. No watermarks.`,
-              color: "bg-violet-500",
-            },
-            {
-              icon: <Layers className="w-4 h-4" />,
-              title: "Mixed-type batch",
-              desc: "Add PNG, PDF, MP3 and more in one queue — pick a separate output format for each file (up to 20).",
-              color: "bg-sky-500",
-            },
-            {
-              icon: <ArrowRightLeft className="w-4 h-4" />,
-              title: "Many formats",
-              desc: "Images, documents, data, subtitles, audio, video, and archives.",
-              color: "bg-teal-500",
-            },
-          ].map((feature) => (
-            <Card
-              key={feature.title}
-              className="card-elevated hover:bg-muted/20 transition-colors border-border/60"
-            >
-              <CardContent className="p-3.5 flex flex-col gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={`w-7 h-7 ${feature.color} rounded-md flex items-center justify-center text-white shrink-0 shadow-sm`}
-                  >
-                    {feature.icon}
-                  </div>
-                  <h3 className="font-semibold text-sm leading-none tracking-tight">
-                    {feature.title}
-                  </h3>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  {feature.desc}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
       {/* ─── Image Preview Dialog ─── */}
       <Dialog
         open={previewUrl !== null}

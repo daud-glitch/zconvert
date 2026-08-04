@@ -11,6 +11,8 @@ import {
   Upload,
   Zap,
   Layers,
+  ArrowRightLeft,
+  HardDrive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,44 @@ const CATEGORY_ICONS = [
   { icon: Database, label: "Data", color: "text-rose-500" },
   { icon: Music, label: "Audio", color: "text-amber-500" },
 ];
+
+const WHY_CARDS = [
+  {
+    icon: Layers,
+    title: "Mixed-type batch",
+    desc: "PNG + PDF + MP3 in one queue — different target format per file.",
+    tint: "bg-sky-500/12 text-sky-600 dark:text-sky-400",
+    ring: "ring-sky-500/15",
+  },
+  {
+    icon: ArrowRightLeft,
+    title: "Per-file formats",
+    desc: "Pick WebP for one image, DOCX for another — no same-format lock-in.",
+    tint: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
+    ring: "ring-emerald-500/15",
+  },
+  {
+    icon: Zap,
+    title: "Lightning Fast",
+    desc: "Server engines convert; results download in seconds.",
+    tint: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
+    ring: "ring-amber-500/15",
+  },
+  {
+    icon: Shield,
+    title: "Privacy-first",
+    desc: "Temp process only — files stay in your browser after.",
+    tint: "bg-teal-500/12 text-teal-600 dark:text-teal-400",
+    ring: "ring-teal-500/15",
+  },
+  {
+    icon: HardDrive,
+    title: "Clear limits",
+    desc: `Up to ${formatMaxUploadLabel()} · 20 files / batch · no watermarks.`,
+    tint: "bg-rose-500/12 text-rose-600 dark:text-rose-400",
+    ring: "ring-rose-500/15",
+  },
+] as const;
 
 type ConverterHeroProps = {
   totalFormats?: number;
@@ -55,7 +95,7 @@ export function ConverterHero({
       className="rounded-2xl sm:rounded-3xl border border-border bg-card shadow-sm w-full min-w-0 overflow-hidden"
       aria-labelledby="converter-hero-heading"
     >
-      <div className="px-4 py-8 sm:px-10 sm:py-14 lg:px-14">
+      <div className="px-4 py-8 sm:px-10 sm:py-12 lg:px-14">
         <div className="flex flex-col gap-8 sm:gap-10 lg:flex-row lg:items-center lg:justify-between">
           <div className="w-full max-w-2xl min-w-0 text-center lg:text-left">
             <Badge
@@ -124,21 +164,7 @@ export function ConverterHero({
               </Button>
             </div>
 
-            <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground lg:justify-start">
-              <li className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-sky-500" />
-                Mixed-type batch · per-file formats
-              </li>
-              <li className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-emerald-500" />
-                Temp process on server
-              </li>
-              <li className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-amber-500" />
-                Result stays in your browser
-              </li>
-            </ul>
-            <p className="mt-3 text-xs text-muted-foreground/80 max-w-lg mx-auto lg:mx-0">
+            <p className="mt-5 text-xs text-muted-foreground/80 max-w-lg mx-auto lg:mx-0">
               Files are processed temporarily on the server. Converted downloads
               stay in your browser (IndexedDB). We may keep anonymized usage
               stats only — not your file library.
@@ -168,7 +194,7 @@ export function ConverterHero({
           </div>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+        <div className="mt-8 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
           {[
             {
               value: formatCount > 0 ? `${formatCount}+` : "—",
@@ -183,16 +209,52 @@ export function ConverterHero({
           ].map((stat) => (
             <div
               key={stat.label}
-              className="rounded-2xl border border-border/50 bg-background/80 px-4 py-3 text-center"
+              className="rounded-xl border border-border/50 bg-background/80 px-3 py-2.5 text-center"
             >
-              <p className="text-xl font-bold tracking-tight sm:text-2xl">
+              <p className="text-lg font-bold tracking-tight sm:text-xl">
                 {stat.value}
               </p>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {stat.label}
               </p>
             </div>
           ))}
+        </div>
+
+        {/* Why Cloud Converter — compact cards under hero */}
+        <div className="mt-8 border-t border-border/60 pt-6">
+          <div className="mb-3.5 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold tracking-tight sm:text-[15px]">
+              Why Cloud Converter?
+            </h2>
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">
+              Mixed-type batch · per-file formats
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {WHY_CARDS.map(({ icon: Icon, title, desc, tint, ring }) => (
+              <div
+                key={title}
+                className={`group rounded-xl border border-border/50 bg-background/70 px-3 py-2.5 ring-1 ${ring} transition-colors hover:bg-muted/30`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <span
+                    className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${tint}`}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-semibold leading-snug tracking-tight">
+                      {title}
+                    </p>
+                    <p className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">
+                      {desc}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
