@@ -2500,12 +2500,7 @@ export function ConverterView() {
 
       {/* ─── Feature Cards (original position, larger 5 cards) ─── */}
       <section>
-        <div className="mb-5 flex flex-col gap-1 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="section-header mb-0">Why Cloud Converter?</h2>
-          <p className="text-xs text-muted-foreground sm:text-sm">
-            Mixed-type batch · per-file formats
-          </p>
-        </div>
+        <h2 className="section-header mb-5 sm:mb-6">Why Cloud Converter?</h2>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
           {[
             {
