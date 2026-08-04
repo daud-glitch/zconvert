@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: "%s | Cloud Converter",
   },
   description:
-    "Convert images, documents, data, audio, and video online — mix different file types in one batch and pick a separate format per file. Temporary processing, local browser history, fair upload limits (up to 100 MB on this server), no watermarks.",
+    "Convert images, documents, data, audio, and video online — mix different file types in one batch and pick a separate format per file. Temporary processing, local browser history, fair limits (30 MB per file · 100 MB video), no watermarks.",
   keywords: [
     "file converter",
     "image converter",

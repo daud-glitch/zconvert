@@ -5,6 +5,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   getServerMaxUploadBytes,
   getClientMaxUploadBytes,
+  getNonVideoMaxUploadBytes,
+  getVideoMaxUploadBytes,
+  getMaxNonVideoBatchFiles,
+  getMaxUploadBytesForCategory,
   isFfmpegConversionAvailable,
   isVercelDeployment,
 } from "@/lib/upload-limits";
@@ -17,6 +21,12 @@ describe("upload limits defaults", () => {
     "VERCEL",
     "MAX_UPLOAD_SIZE_MB",
     "NEXT_PUBLIC_MAX_UPLOAD_MB",
+    "MAX_NONVIDEO_UPLOAD_MB",
+    "NEXT_PUBLIC_MAX_NONVIDEO_UPLOAD_MB",
+    "MAX_VIDEO_UPLOAD_MB",
+    "NEXT_PUBLIC_MAX_VIDEO_UPLOAD_MB",
+    "MAX_NONVIDEO_BATCH",
+    "NEXT_PUBLIC_MAX_NONVIDEO_BATCH",
     "NEXT_PUBLIC_VERCEL",
     "FORCE_FFMPEG",
     "DISABLE_FFMPEG",
@@ -58,9 +68,18 @@ describe("upload limits defaults", () => {
     );
   });
 
-  it("defaults client upload to 100MB off Vercel", () => {
+  it("defaults client upload to 100MB off Vercel (video ceiling)", () => {
     clearUploadEnv();
     expect(getClientMaxUploadBytes()).toBe(100 * 1024 * 1024);
+  });
+
+  it("defaults non-video to 30MB and video to 100MB", () => {
+    clearUploadEnv();
+    expect(getNonVideoMaxUploadBytes()).toBe(30 * 1024 * 1024);
+    expect(getVideoMaxUploadBytes()).toBe(100 * 1024 * 1024);
+    expect(getMaxNonVideoBatchFiles()).toBe(10);
+    expect(getMaxUploadBytesForCategory("image")).toBe(30 * 1024 * 1024);
+    expect(getMaxUploadBytesForCategory("video")).toBe(100 * 1024 * 1024);
   });
 
   it("treats ffmpeg as available off Vercel", () => {

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { getServerMaxUploadBytes } from "@/lib/upload-limits";
+import {
+  getMaxUploadBytesForExt,
+  getServerMaxUploadBytes,
+  isVideoSourceExt,
+  payloadTooLargeMessage,
+} from "@/lib/upload-limits";
 import {
   CHUNK_UPLOAD_MAX_BYTES,
   saveUploadChunk,
@@ -58,12 +63,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const maxBytes = getServerMaxUploadBytes();
+    const maxBody = getServerMaxUploadBytes();
+    const ext =
+      filename.lastIndexOf(".") >= 0
+        ? filename.slice(filename.lastIndexOf(".") + 1).toLowerCase()
+        : "";
+    const maxBytes = Math.min(maxBody, getMaxUploadBytesForExt(ext));
     if (Number.isFinite(totalSize) && totalSize > maxBytes) {
       return withRateLimit(
         NextResponse.json(
           {
-            error: `File exceeds maximum size (${Math.round(maxBytes / (1024 * 1024))} MB)`,
+            error: payloadTooLargeMessage(totalSize, {
+              kind: isVideoSourceExt(ext) ? "video" : "file",
+            }),
           },
           { status: 413 },
         ),

@@ -3,9 +3,29 @@ export const VERCEL_FUNCTION_BODY_LIMIT_BYTES = Math.floor(4.5 * 1024 * 1024);
 
 const MB = 1024 * 1024;
 
+/** Absolute max (video) on self-hosted; body parser / chunk assembly use this. */
+export const DEFAULT_VIDEO_MAX_UPLOAD_MB = 100;
+/** Images, docs, audio, data, archives, etc. */
+export const DEFAULT_NONVIDEO_MAX_UPLOAD_MB = 30;
+/** Max non-video files active in the conversion queue at once. */
+export const DEFAULT_MAX_NONVIDEO_BATCH_FILES = 10;
+
 function parseMbEnv(name: string, fallbackMb: number): number {
   const n = parseInt(process.env[name] || String(fallbackMb), 10);
   return Number.isFinite(n) && n > 0 ? n : fallbackMb;
+}
+
+function parseCountEnv(name: string, fallback: number): number {
+  const n = parseInt(process.env[name] || String(fallback), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function maybeCapVercelClient(bytes: number): number {
+  if (hasRemoteConvertWorker()) return bytes;
+  if (process.env.NEXT_PUBLIC_VERCEL === "1") {
+    return Math.min(bytes, VERCEL_FUNCTION_BODY_LIMIT_BYTES);
+  }
+  return bytes;
 }
 
 export function isVercelDeployment(): boolean {
@@ -43,8 +63,15 @@ export function isVideoConversionAvailable(): boolean {
   return isFfmpegConversionAvailable();
 }
 
+/**
+ * Hard ceiling for request body / staging (must fit largest allowed class = video).
+ * Env: MAX_UPLOAD_SIZE_MB or MAX_VIDEO_UPLOAD_MB (default 100).
+ */
 export function getServerMaxUploadBytes(): number {
-  const configuredMb = parseMbEnv("MAX_UPLOAD_SIZE_MB", 100);
+  const configuredMb = parseMbEnv(
+    "MAX_UPLOAD_SIZE_MB",
+    parseMbEnv("MAX_VIDEO_UPLOAD_MB", DEFAULT_VIDEO_MAX_UPLOAD_MB),
+  );
   const configured = configuredMb * MB;
   if (isVercelDeployment()) {
     return Math.min(configured, VERCEL_FUNCTION_BODY_LIMIT_BYTES);
@@ -52,37 +79,135 @@ export function getServerMaxUploadBytes(): number {
   return configured;
 }
 
-/** Client-visible cap (NEXT_PUBLIC_MAX_UPLOAD_MB; default 4 on Vercel via next.config). */
+/** Video only — default 100 MB. */
+export function getVideoMaxUploadBytes(): number {
+  const serverCeiling = getServerMaxUploadBytes();
+  if (isVercelDeployment() && !hasRemoteConvertWorker()) {
+    return serverCeiling;
+  }
+  const clientMb = parseMbEnv(
+    "NEXT_PUBLIC_MAX_VIDEO_UPLOAD_MB",
+    parseMbEnv(
+      "NEXT_PUBLIC_MAX_UPLOAD_MB",
+      parseMbEnv("MAX_VIDEO_UPLOAD_MB", DEFAULT_VIDEO_MAX_UPLOAD_MB),
+    ),
+  );
+  return maybeCapVercelClient(Math.min(clientMb * MB, serverCeiling));
+}
+
+/** Non-video files — default 30 MB. */
+export function getNonVideoMaxUploadBytes(): number {
+  const ceiling = getVideoMaxUploadBytes();
+  if (isVercelDeployment() && !hasRemoteConvertWorker()) {
+    return Math.min(ceiling, getServerMaxUploadBytes());
+  }
+  const configuredMb = parseMbEnv(
+    "NEXT_PUBLIC_MAX_NONVIDEO_UPLOAD_MB",
+    parseMbEnv("MAX_NONVIDEO_UPLOAD_MB", DEFAULT_NONVIDEO_MAX_UPLOAD_MB),
+  );
+  return maybeCapVercelClient(Math.min(configuredMb * MB, ceiling));
+}
+
+/**
+ * Max bytes for a source category (`video` vs everything else).
+ * Fallback: absolute client/server ceiling for unknown categories.
+ */
+export function getMaxUploadBytesForCategory(
+  category: string | null | undefined,
+): number {
+  if ((category || "").toLowerCase() === "video") {
+    return getVideoMaxUploadBytes();
+  }
+  return getNonVideoMaxUploadBytes();
+}
+
+/** Common video extensions — used server-side without pulling React helpers. */
+const VIDEO_SOURCE_EXTS = new Set([
+  "mp4",
+  "webm",
+  "avi",
+  "mkv",
+  "mov",
+  "wmv",
+  "flv",
+  "m4v",
+  "mpeg",
+  "mpg",
+  "3gp",
+  "ogv",
+  "ts",
+]);
+
+export function isVideoSourceExt(ext: string | null | undefined): boolean {
+  return VIDEO_SOURCE_EXTS.has((ext || "").toLowerCase().replace(/^\./, ""));
+}
+
+export function getMaxUploadBytesForExt(ext: string | null | undefined): number {
+  return isVideoSourceExt(ext)
+    ? getVideoMaxUploadBytes()
+    : getNonVideoMaxUploadBytes();
+}
+
+/** Absolute client ceiling (largest class = video). Prefer per-category getters. */
 export function getClientMaxUploadBytes(): number {
-  const defaultMb =
-    process.env.NEXT_PUBLIC_VERCEL === "1" ||
-    process.env.NEXT_PUBLIC_MAX_UPLOAD_MB === "4"
-      ? 4
-      : 100;
-  const configuredMb = parseMbEnv("NEXT_PUBLIC_MAX_UPLOAD_MB", defaultMb);
-  const configured = configuredMb * MB;
-  if (hasRemoteConvertWorker()) {
-    return configured;
-  }
-  if (process.env.NEXT_PUBLIC_VERCEL === "1") {
-    return Math.min(configured, VERCEL_FUNCTION_BODY_LIMIT_BYTES);
-  }
-  return configured;
+  return getVideoMaxUploadBytes();
+}
+
+/** How many non-video files may sit in the active queue (default 10). */
+export function getMaxNonVideoBatchFiles(): number {
+  return parseCountEnv(
+    "NEXT_PUBLIC_MAX_NONVIDEO_BATCH",
+    parseCountEnv("MAX_NONVIDEO_BATCH", DEFAULT_MAX_NONVIDEO_BATCH_FILES),
+  );
 }
 
 export function formatMaxUploadLabel(): string {
-  const mb = Math.round(getClientMaxUploadBytes() / MB);
-  return mb >= 1 ? `${mb}MB` : `${(getClientMaxUploadBytes() / 1024).toFixed(1)}KB`;
+  const nonMb = Math.round(getNonVideoMaxUploadBytes() / MB);
+  const vidMb = Math.round(getVideoMaxUploadBytes() / MB);
+  if (nonMb === vidMb) {
+    return nonMb >= 1
+      ? `${nonMb}MB`
+      : `${(getNonVideoMaxUploadBytes() / 1024).toFixed(1)}KB`;
+  }
+  return `${nonMb}MB · ${vidMb}MB video`;
 }
 
-export function payloadTooLargeMessage(actualBytes: number): string {
-  const maxMb = (getClientMaxUploadBytes() / MB).toFixed(1);
+export function formatNonVideoMaxUploadLabel(): string {
+  const mb = Math.round(getNonVideoMaxUploadBytes() / MB);
+  return mb >= 1
+    ? `${mb}MB`
+    : `${(getNonVideoMaxUploadBytes() / 1024).toFixed(1)}KB`;
+}
+
+export function formatVideoMaxUploadLabel(): string {
+  const mb = Math.round(getVideoMaxUploadBytes() / MB);
+  return mb >= 1
+    ? `${mb}MB`
+    : `${(getVideoMaxUploadBytes() / 1024).toFixed(1)}KB`;
+}
+
+export function payloadTooLargeMessage(
+  actualBytes: number,
+  opts?: { kind?: "video" | "file" },
+): string {
+  const maxBytes =
+    opts?.kind === "video"
+      ? getVideoMaxUploadBytes()
+      : opts?.kind === "file"
+        ? getNonVideoMaxUploadBytes()
+        : getClientMaxUploadBytes();
+  const maxMb = (maxBytes / MB).toFixed(1);
   const actualMb = (actualBytes / MB).toFixed(1);
   const cloud =
-    isVercelDeployment() ||
-    getClientMaxUploadBytes() <= VERCEL_FUNCTION_BODY_LIMIT_BYTES;
+    isVercelDeployment() || maxBytes <= VERCEL_FUNCTION_BODY_LIMIT_BYTES;
   if (cloud && !hasRemoteConvertWorker()) {
     return `File is ${actualMb} MB but the cloud converter accepts at most ${maxMb} MB per file (Vercel limit). Compress the file, split it, or configure an Oracle convert worker (see docs/ORACLE_VERCEL_SETUP.md).`;
+  }
+  if (opts?.kind === "video") {
+    return `Video is ${actualMb} MB but the maximum allowed size is ${maxMb} MB.`;
+  }
+  if (opts?.kind === "file") {
+    return `File is ${actualMb} MB but non-video files are limited to ${maxMb} MB (video up to ${formatVideoMaxUploadLabel()}).`;
   }
   return `File is ${actualMb} MB but the maximum allowed size is ${maxMb} MB.`;
 }

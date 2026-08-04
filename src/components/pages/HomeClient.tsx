@@ -513,7 +513,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               </div>
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
                 A high-performance file conversion suite. Convert images, video,
-                documents, and more — up to 100 MB per file on this server.
+                documents, and more — up to 30 MB per file (100 MB for video).
               </p>
               <div className="flex items-center gap-4">
                 <Button

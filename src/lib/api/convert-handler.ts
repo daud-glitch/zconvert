@@ -6,6 +6,7 @@ import {
   audioUnavailableMessage,
   videoUnavailableMessage,
   getServerMaxUploadBytes,
+  getMaxUploadBytesForCategory,
   isAudioConversionAvailable,
   isVideoConversionAvailable,
   humanizeConversionError,
@@ -166,6 +167,20 @@ export async function handleConvertPost(
     if (uploaded.buffer.length > MAX_UPLOAD_SIZE) {
       return NextResponse.json(
         { error: payloadTooLargeMessage(uploaded.buffer.length) },
+        { status: 413 },
+      );
+    }
+
+    const categoryLimit = getMaxUploadBytesForCategory(
+      sourceFormatInfo.category,
+    );
+    if (uploaded.buffer.length > categoryLimit) {
+      const kind =
+        sourceFormatInfo.category === "video" ? "video" : "file";
+      return NextResponse.json(
+        {
+          error: payloadTooLargeMessage(uploaded.buffer.length, { kind }),
+        },
         { status: 413 },
       );
     }

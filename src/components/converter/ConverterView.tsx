@@ -61,13 +61,17 @@ import { uploadAndConvert, stageFileUpload } from "@/lib/client-upload";
 import {
   audioUnavailableMessage,
   videoUnavailableMessage,
-  formatMaxUploadLabel,
-  getClientMaxUploadBytes,
+  formatNonVideoMaxUploadLabel,
+  formatVideoMaxUploadLabel,
+  getMaxNonVideoBatchFiles,
+  getMaxUploadBytesForCategory,
+  getVideoMaxUploadBytes,
   humanizeConversionError,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
 
-const MAX_UPLOAD_BYTES = getClientMaxUploadBytes();
+const MAX_NONVIDEO_BATCH = getMaxNonVideoBatchFiles();
+const MAX_VIDEO_BYTES = getVideoMaxUploadBytes();
 const MEDIA_CONVERSION_ENABLED =
   process.env.NEXT_PUBLIC_MEDIA_ENABLED !== "0" &&
   process.env.NEXT_PUBLIC_AUDIO_ENABLED !== "0";
@@ -339,14 +343,15 @@ export function ConverterView() {
       const activeVideos = activePrev.filter((f) => isVideoItem(f.ext)).length;
       const nonVideoSpace = Math.max(
         0,
-        20 - activePrev.filter((f) => !isVideoItem(f.ext)).length,
+        MAX_NONVIDEO_BATCH -
+          activePrev.filter((f) => !isVideoItem(f.ext)).length,
       );
       // Videos: max 1 active (one-at-a-time processing / queue)
       const videoSpace = Math.max(0, 1 - activeVideos);
 
       if (nonVideoSpace <= 0 && videoSpace <= 0) {
         showToast(
-          "Queue full (20 non-video files max, 1 video at a time).",
+          `Queue full (${MAX_NONVIDEO_BATCH} non-video files max, 1 video at a time).`,
           "error",
         );
         return activePrev;
@@ -361,15 +366,18 @@ export function ConverterView() {
 
       fileArray.forEach((file) => {
         const name = file.name;
-
-        if (file.size > MAX_UPLOAD_BYTES) {
-          tooLarge.push(name);
-          return;
-        }
         const dotIdx = name.lastIndexOf(".");
         const ext = dotIdx >= 0 ? name.slice(dotIdx + 1).toLowerCase() : "";
         const targets = targetFormatsMap[ext] || [];
         const isVid = isVideoItem(ext);
+        const maxBytes = getMaxUploadBytesForCategory(
+          isVid ? "video" : getCategoryFromExt(ext) || "other",
+        );
+
+        if (file.size > maxBytes) {
+          tooLarge.push(name);
+          return;
+        }
 
         if (isVid) {
           if (videosAdded + activeVideos >= 1) {
@@ -424,8 +432,19 @@ export function ConverterView() {
       if (tooLarge.length > 0) {
         showToast(
           tooLarge.length === 1
-            ? `${tooLarge[0]}: ${payloadTooLargeMessage(fileArray.find((f) => f.name === tooLarge[0])?.size ?? MAX_UPLOAD_BYTES + 1)}`
-            : `${tooLarge.length} files exceed the ${formatMaxUploadLabel()} limit.`,
+            ? (() => {
+                const f = fileArray.find((x) => x.name === tooLarge[0]);
+                const isV =
+                  f &&
+                  isVideoItem(
+                    f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase(),
+                  );
+                return `${tooLarge[0]}: ${payloadTooLargeMessage(
+                  f?.size ?? (isV ? MAX_VIDEO_BYTES : getMaxUploadBytesForCategory("image")) + 1,
+                  { kind: isV ? "video" : "file" },
+                )}`;
+              })()
+            : `${tooLarge.length} files exceed size limits (${formatNonVideoMaxUploadLabel()} each · video ${formatVideoMaxUploadLabel()}).`,
           "error",
         );
       }
@@ -640,8 +659,14 @@ export function ConverterView() {
       return false;
     }
 
-    if (item.file.size > MAX_UPLOAD_BYTES) {
-      const msg = payloadTooLargeMessage(item.file.size);
+    if (
+      item.file.size >
+      getMaxUploadBytesForCategory(
+        isVideoItem(item.ext, item.targetFormat) ? "video" : getCategoryFromExt(item.ext),
+      )
+    ) {
+      const kind = isVideoItem(item.ext, item.targetFormat) ? "video" : "file";
+      const msg = payloadTooLargeMessage(item.file.size, { kind });
       updateFile(item.id, { status: "error", error: msg, endTime: Date.now() });
       showToast(msg, "error");
       return true;
@@ -1120,7 +1145,7 @@ export function ConverterView() {
                 Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
               <p className="text-[11px] text-muted-foreground/70 mt-2">
-                Up to 20 files (1 video at a time) · {formatMaxUploadLabel()} each · Ctrl+U to browse
+                Up to {MAX_NONVIDEO_BATCH} files (1 video at a time) · {formatNonVideoMaxUploadLabel()} · video {formatVideoMaxUploadLabel()} · Ctrl+U to browse
               </p>
               <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
                 <HardDrive className="h-3 w-3 shrink-0" />
@@ -2616,7 +2641,7 @@ export function ConverterView() {
             {
               icon: <HardDrive className="h-5 w-5" />,
               title: "Clear limits",
-              desc: `Up to ${formatMaxUploadLabel()} per file · 20-file batch · fair limits · no watermarks.`,
+              desc: `Up to ${formatNonVideoMaxUploadLabel()} per file · video ${formatVideoMaxUploadLabel()} · ${MAX_NONVIDEO_BATCH}-file batch · no watermarks.`,
               color: "bg-rose-500",
             },
           ].map((feature) => (

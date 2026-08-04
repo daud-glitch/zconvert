@@ -27,7 +27,7 @@ export default function JsonLd() {
       "Image conversion (PNG, JPG, WebP, AVIF, and more)",
       "Document and data conversion",
       "Audio and video conversion where ffmpeg is available",
-      "Batch conversion (up to 20 files)",
+      "Batch conversion (up to 10 files · 1 video)",
       "Local conversion history in the browser",
       "No watermarks",
       "Temporary server processing",
