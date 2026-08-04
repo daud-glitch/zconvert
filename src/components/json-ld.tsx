@@ -23,6 +23,7 @@ export default function JsonLd() {
       email: "support@cloudconveter.tech",
     },
     featureList: [
+      "Mixed-type batch conversion: different file types in one queue, each with its own target format",
       "Image conversion (PNG, JPG, WebP, AVIF, and more)",
       "Document and data conversion",
       "Audio and video conversion where ffmpeg is available",

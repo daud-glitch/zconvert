@@ -10,6 +10,7 @@ import {
   Sparkles,
   Upload,
   Zap,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,8 +78,9 @@ export function ConverterHero({
             </h1>
 
             <p className="mt-3 sm:mt-4 text-sm leading-relaxed text-muted-foreground sm:text-lg">
-              Drop images, video, documents, spreadsheets, audio, archives, and more —
-              pick your output format and download in seconds.
+              Drop images, video, documents, spreadsheets, audio, archives — even
+              mixed types in one batch. Choose a different output format for each
+              file, then download in seconds.
               {formatCount > 0 && (
                 <>
                   {" "}
@@ -123,6 +125,10 @@ export function ConverterHero({
             </div>
 
             <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground lg:justify-start">
+              <li className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-sky-500" />
+                Mixed-type batch · per-file formats
+              </li>
               <li className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-emerald-500" />
                 Temp process on server

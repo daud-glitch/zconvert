@@ -16,6 +16,7 @@ import {
   Lock,
 } from "lucide-react";
 import { useApp } from "@/lib/app-context";
+import { brandedDownloadFilename } from "@/lib/download-brand";
 import {
   formatBytes,
   formatDate,
@@ -83,7 +84,10 @@ export function HistoryView() {
     const a = document.createElement("a");
     a.href = url;
     const baseName = record.fileName.replace(/\.[^/.]+$/, "");
-    a.download = `${baseName}.${record.targetExt || "bin"}`;
+    a.download = brandedDownloadFilename(
+      baseName,
+      record.targetExt || "bin",
+    );
     a.click();
     URL.revokeObjectURL(url);
   };

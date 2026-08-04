@@ -1,7 +1,3 @@
-"use client";
-
-// ─── Shared Application Constants ────────────────────────────────────────────
-
 import React from "react";
 import {
   Globe,
@@ -22,21 +18,11 @@ import {
   Settings,
 } from "lucide-react";
 
-/** Prefix for bulk ZIP downloads (e.g. cloudconverter.tech-report.zip). */
-export const DOWNLOAD_BRAND_PREFIX = "cloudconverter.tech";
-
-/** Build a branded ZIP filename: cloudconverter.tech-{name}.zip */
-export function bulkZipDownloadFilename(fileNames: string[]): string {
-  const sanitize = (s: string) =>
-    s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "files";
-  const firstBase = sanitize(
-    (fileNames[0] || "files").replace(/\.[^/.]+$/, ""),
-  );
-  if (fileNames.length <= 1) {
-    return `${DOWNLOAD_BRAND_PREFIX}-${firstBase}.zip`;
-  }
-  return `${DOWNLOAD_BRAND_PREFIX}-${firstBase}-and-${fileNames.length - 1}-more.zip`;
-}
+export {
+  DOWNLOAD_BRAND_PREFIX,
+  brandedDownloadFilename,
+  bulkZipDownloadFilename,
+} from "@/lib/download-brand";
 
 // ─── Quality Presets ─────────────────────────────────────────────────────────
 
@@ -313,6 +299,7 @@ export const formatBadgeData: { label: string; category: string }[] = [
 // ─── Comparison Features ──────────────────────────────────────────────────────
 
 export const comparisonFeatures = [
+  { feature: "Mixed-type batch (per-file formats)", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
   { feature: "Generous size limits", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
   { feature: "Local history (browser)", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },
   { feature: "Free converter", transmute: true, cloudconvert: false, zamzar: false, onlineconvert: false },

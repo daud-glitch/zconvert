@@ -44,6 +44,7 @@ import {
   categoryColors,
   DOWNLOAD_BRAND_PREFIX,
   bulkZipDownloadFilename,
+  brandedDownloadFilename,
 } from "@/lib/app-constants";
 import {
   formatBytes,
@@ -853,8 +854,8 @@ export function ConverterView() {
     a.href = url;
     a.download =
       item.outputPackage === "zip"
-        ? `${baseName}-pages.zip`
-        : `${baseName}.${item.targetFormat}`;
+        ? brandedDownloadFilename(`${baseName}-pages`, "zip")
+        : brandedDownloadFilename(baseName, item.targetFormat || "bin");
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1215,7 +1216,10 @@ export function ConverterView() {
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement("a");
                             a.href = url;
-                            a.download = `${pdfFile.name.replace(/\.pdf$/i, "")}-pages.zip`;
+                            a.download = brandedDownloadFilename(
+                              `${pdfFile.name.replace(/\.pdf$/i, "")}-pages`,
+                              "zip",
+                            );
                             a.click();
                             URL.revokeObjectURL(url);
                             showToast(`Split into ${pageCount} ${fmt.toUpperCase()} images!`);
@@ -1239,16 +1243,21 @@ export function ConverterView() {
         <Card className="overflow-hidden">
           <CardHeader className="pb-3 px-3 sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
-                <Layers className="w-4 h-4" />
-                Conversion Queue
-                <Badge variant="secondary" className="text-xs">
-                  {files.length}
-                </Badge>
-                <span className="text-xs text-muted-foreground font-normal">
-                  {formatBytes(files.reduce((sum, f) => sum + f.size, 0))} total
-                </span>
-              </CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                  <Layers className="w-4 h-4" />
+                  Conversion Queue
+                  <Badge variant="secondary" className="text-xs">
+                    {files.length}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {formatBytes(files.reduce((sum, f) => sum + f.size, 0))} total
+                  </span>
+                </CardTitle>
+                <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                  Mix any file types in one batch — pick a different output format for each file.
+                </p>
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {pendingCount > 1 && !isQueueBusy && (
                   <div className="flex items-center gap-1.5">
@@ -1314,7 +1323,10 @@ export function ConverterView() {
                       for (const f of doneFiles) {
                         const baseName = f.name.replace(/\.[^/.]+$/, "");
                         const arrayBuffer = await f.result!.arrayBuffer();
-                        zip.file(`${baseName}.${f.targetFormat}`, arrayBuffer);
+                        zip.file(
+                          brandedDownloadFilename(baseName, f.targetFormat || "bin"),
+                          arrayBuffer,
+                        );
                       }
                       const blob = await zip.generateAsync({ type: "blob" });
                       const url = URL.createObjectURL(blob);
@@ -2511,8 +2523,8 @@ export function ConverterView() {
             },
             {
               icon: <Layers className="w-4 h-4" />,
-              title: "Batch Convert",
-              desc: "Queue up to 20 files and download results together.",
+              title: "Mixed-type batch",
+              desc: "Add PNG, PDF, MP3 and more in one queue — pick a separate output format for each file (up to 20).",
               color: "bg-sky-500",
             },
             {

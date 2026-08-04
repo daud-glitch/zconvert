@@ -35,6 +35,7 @@ import {
   enqueueConvertJob,
   isConvertWorkerEnabled,
 } from "@/lib/convert-job-store";
+import { DOWNLOAD_BRAND_PREFIX } from "@/lib/download-brand";
 
 function corsOrigin(): string {
   return process.env.ALLOWED_ORIGIN?.trim() || "*";
@@ -435,9 +436,16 @@ export async function handleConvertPost(
     const asciiName = baseName.replace(/[^\x20-\x7E]/g, "_");
     const outputExt = pdfZipMeta ? "zip" : target;
     const downloadBase = pdfZipMeta ? `${asciiName}-pages` : asciiName;
-    const safeName = `${downloadBase}.${outputExt}`.replace(/"/g, '\\"');
+    const brandedBase = downloadBase
+      .toLowerCase()
+      .startsWith(DOWNLOAD_BRAND_PREFIX.toLowerCase())
+      ? downloadBase
+      : `${DOWNLOAD_BRAND_PREFIX}-${downloadBase}`;
+    const safeName = `${brandedBase}.${outputExt}`.replace(/"/g, '\\"');
     const encodedName = encodeURIComponent(
-      pdfZipMeta ? `${baseName}-pages.zip` : `${baseName}.${target}`,
+      pdfZipMeta
+        ? `${brandedBase}.zip`
+        : `${brandedBase}.${target}`,
     );
 
     const conversionId = await logConversion({

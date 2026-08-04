@@ -24,11 +24,13 @@ export const metadata: Metadata = {
     template: "%s | Cloud Converter",
   },
   description:
-    "Convert images, documents, data, audio, and video online. Temporary processing, local browser history, fair upload limits (up to 100 MB on this server), no watermarks.",
+    "Convert images, documents, data, audio, and video online — mix different file types in one batch and pick a separate format per file. Temporary processing, local browser history, fair upload limits (up to 100 MB on this server), no watermarks.",
   keywords: [
     "file converter",
     "image converter",
     "format converter",
+    "batch converter",
+    "mixed file conversion",
     "cloudconveter",
     "PNG to WebP",
     "PDF converter",
@@ -60,7 +62,7 @@ export const metadata: Metadata = {
     siteName: "Cloud Converter",
     title: "Cloud Converter — Universal File Converter",
     description:
-      "Convert images, documents, data, audio, and video online. Temporary processing, local history, fair limits, no watermarks.",
+      "Convert images, documents, data, audio, and video online. Mix different file types in one batch — choose a separate output format per file. Temporary processing, local history, fair limits, no watermarks.",
     images: [
       {
         url: "/og-image.svg",
@@ -74,7 +76,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Cloud Converter — Universal File Converter",
     description:
-      "Convert images, documents, data, audio, and video online. Fair limits, no watermarks.",
+      "Convert images, documents, data, audio, and video online. Mixed-type batch with per-file formats. Fair limits, no watermarks.",
     images: ["/og-image.svg"],
   },
   robots: {

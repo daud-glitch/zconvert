@@ -137,7 +137,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme");
+    const saved =
+      localStorage.getItem("cc-desktop-theme") || localStorage.getItem("theme");
     let next = false;
     if (saved === "dark" || saved === "light") {
       next = saved === "dark";
@@ -148,6 +149,31 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
     document.documentElement.classList.toggle("dark", next);
     document.documentElement.style.colorScheme = next ? "dark" : "light";
     setThemeReady(true);
+  }, []);
+
+  // Desktop shell can push theme (WebView2 Light/Dark) without full reload
+  useEffect(() => {
+    const applyTheme = (value: string | null) => {
+      if (value !== "dark" && value !== "light") return;
+      const next = value === "dark";
+      setDarkMode(next);
+      document.documentElement.classList.toggle("dark", next);
+      document.documentElement.style.colorScheme = next ? "dark" : "light";
+      localStorage.setItem("theme", value);
+    };
+    const onCustom = (e: Event) => {
+      const detail = (e as CustomEvent<{ theme?: string }>).detail;
+      if (detail?.theme) applyTheme(detail.theme);
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "theme" || e.key === "cc-desktop-theme") applyTheme(e.newValue);
+    };
+    window.addEventListener("cloudconverter-theme", onCustom);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("cloudconverter-theme", onCustom);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   useEffect(() => {
