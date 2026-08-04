@@ -403,8 +403,9 @@ export function ConverterView() {
             startTime: undefined,
             endTime: undefined,
             outputSize: undefined,
-            uploading: false,
+            uploading: true,
             uploadReady: false,
+            uploadError: undefined,
           });
           if (isVid) videosAdded += 1;
           else otherAdded += 1;
@@ -593,6 +594,15 @@ export function ConverterView() {
 
     if (!item.targetFormat) {
       showToast(`Please select a target format for ${item.name}`, "error");
+      return false;
+    }
+
+    // Block convert until auto-staging finishes (prevents stuck double-upload)
+    if (item.uploading || (!item.uploadReady && !item.uploadError)) {
+      showToast(
+        "Wait until this file finishes uploading before converting.",
+        "error",
+      );
       return false;
     }
 
@@ -822,9 +832,22 @@ export function ConverterView() {
   };
 
   const convertAll = async () => {
+    const stillUploading = filesRef.current.some(
+      (f) =>
+        f.status === "pending" &&
+        (Boolean(f.uploading) || (!f.uploadReady && !f.uploadError)),
+    );
+    if (stillUploading) {
+      showToast("Wait until all uploads finish before converting.", "error");
+      return;
+    }
+
     // Non-videos first (batch OK), then videos one-by-one
     const pending = files.filter(
-      (f) => f.status === "pending" && f.targetFormat,
+      (f) =>
+        f.status === "pending" &&
+        f.targetFormat &&
+        (f.uploadReady || Boolean(f.uploadError)),
     );
     if (pending.length === 0) return;
 
@@ -911,9 +934,38 @@ export function ConverterView() {
   const convertingCount = files.filter((f) => f.status === "converting").length;
   const mergeableCount = files.filter((f) => getMergeSourceBlob(f) !== null).length;
   const errorCount = files.filter((f) => f.status === "error").length;
-  /** Any convert in flight — lock bulk actions and per-row convert controls. */
-  const isQueueBusy =
+
+  /** Staging in progress — only format select stays usable */
+  const isUploading = files.some(
+    (f) =>
+      f.status === "pending" &&
+      (Boolean(f.uploading) || (!f.uploadReady && !f.uploadError)),
+  );
+  /** Convert jobs in flight */
+  const isConverting =
     convertingCount > 0 || Boolean(batchProgress);
+  /**
+   * Lock convert / download / bulk / extras so the queue never stuck mid-upload
+   * or mid-convert. Format dropdown stays open while `isUploading` only.
+   */
+  const isQueueBusy = isConverting || isUploading;
+  /** Convert when every pending file finished staging (ready) or failed staging */
+  const pendingAwaitingUpload = files.filter(
+    (f) =>
+      f.status === "pending" &&
+      !f.uploadReady &&
+      !f.uploadError,
+  ).length;
+  const canStartConvert =
+    pendingCount > 0 &&
+    !isQueueBusy &&
+    pendingAwaitingUpload === 0 &&
+    files.some(
+      (f) =>
+        f.status === "pending" &&
+        !!f.targetFormat &&
+        (f.uploadReady || Boolean(f.uploadError)),
+    );
   /**
    * Download All / ZIP only after every queue item has finished (done or error)
    * and nothing is still converting — avoids extra load mid-batch.
@@ -922,7 +974,8 @@ export function ConverterView() {
     doneCount > 0 &&
     pendingCount === 0 &&
     convertingCount === 0 &&
-    !batchProgress;
+    !batchProgress &&
+    !isUploading;
 
   const allTargetFormats = (() => {
     const all = new Set<string>();
@@ -1259,7 +1312,7 @@ export function ConverterView() {
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                {pendingCount > 1 && !isQueueBusy && (
+                {pendingCount > 1 && !isConverting && (
                   <div className="flex items-center gap-1.5">
                     <FileStack className="w-3.5 h-3.5 text-violet-500" />
                     <Select onValueChange={applyUniversalFormat}>
@@ -1284,14 +1337,25 @@ export function ConverterView() {
                   size="sm"
                   className="hidden sm:inline-flex"
                   onClick={convertAll}
-                  disabled={pendingCount === 0 || isQueueBusy}
+                  disabled={!canStartConvert}
+                  title={
+                    isUploading
+                      ? "Wait until all uploads finish"
+                      : isConverting
+                        ? "Conversion in progress"
+                        : undefined
+                  }
                 >
                   {isQueueBusy ? (
                     <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
                   ) : (
                     <RefreshCw className="w-3.5 h-3.5 mr-1" />
                   )}
-                  Convert All
+                  {isUploading
+                    ? "Uploading…"
+                    : isConverting
+                      ? "Converting…"
+                      : "Convert All"}
                 </Button>
                 <Button
                   variant="outline"
@@ -1709,9 +1773,7 @@ export function ConverterView() {
                                   updateFile(item.id, { targetFormat: val });
                                 }
                               }}
-                              disabled={
-                                item.status === "converting" || isQueueBusy
-                              }
+                              disabled={item.status === "converting" || isConverting}
                             >
                               <SelectTrigger className="w-[5.5rem] sm:w-24 h-8 text-xs">
                                 <SelectValue placeholder="Format" />
@@ -1759,9 +1821,12 @@ export function ConverterView() {
                             )}
                           </div>
 
-                          {/* Actions — while queue is busy, only Remove (X) stays active */}
+                          {/* Actions — Convert only after THIS file finished staging; format always until convert runs */}
                           <div className="flex items-center gap-1 shrink-0">
-                            {item.status === "pending" && !isQueueBusy && (
+                            {item.status === "pending" &&
+                              !isConverting &&
+                              !item.uploading &&
+                              (item.uploadReady || Boolean(item.uploadError)) && (
                               <>
                                 {getCategoryFromExt(item.ext) === "image" && (
                                   <CollapsibleTrigger asChild>
@@ -1791,7 +1856,11 @@ export function ConverterView() {
                                   size="sm"
                                   className="h-8 text-xs bg-emerald-500 hover:bg-emerald-600"
                                   onClick={() => convertFile(item)}
-                                  title="Convert"
+                                  title={
+                                    item.uploadError
+                                      ? "Retry convert (will re-upload)"
+                                      : "Convert"
+                                  }
                                   aria-label="Convert file"
                                 >
                                   <RefreshCw className="w-3.5 h-3.5 mr-1" />{" "}
@@ -1800,16 +1869,28 @@ export function ConverterView() {
                               </>
                             )}
                             {(item.status === "converting" ||
-                              (item.status === "pending" && isQueueBusy)) && (
+                              (item.status === "pending" &&
+                                (isConverting ||
+                                  item.uploading ||
+                                  (!item.uploadReady && !item.uploadError)))) && (
                               <div
                                 className="w-8 h-8 flex items-center justify-center"
                                 title={
                                   item.status === "converting"
                                     ? "Converting…"
-                                    : "Waiting in queue — remove with X to skip"
+                                    : item.uploading ||
+                                        (!item.uploadReady && !item.uploadError)
+                                      ? "Uploading… only format is available until upload finishes"
+                                      : "Waiting in queue — remove with X to skip"
                                 }
                               >
-                                <Clock className="w-4 h-4 text-sky-600" />
+                                {item.status === "pending" &&
+                                (item.uploading ||
+                                  (!item.uploadReady && !item.uploadError)) ? (
+                                  <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                                ) : (
+                                  <Clock className="w-4 h-4 text-sky-600" />
+                                )}
                               </div>
                             )}
                             {item.status === "done" && !isQueueBusy && (
@@ -2343,8 +2424,13 @@ export function ConverterView() {
               {qualityPresets.map((preset) => (
                 <button
                   key={preset.label}
-                  onClick={() => applyPresetToAll(preset.quality)}
-                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-left transition-colors"
+                  type="button"
+                  disabled={isQueueBusy}
+                  onClick={() => {
+                    if (isQueueBusy) return;
+                    applyPresetToAll(preset.quality);
+                  }}
+                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-left transition-colors disabled:opacity-50 disabled:pointer-events-none"
                 >
                   <div
                     className={`w-7 h-7 ${preset.color} rounded-md flex items-center justify-center text-white shrink-0`}
@@ -2606,14 +2692,16 @@ export function ConverterView() {
           <Button
             className="w-full h-12 rounded-xl bg-emerald-500 text-base font-semibold hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
             onClick={convertAll}
-            disabled={isQueueBusy}
+            disabled={!canStartConvert}
           >
             {isQueueBusy ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {batchProgress
-                  ? `${batchProgress.current}/${batchProgress.total} converting…`
-                  : "Converting…"}
+                {isUploading
+                  ? "Uploading…"
+                  : batchProgress
+                    ? `${batchProgress.current}/${batchProgress.total} converting…`
+                    : "Converting…"}
               </>
             ) : (
               <>
