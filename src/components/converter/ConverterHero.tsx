@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/lib/app-context";
-import { formatMaxUploadLabel } from "@/lib/upload-limits";
+import { formatMaxUploadLabel, getMaxNonVideoBatchFiles } from "@/lib/upload-limits";
 
 const FLOATING_FORMATS = [
   {
@@ -246,7 +246,7 @@ export function ConverterHero({
               value: activeCategories > 0 ? String(activeCategories) : "—",
               label: "Categories",
             },
-            { value: "20", label: "Files per batch" },
+            { value: String(getMaxNonVideoBatchFiles()), label: "Files per batch" },
             { value: formatMaxUploadLabel(), label: "Max file size" },
           ].map((stat) => (
             <div
