@@ -18,7 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/lib/app-context";
-import { formatMaxUploadLabel, getMaxNonVideoBatchFiles } from "@/lib/upload-limits";
+import {
+  formatNonVideoMaxUploadLabel,
+  formatVideoMaxUploadLabel,
+  getMaxNonVideoBatchFiles,
+} from "@/lib/upload-limits";
 
 const FLOATING_FORMATS = [
   {
@@ -236,27 +240,48 @@ export function ConverterHero({
           </div>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          {[
-            {
-              value: formatCount > 0 ? `${formatCount}+` : "—",
-              label: "Formats",
-            },
-            {
-              value: activeCategories > 0 ? String(activeCategories) : "—",
-              label: "Categories",
-            },
-            { value: String(getMaxNonVideoBatchFiles()), label: "Files per batch" },
-            { value: formatMaxUploadLabel(), label: "Max file size" },
-          ].map((stat) => (
+        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 sm:gap-4">
+          {(
+            [
+              {
+                value: formatCount > 0 ? `${formatCount}+` : "—",
+                label: "Formats",
+              },
+              {
+                value: activeCategories > 0 ? String(activeCategories) : "—",
+                label: "Categories",
+              },
+              {
+                value:
+                  pairCount > 0
+                    ? `${pairCount.toLocaleString()}+`
+                    : "—",
+                label: "Conversion pairs",
+              },
+              {
+                value: String(getMaxNonVideoBatchFiles()),
+                label: "Files per batch",
+              },
+              {
+                value: formatNonVideoMaxUploadLabel(),
+                detail: `${formatVideoMaxUploadLabel()} video`,
+                label: "Max file size",
+              },
+            ] as const
+          ).map((stat) => (
             <div
               key={stat.label}
-              className="rounded-2xl border border-border/50 bg-background/80 px-4 py-3 text-center"
+              className="rounded-2xl border border-border/50 bg-background/80 px-3 py-3 text-center sm:px-4"
             >
-              <p className="text-xl font-bold tracking-tight sm:text-2xl">
+              <p className="text-xl font-bold tracking-tight sm:text-2xl tabular-nums">
                 {stat.value}
               </p>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {"detail" in stat && stat.detail ? (
+                <p className="mt-0.5 text-xs font-semibold tracking-tight text-foreground/80 sm:text-sm">
+                  {stat.detail}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:text-[11px]">
                 {stat.label}
               </p>
             </div>
