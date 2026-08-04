@@ -2498,6 +2498,71 @@ export function ConverterView() {
         </Card>
       )}
 
+      {/* ─── Feature Cards (original position, larger 5 cards) ─── */}
+      <section>
+        <div className="mb-5 flex flex-col gap-1 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="section-header mb-0">Why Cloud Converter?</h2>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            Mixed-type batch · per-file formats
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
+          {[
+            {
+              icon: <Layers className="h-5 w-5" />,
+              title: "Mixed-type batch",
+              desc: "PNG, PDF, MP3 and more in one queue — pick a different output for each file.",
+              color: "bg-sky-500",
+            },
+            {
+              icon: <ArrowRightLeft className="h-5 w-5" />,
+              title: "Per-file formats",
+              desc: "WebP for one file, DOCX for another — no same-format lock-in.",
+              color: "bg-emerald-500",
+            },
+            {
+              icon: <Zap className="h-5 w-5" />,
+              title: "Lightning Fast",
+              desc: "Server-side engines process files so downloads are ready in seconds.",
+              color: "bg-amber-500",
+            },
+            {
+              icon: <Shield className="h-5 w-5" />,
+              title: "Privacy-first",
+              desc: "Temp process only — converted results stay in your browser.",
+              color: "bg-teal-500",
+            },
+            {
+              icon: <HardDrive className="h-5 w-5" />,
+              title: "Clear limits",
+              desc: `Up to ${formatMaxUploadLabel()} per file · 20-file batch · fair limits · no watermarks.`,
+              color: "bg-rose-500",
+            },
+          ].map((feature) => (
+            <Card
+              key={feature.title}
+              className="card-elevated border-border/60 transition-colors hover:bg-muted/15"
+            >
+              <CardContent className="flex h-full flex-col gap-3 p-4 sm:p-5">
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${feature.color}`}
+                >
+                  {feature.icon}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold leading-snug tracking-tight">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground sm:text-[13px]">
+                    {feature.desc}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
       {/* ─── Image Preview Dialog ─── */}
       <Dialog
         open={previewUrl !== null}
