@@ -16,7 +16,10 @@ import {
   Link as LinkIcon,
   Megaphone,
   Settings,
+  Info,
+  Mail,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export {
   DOWNLOAD_BRAND_PREFIX,
@@ -312,7 +315,15 @@ export const comparisonFeatures = [
 
 // ─── Navigation Items ─────────────────────────────────────────────────────────
 
-export const navItems = [
+export type NavItem = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** When set, navbar navigates to this route instead of toggling an in-app view. */
+  href?: string;
+};
+
+export const navItems: NavItem[] = [
   {
     id: "converter",
     label: "Converter",
@@ -332,6 +343,18 @@ export const navItems = [
     id: "bookmarks",
     label: "Bookmarks",
     icon: Folder,
+  },
+  {
+    id: "about",
+    label: "About",
+    icon: Info,
+    href: "/about",
+  },
+  {
+    id: "contact",
+    label: "Contact",
+    icon: Mail,
+    href: "/contact",
   },
 ];
 

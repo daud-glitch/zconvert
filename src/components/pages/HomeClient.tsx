@@ -257,6 +257,22 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                if (item.href) {
+                  return (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2 h-9 px-4 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                      asChild
+                    >
+                      <Link href={item.href}>
+                        <Icon className="w-4 h-4" />
+                        {item.label}
+                      </Link>
+                    </Button>
+                  );
+                }
                 const isActive = currentView === item.id;
                 return (
                   <Button
@@ -384,6 +400,21 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             <div className="px-4 pt-2 pb-6 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                if (item.href) {
+                  return (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-12 rounded-xl text-muted-foreground"
+                      asChild
+                    >
+                      <Link href={item.href} onClick={() => setMobileNavOpen(false)}>
+                        <Icon className="w-5 h-5" />
+                        {item.label}
+                      </Link>
+                    </Button>
+                  );
+                }
                 const isActive = currentView === item.id;
                 return (
                   <Button
@@ -553,6 +584,18 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 >
                   Bookmarks
                 </button>
+                <Link
+                  href="/about"
+                  className="text-left hover:text-emerald-500 transition-colors"
+                >
+                  About
+                </Link>
+                <Link
+                  href="/contact"
+                  className="text-left hover:text-emerald-500 transition-colors"
+                >
+                  Contact
+                </Link>
               </nav>
             </div>
 
