@@ -63,6 +63,18 @@ describe("conversion smoke", () => {
     expect(json[0].summary).toBe("Meet");
   });
 
+  it("converts document text sources → TSV and CSV", async () => {
+    const md = Buffer.from("# Title\n\nHello line\nSecond line\n", "utf-8");
+    const tsv = (await convertFile(md, "md", "tsv")).toString("utf-8");
+    expect(tsv.startsWith("content\n")).toBe(true);
+    expect(tsv).toContain("Hello line");
+    expect(tsv).not.toMatch(/not supported/i);
+
+    const csvDoc = (await convertFile(md, "txt", "csv")).toString("utf-8");
+    expect(csvDoc).toContain("content");
+    expect(csvDoc).toContain("Hello line");
+  });
+
   it("converts GeoJSON → CSV", async () => {
     const geo = Buffer.from(
       JSON.stringify({

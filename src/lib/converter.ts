@@ -2142,12 +2142,21 @@ async function convertDocument(
     }
     case "csv":
     case "tsv": {
-      const lines = plainText.split("\n").filter((l) => l.trim());
-      const sep = dest === "csv" ? "," : "\t";
-      return Buffer.from(
-        lines.map((l) => `"${l.replace(/"/g, '""')}"`).join(sep),
-        "utf-8",
-      );
+      // One text column per line (documents → spreadsheet-friendly plain export)
+      const lines = plainText
+        .split(/\r?\n/)
+        .map((l) => l.trimEnd())
+        .filter((l) => l.length > 0);
+      if (dest === "tsv") {
+        const header = "content";
+        const body = lines.map((l) =>
+          l.replace(/\t/g, " ").replace(/\r?\n/g, " "),
+        );
+        return Buffer.from([header, ...body].join("\n") + "\n", "utf-8");
+      }
+      const header = `"content"`;
+      const body = lines.map((l) => `"${l.replace(/"/g, '""')}"`);
+      return Buffer.from([header, ...body].join("\n") + "\n", "utf-8");
     }
     case "rtf":
       return Buffer.from(toRtf(plainText), "utf-8");
@@ -3322,16 +3331,7 @@ export async function convertFile(
     return convertData(input, src, dest);
   }
 
-  if (
-    docFormats.has(src) &&
-    (docFormats.has(dest) ||
-      dest === "epub" ||
-      dest === "pptx" ||
-      dest === "json" ||
-      dest === "csv" ||
-      dest === "yaml" ||
-      dest === "xml")
-  ) {
+  if (docFormats.has(src) && docOutputFormats.has(dest)) {
     return convertDocument(input, src, dest);
   }
 
