@@ -21,7 +21,7 @@ public sealed class SettingsService
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "CloudConverter");
+            Branding.AppDataFolderName);
         Directory.CreateDirectory(dir);
         _filePath = Path.Combine(dir, "settings.json");
         Load();
@@ -34,19 +34,18 @@ public sealed class SettingsService
             if (!File.Exists(_filePath))
             {
                 Current = new AppSettings();
-                EnsureDownloadFolder();
-                Save();
+                ApplyDomainDefaults(forceSave: true);
                 return;
             }
 
             var json = File.ReadAllText(_filePath);
             Current = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
-            EnsureDownloadFolder();
+            ApplyDomainDefaults(forceSave: false);
         }
         catch
         {
             Current = new AppSettings();
-            EnsureDownloadFolder();
+            ApplyDomainDefaults(forceSave: true);
         }
     }
 
@@ -55,6 +54,10 @@ public sealed class SettingsService
         try
         {
             EnsureDownloadFolder();
+            var site = Current.SiteUrl;
+            Branding.EnsureCanonicalSiteUrl(ref site);
+            Current.SiteUrl = site!;
+            Current.UpdateManifestUrl = UpdateCheckService.DefaultManifestUrl;
             var json = JsonSerializer.Serialize(Current, JsonOptions);
             File.WriteAllText(_filePath, json);
             ApplyWindowsStartup(Current.LaunchOnWindowsStartup);
@@ -65,6 +68,48 @@ public sealed class SettingsService
         }
     }
 
+    /// <summary>Lock desktop shell to official www.convertek.tech after domain rebrand.</summary>
+    private void ApplyDomainDefaults(bool forceSave)
+    {
+        var changed = false;
+
+        var site = Current.SiteUrl;
+        if (Branding.EnsureCanonicalSiteUrl(ref site))
+        {
+            Current.SiteUrl = site!;
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(Current.UpdateManifestUrl) ||
+            !Current.UpdateManifestUrl.Contains("convertek.tech", StringComparison.OrdinalIgnoreCase))
+        {
+            Current.UpdateManifestUrl = UpdateCheckService.DefaultManifestUrl;
+            changed = true;
+        }
+
+        // Migrate old default download folder name CloudConverter → Convertek
+        if (!string.IsNullOrWhiteSpace(Current.DownloadFolder)
+            && (Current.DownloadFolder.EndsWith(
+                    Path.DirectorySeparatorChar + "CloudConverter",
+                    StringComparison.OrdinalIgnoreCase)
+                || Current.DownloadFolder.EndsWith(
+                    Path.AltDirectorySeparatorChar + "CloudConverter",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            var parent = Path.GetDirectoryName(Current.DownloadFolder);
+            if (!string.IsNullOrEmpty(parent))
+            {
+                Current.DownloadFolder = Path.Combine(parent, Branding.DefaultDownloadsFolderName);
+                changed = true;
+            }
+        }
+
+        EnsureDownloadFolder();
+
+        if (forceSave || changed)
+            Save();
+    }
+
     private void EnsureDownloadFolder()
     {
         if (string.IsNullOrWhiteSpace(Current.DownloadFolder))
@@ -72,7 +117,7 @@ public sealed class SettingsService
             Current.DownloadFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 "Downloads",
-                "CloudConverter");
+                Branding.DefaultDownloadsFolderName);
         }
 
         try
@@ -93,16 +138,24 @@ public sealed class SettingsService
             using var key = Registry.CurrentUser.OpenSubKey(keyPath, writable: true);
             if (key is null) return;
 
-            const string valueName = "CloudConverter";
+            // Prefer Convertek key; clean legacy name when writing
+            const string valueName = "Convertek";
+            const string legacyName = "CloudConverter";
             if (enable)
             {
                 var exe = Environment.ProcessPath;
                 if (!string.IsNullOrEmpty(exe))
+                {
                     key.SetValue(valueName, $"\"{exe}\"");
+                    key.DeleteValue(legacyName, throwOnMissingValue: false);
+                }
             }
-            else if (key.GetValue(valueName) is not null)
+            else
             {
-                key.DeleteValue(valueName, throwOnMissingValue: false);
+                if (key.GetValue(valueName) is not null)
+                    key.DeleteValue(valueName, throwOnMissingValue: false);
+                if (key.GetValue(legacyName) is not null)
+                    key.DeleteValue(legacyName, throwOnMissingValue: false);
             }
         }
         catch

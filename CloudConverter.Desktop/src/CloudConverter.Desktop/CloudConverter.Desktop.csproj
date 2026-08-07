@@ -13,9 +13,9 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <Product>Convertek</Product>
     <Company>Convertek</Company>
-    <Version>1.1.0</Version>
-    <FileVersion>1.1.0.0</FileVersion>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <Version>1.2.0</Version>
+    <FileVersion>1.2.0.0</FileVersion>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
     <Authors>Muhammad Daud Khan</Authors>
     <Description>Desktop shell for www.convertek.tech — offline install, online convert.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>

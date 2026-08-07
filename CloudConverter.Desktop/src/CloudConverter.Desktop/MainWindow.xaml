@@ -261,6 +261,11 @@
               <TextBlock Text="Customize the desktop app on your PC."
                          Foreground="{DynamicResource BrushMuted}" FontSize="13" Margin="0,0,0,24" />
 
+              <TextBlock Text="WEBSITE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}" Margin="0,0,0,8" />
+              <TextBlock Text="Desktop always loads the official Convertek site (domain locked after rebrand)."
+                         FontSize="12" Foreground="{DynamicResource BrushMuted}" Margin="0,0,0,6" TextWrapping="Wrap" />
+              <TextBox x:Name="TxtSiteUrl" Style="{StaticResource ShellTextBox}" IsReadOnly="True" Margin="0,0,0,16" />
+
               <TextBlock Text="APPEARANCE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}" Margin="0,0,0,8" />
               <TextBlock Text="Use Light / Dark next to the Online badge in the title bar for quick theme switching."
                          FontSize="12" Foreground="{DynamicResource BrushMuted}" TextWrapping="Wrap" Margin="0,0,0,16" />

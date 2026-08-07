@@ -1,6 +1,5 @@
 /**
- * Brand mark (matches public/favicon.svg) for nav headers.
- * Convertek dual-arrow convert mark on emerald tech tile.
+ * Convertek brand mark — HD dual-file convert symbol (public/logo-mark.png, transparent).
  */
 export function BrandMark({
   className = "h-8 w-8 sm:h-10 sm:w-10",
@@ -10,13 +9,13 @@ export function BrandMark({
   rounded?: string;
 }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- static public SVG brand asset
+    // eslint-disable-next-line @next/next/no-img-element -- static public brand PNG
     <img
-      src="/favicon.svg"
+      src="/logo-mark.png"
       alt="Convertek"
       width={40}
       height={40}
-      className={`${className} ${rounded} shadow-lg shadow-emerald-500/20 shrink-0 object-cover`}
+      className={`${className} ${rounded} shrink-0 object-contain bg-transparent`}
       decoding="async"
     />
   );

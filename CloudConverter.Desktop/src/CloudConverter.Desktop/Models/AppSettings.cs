@@ -6,13 +6,16 @@ namespace CloudConverter.Desktop.Models;
 
 public sealed class AppSettings
 {
-    public const string DefaultSiteUrl = "https://www.convertek.tech";
+    public const string DefaultSiteUrl = Branding.CanonicalSiteUrl;
 
     public string SiteUrl { get; set; } = DefaultSiteUrl;
     public string StartPath { get; set; } = "/";
 
     public string DownloadFolder { get; set; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "CloudConverter");
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Downloads",
+            Branding.DefaultDownloadsFolderName);
 
     public bool StartMaximized { get; set; } = true;
     public bool RememberWindow { get; set; } = true;

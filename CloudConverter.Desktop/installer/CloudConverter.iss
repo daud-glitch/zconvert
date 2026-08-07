@@ -2,7 +2,7 @@
 ; Or: powershell -File scripts\build-installer.ps1
 
 #define MyAppName "Convertek"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Convertek"
 #define MyAppURL "https://www.convertek.tech"
 #define MyAppExeName "CloudConverter.exe"

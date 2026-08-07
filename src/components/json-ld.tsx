@@ -32,7 +32,7 @@ export default function JsonLd() {
       "No watermarks",
       "Temporary server processing",
     ],
-    screenshot: `${SITE.replace(/\/$/, "")}/og-image.svg`,
+    screenshot: `${SITE.replace(/\/$/, "")}/og-image.png`,
     softwareVersion: "1.0",
     inLanguage: "en-US",
     isAccessibleForFree: true,

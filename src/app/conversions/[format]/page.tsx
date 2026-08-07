@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       images: [
         {
-          url: "/og-image.svg",
+          url: "/og-image.png",
           width: 1200,
           height: 630,
           alt: `Convert ${format.ext} files online`,
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       title,
       description,
-      images: ["/og-image.svg"],
+      images: ["/og-image.png"],
     },
   };
 }

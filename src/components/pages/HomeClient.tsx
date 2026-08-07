@@ -498,14 +498,14 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="md:col-span-2 space-y-4">
               <div className="flex items-center gap-2">
-                {/* Brand mark — matches site favicon */}
+                {/* Brand mark — HD transparent symbol */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/favicon.svg"
+                  src="/logo-mark.png"
                   alt=""
                   width={28}
                   height={28}
-                  className="h-7 w-7 rounded-lg shadow-sm"
+                  className="h-7 w-7 object-contain bg-transparent"
                 />
                 <span className="text-xl font-bold tracking-tight">
                   Convertek

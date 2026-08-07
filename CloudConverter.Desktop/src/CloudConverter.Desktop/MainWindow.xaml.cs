@@ -158,6 +158,8 @@ public partial class MainWindow : Window
     private void LoadSettingsUi()
     {
         var s = _settings.Current;
+        if (TxtSiteUrl is not null)
+            TxtSiteUrl.Text = Branding.CanonicalSiteUrl;
         TxtDownloadFolder.Text = s.DownloadFolder;
         ChkRemember.IsChecked = s.RememberWindow;
         ChkTray.IsChecked = s.MinimizeToTray;
@@ -615,7 +617,7 @@ public partial class MainWindow : Window
             ShowLoading(true, "Preparing secure browser…");
             var userData = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CloudConverter",
+                Branding.AppDataFolderName,
                 "WebView2");
             Directory.CreateDirectory(userData);
 
@@ -658,6 +660,34 @@ public partial class MainWindow : Window
 
             core.NavigationStarting += (_, args) =>
             {
+                // Keep app on official Convertek host (apex → www; block accidental legacy domain linger)
+                try
+                {
+                    if (Uri.TryCreate(args.Uri, UriKind.Absolute, out var navUri)
+                        && (navUri.Scheme == Uri.UriSchemeHttp || navUri.Scheme == Uri.UriSchemeHttps))
+                    {
+                        var host = navUri.Host.Trim().ToLowerInvariant();
+                        if (host is "convertek.tech"
+                            or "cloudconveter.tech"
+                            or "www.cloudconveter.tech"
+                            or "cloudconverter.tech"
+                            or "www.cloudconverter.tech"
+                            || host.EndsWith(".cloudconveter.tech", StringComparison.Ordinal)
+                            || host.EndsWith(".cloudconverter.tech", StringComparison.Ordinal))
+                        {
+                            args.Cancel = true;
+                            var path = navUri.PathAndQuery;
+                            if (string.IsNullOrEmpty(path)) path = "/";
+                            core.Navigate(Branding.CanonicalSiteUrl.TrimEnd('/') + path + navUri.Fragment);
+                            return;
+                        }
+                    }
+                }
+                catch
+                {
+                    // continue with normal navigation UI
+                }
+
                 Dispatcher.Invoke(() =>
                 {
                     // Always prefer loading first — never flash offline while a page is opening
@@ -809,10 +839,9 @@ public partial class MainWindow : Window
     /// <summary>Prefix converted downloads with convertek.tech- when missing.</summary>
     private static string BrandDownloadFileName(string fileName)
     {
-        if (string.IsNullOrWhiteSpace(fileName)) return "convertek.tech-download.bin";
-        const string brand = "convertek.tech";
+        var brand = Branding.DownloadBrandPrefix;
+        if (string.IsNullOrWhiteSpace(fileName)) return $"{brand}-download.bin";
         if (fileName.StartsWith(brand, StringComparison.OrdinalIgnoreCase)
-            || fileName.StartsWith("convertek.tech", StringComparison.OrdinalIgnoreCase)
             || fileName.Contains("cloudconverter", StringComparison.OrdinalIgnoreCase)
             || fileName.Contains("convertek", StringComparison.OrdinalIgnoreCase))
             return fileName;
@@ -963,7 +992,7 @@ public partial class MainWindow : Window
         }
 
         ShowOffline(false);
-        ShowLoading(true, "Connecting to convertek.tech…");
+        ShowLoading(true, $"Connecting to {Branding.CanonicalHost}…");
         WebView.CoreWebView2.Navigate(_settings.Current.HomeUrl);
         NavHome.IsChecked = true;
         ShowWebPanel();
@@ -1292,7 +1321,7 @@ public partial class MainWindow : Window
             NavigatePath("/contact");
             Process.Start(new ProcessStartInfo
             {
-                FileName = $"mailto:support@convertek.tech?subject={subject}&body={body}",
+                FileName = $"mailto:{Branding.SupportEmail}?subject={subject}&body={body}",
                 UseShellExecute = true,
             });
         }
@@ -1556,6 +1585,9 @@ public partial class MainWindow : Window
     private void BtnSaveSettings_Click(object sender, RoutedEventArgs e)
     {
         var s = _settings.Current;
+        // Official product host only — ignore legacy saved site URLs
+        s.SiteUrl = Branding.CanonicalSiteUrl;
+        s.UpdateManifestUrl = UpdateCheckService.DefaultManifestUrl;
         s.DownloadFolder = string.IsNullOrWhiteSpace(TxtDownloadFolder.Text)
             ? s.DownloadFolder
             : TxtDownloadFolder.Text.Trim();
@@ -1567,6 +1599,8 @@ public partial class MainWindow : Window
         // Theme controlled from title bar Light/Dark (not saved here to avoid stale radio)
         SaveFavoritePickersToSettings();
         _settings.Save();
+        if (TxtSiteUrl is not null)
+            TxtSiteUrl.Text = Branding.CanonicalSiteUrl;
         ApplyShellChrome();
         UpdateThemeToggleUi();
         RefreshFavoritesUi();

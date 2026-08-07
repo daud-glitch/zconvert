@@ -21,7 +21,7 @@ public sealed class RecentDownloadsService
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "CloudConverter");
+            Branding.AppDataFolderName);
         Directory.CreateDirectory(dir);
         _filePath = Path.Combine(dir, "recent-downloads.json");
         Load();

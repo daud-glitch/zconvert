@@ -65,11 +65,11 @@ export const metadata: Metadata = {
       "Convert images, documents, data, audio, and video online. Mix different file types in one batch — choose a separate output format per file. Temporary processing, local history, fair limits, no watermarks.",
     images: [
       {
-        url: "/og-image.svg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Convertek — www.convertek.tech",
-        type: "image/svg+xml",
+        type: "image/png",
       },
     ],
   },
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
     title: "Convertek — Universal File Converter",
     description:
       "Convert images, documents, data, audio, and video online. Mixed-type batch with per-file formats. Fair limits, no watermarks.",
-    images: ["/og-image.svg"],
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -93,11 +93,14 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-64.png", sizes: "64x64", type: "image/png" },
+      { url: "/logo-mark.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
     ],
-    shortcut: "/favicon.svg",
+    shortcut: ["/favicon-32.png", "/favicon.ico"],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
