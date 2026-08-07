@@ -253,7 +253,7 @@ export function ConverterView() {
         uploading: true,
         uploadReady: false,
         uploadError: undefined,
-        progress: 0,
+        progress: 3,
         progressPhase: "uploading",
       });
       try {
@@ -262,8 +262,8 @@ export function ConverterView() {
           fileName: item.name,
           onProgress: (p) => {
             updateFile(item.id, {
-              progress: p.percent,
-              progressPhase: "uploading",
+              progress: Math.max(3, p.percent),
+              progressPhase: p.phase === "reading" ? "uploading" : "uploading",
               uploading: true,
             });
           },
@@ -308,8 +308,8 @@ export function ConverterView() {
 
     autoUploadChainRef.current = autoUploadChainRef.current
       .then(async () => {
-        // Upload in small parallel batches (fast, limited bandwidth contention)
-        const BATCH = 3;
+        // Upload sequentially — one file at a time is more reliable on flaky mobile / Heroku
+        const BATCH = 1;
         for (let i = 0; i < items.length; i += BATCH) {
           const slice = items.slice(i, i + BATCH);
           await Promise.all(

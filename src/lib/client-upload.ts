@@ -1,11 +1,10 @@
 /** Client helpers for reliable large media uploads (chunked on mobile/Heroku). */
 
 const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round-trips
-// Sequential uploads avoid race / flaky mobile drops; still fast enough with 4 MB parts
-const PARALLEL_CHUNKS = 1;
 const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
-const CHUNK_RETRIES = 4;
-const CHUNK_TIMEOUT_MS = 55_000;
+const CHUNK_RETRIES = 3;
+/** Short enough that a hang fails fast; XHR aborts cleanly so we can retry with a fresh body. */
+const CHUNK_TIMEOUT_MS = 35_000;
 const JOB_POLL_MS = 2000;
 const JOB_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min cap for long video encodes
 /** How many times to wait+retry when server convert queue is full (503). */
@@ -30,11 +29,19 @@ function sleep(ms: number) {
 function sameOriginUrl(path: string): string {
   if (typeof window !== "undefined" && window.location?.origin) {
     const base = window.location.origin.replace(/\/$/, "");
-    return path.startsWith("http") ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+    return path.startsWith("http")
+      ? path
+      : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
   }
   return path;
 }
 
+/**
+ * Browser: XHR upload (real progress + clean abort).
+ * Non-browser / tests: fetch with a fresh Blob body each attempt.
+ *
+ * Important: after Abort, a given ArrayBuffer/Body can be unusable — always send a new Blob copy.
+ */
 async function postChunk(
   uploadId: string,
   chunkIndex: number,
@@ -42,43 +49,111 @@ async function postChunk(
   totalSize: number,
   fileName: string,
   body: ArrayBuffer,
+  onWireProgress?: (loadedInChunk: number, chunkBytes: number) => void,
 ): Promise<void> {
   let lastErr: Error | null = null;
   const url = sameOriginUrl("/api/convert/chunk");
+  const chunkBytes = body.byteLength;
+
   for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "X-Upload-Id": uploadId,
-          "X-Chunk-Index": String(chunkIndex),
-          "X-Chunk-Total": String(chunkTotal),
-          "X-Total-Size": String(totalSize),
-          "X-File-Name": encodeURIComponent(fileName),
-        },
-        body,
-        cache: "no-store",
-        redirect: "error", // never follow host redirects mid-upload
-        signal: controller.signal,
+      // Fresh copy every attempt — avoids "stuck" after abort/timeout locking a body
+      const payload = new Blob([body.slice(0)], {
+        type: "application/octet-stream",
       });
-      if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
-        throw new Error(
-          "Upload redirected off this host. Open https://www.convertek.tech and try again.",
-        );
-      }
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        let msg = `Chunk ${chunkIndex + 1}/${chunkTotal} failed (${res.status})`;
+
+      if (typeof XMLHttpRequest !== "undefined") {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", url, true);
+          xhr.timeout = CHUNK_TIMEOUT_MS;
+          xhr.setRequestHeader("Content-Type", "application/octet-stream");
+          xhr.setRequestHeader("X-Upload-Id", uploadId);
+          xhr.setRequestHeader("X-Chunk-Index", String(chunkIndex));
+          xhr.setRequestHeader("X-Chunk-Total", String(chunkTotal));
+          xhr.setRequestHeader("X-Total-Size", String(totalSize));
+          xhr.setRequestHeader("X-File-Name", encodeURIComponent(fileName));
+          xhr.responseType = "text";
+
+          xhr.upload.onprogress = (ev) => {
+            if (ev.lengthComputable) {
+              onWireProgress?.(ev.loaded, ev.total || chunkBytes);
+            } else if (ev.loaded > 0) {
+              onWireProgress?.(ev.loaded, chunkBytes);
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              onWireProgress?.(chunkBytes, chunkBytes);
+              resolve();
+              return;
+            }
+            let msg = `Chunk ${chunkIndex + 1}/${chunkTotal} failed (${xhr.status})`;
+            try {
+              const json = JSON.parse(xhr.responseText || "{}") as {
+                error?: string;
+              };
+              if (json.error) msg = json.error;
+            } catch {
+              if (xhr.responseText) msg = xhr.responseText.slice(0, 160);
+            }
+            reject(new Error(msg));
+          };
+          xhr.ontimeout = () =>
+            reject(
+              new Error(
+                `Chunk ${chunkIndex + 1}/${chunkTotal} timed out. Check connection and retry.`,
+              ),
+            );
+          xhr.onerror = () =>
+            reject(
+              new Error(
+                `Chunk ${chunkIndex + 1}/${chunkTotal} network error. Retry.`,
+              ),
+            );
+          xhr.onabort = () =>
+            reject(
+              new Error(
+                `Chunk ${chunkIndex + 1}/${chunkTotal} was aborted. Retry.`,
+              ),
+            );
+
+          xhr.send(payload);
+        });
+      } else {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
         try {
-          const json = JSON.parse(text) as { error?: string };
-          if (json.error) msg = json.error;
-        } catch {
-          if (text) msg = text.slice(0, 160);
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "X-Upload-Id": uploadId,
+              "X-Chunk-Index": String(chunkIndex),
+              "X-Chunk-Total": String(chunkTotal),
+              "X-Total-Size": String(totalSize),
+              "X-File-Name": encodeURIComponent(fileName),
+            },
+            body: payload,
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            let msg = `Chunk ${chunkIndex + 1}/${chunkTotal} failed (${res.status})`;
+            try {
+              const json = JSON.parse(text) as { error?: string };
+              if (json.error) msg = json.error;
+            } catch {
+              if (text) msg = text.slice(0, 160);
+            }
+            throw new Error(msg);
+          }
+          onWireProgress?.(chunkBytes, chunkBytes);
+        } finally {
+          clearTimeout(timer);
         }
-        throw new Error(msg);
       }
       return;
     } catch (err) {
@@ -90,10 +165,8 @@ async function postChunk(
         lastErr = err instanceof Error ? err : new Error(String(err));
       }
       if (attempt < CHUNK_RETRIES) {
-        await sleep(400 * attempt);
+        await sleep(500 * attempt);
       }
-    } finally {
-      clearTimeout(timer);
     }
   }
   throw lastErr || new Error("Chunk upload failed");
@@ -193,7 +266,6 @@ async function postConvertWithQueue(
     const res = await fetch(absoluteUrl, {
       ...init,
       cache: "no-store",
-      redirect: "error",
     });
 
     if (res.status === 503) {
@@ -282,42 +354,66 @@ export async function stageFileUpload(options: {
 
   const uploadId = newUploadId();
   const chunkTotal = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
-  let loaded = 0;
+  let completedBytes = 0;
 
   report({
-    percent: 0,
-    phase: "uploading",
+    percent: 2,
+    phase: "reading",
     loadedBytes: 0,
     totalBytes: file.size,
   });
 
-  for (let i = 0; i < chunkTotal; i += PARALLEL_CHUNKS) {
-    const batch: Promise<void>[] = [];
-    for (let j = i; j < Math.min(i + PARALLEL_CHUNKS, chunkTotal); j++) {
-      const start = j * CHUNK_BYTES;
-      const end = Math.min(start + CHUNK_BYTES, file.size);
-      batch.push(
-        (async () => {
-          const slice = file.slice(start, end);
-          const bytes = await slice.arrayBuffer();
-          if (bytes.byteLength !== end - start) {
-            throw new Error(
-              `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
-            );
-          }
-          await postChunk(uploadId, j, chunkTotal, file.size, fileName, bytes);
-          loaded += bytes.byteLength;
-          const percent = Math.min(99, Math.round((loaded / file.size) * 100));
-          report({
-            percent,
-            phase: "uploading",
-            loadedBytes: loaded,
-            totalBytes: file.size,
-          });
-        })(),
+  for (let j = 0; j < chunkTotal; j++) {
+    const start = j * CHUNK_BYTES;
+    const end = Math.min(start + CHUNK_BYTES, file.size);
+    const slice = file.slice(start, end);
+    report({
+      percent: Math.min(
+        12,
+        2 + Math.round((completedBytes / Math.max(1, file.size)) * 10),
+      ),
+      phase: "reading",
+      loadedBytes: completedBytes,
+      totalBytes: file.size,
+    });
+    const bytes = await slice.arrayBuffer();
+    if (bytes.byteLength !== end - start) {
+      throw new Error(
+        `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
       );
     }
-    await Promise.all(batch);
+
+    await postChunk(
+      uploadId,
+      j,
+      chunkTotal,
+      file.size,
+      fileName,
+      bytes,
+      (loadedInChunk, chunkBytes) => {
+        const wire = completedBytes + Math.min(loadedInChunk, chunkBytes);
+        const percent = Math.min(
+          99,
+          Math.max(5, Math.round((wire / Math.max(1, file.size)) * 100)),
+        );
+        report({
+          percent,
+          phase: "uploading",
+          loadedBytes: wire,
+          totalBytes: file.size,
+        });
+      },
+    );
+    completedBytes = end;
+    report({
+      percent: Math.min(
+        99,
+        Math.round((completedBytes / Math.max(1, file.size)) * 100),
+      ),
+      phase: "uploading",
+      loadedBytes: completedBytes,
+      totalBytes: file.size,
+    });
   }
 
   report({
@@ -438,43 +534,47 @@ export async function uploadAndConvert(options: {
   }
 
   const uploadId = newUploadId();
-
   const chunkTotal = Math.ceil(file.size / CHUNK_BYTES);
-  let loaded = 0;
+  let completedBytes = 0;
   report({
-    percent: 0,
-    phase: "uploading",
+    percent: 3,
+    phase: "reading",
     loadedBytes: 0,
     totalBytes: file.size,
   });
 
-  for (let i = 0; i < chunkTotal; i += PARALLEL_CHUNKS) {
-    const batch: Promise<void>[] = [];
-    for (let j = i; j < Math.min(i + PARALLEL_CHUNKS, chunkTotal); j++) {
-      const start = j * CHUNK_BYTES;
-      const end = Math.min(start + CHUNK_BYTES, file.size);
-      batch.push(
-        (async () => {
-          const slice = file.slice(start, end);
-          const bytes = await slice.arrayBuffer();
-          if (bytes.byteLength !== end - start) {
-            throw new Error(
-              `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
-            );
-          }
-          await postChunk(uploadId, j, chunkTotal, file.size, fileName, bytes);
-          loaded += bytes.byteLength;
-          const percent = Math.min(85, Math.round((loaded / file.size) * 85));
-          report({
-            percent,
-            phase: "uploading",
-            loadedBytes: loaded,
-            totalBytes: file.size,
-          });
-        })(),
+  for (let j = 0; j < chunkTotal; j++) {
+    const start = j * CHUNK_BYTES;
+    const end = Math.min(start + CHUNK_BYTES, file.size);
+    const slice = file.slice(start, end);
+    const bytes = await slice.arrayBuffer();
+    if (bytes.byteLength !== end - start) {
+      throw new Error(
+        `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
       );
     }
-    await Promise.all(batch);
+    await postChunk(
+      uploadId,
+      j,
+      chunkTotal,
+      file.size,
+      fileName,
+      bytes,
+      (loadedInChunk, chunkBytes) => {
+        const wire = completedBytes + Math.min(loadedInChunk, chunkBytes);
+        const percent = Math.min(
+          85,
+          Math.max(5, Math.round((wire / Math.max(1, file.size)) * 85)),
+        );
+        report({
+          percent,
+          phase: "uploading",
+          loadedBytes: wire,
+          totalBytes: file.size,
+        });
+      },
+    );
+    completedBytes = end;
   }
 
   report({
