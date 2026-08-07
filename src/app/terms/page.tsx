@@ -2,17 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
-const SITE = "https://www.cloudconveter.tech";
-const CONTACT = "support@cloudconveter.tech";
+const SITE = "https://www.convertek.tech";
+const CONTACT = "support@convertek.tech";
 const UPDATED = "August 2, 2026";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Rules for using Cloud Converter file conversion at www.cloudconveter.tech.",
+    "Rules for using Convertek file conversion at www.convertek.tech.",
   alternates: { canonical: "/terms" },
   openGraph: {
-    title: "Terms of Service | Cloud Converter",
+    title: "Terms of Service | Convertek",
     url: `${SITE}/terms`,
   },
 };
@@ -21,7 +21,7 @@ export default function TermsPage() {
   return (
     <LegalPageShell title="Terms of Service" updated={UPDATED}>
       <p>
-        These Terms govern use of Cloud Converter at{" "}
+        These Terms govern use of Convertek at{" "}
         <a href={SITE}>{SITE.replace("https://", "")}</a> (the “Service”). By
         using the Service you agree to these Terms and our{" "}
         <Link href="/privacy" className="text-emerald-600">
@@ -32,7 +32,7 @@ export default function TermsPage() {
 
       <h2>1. The Service</h2>
       <p>
-        Cloud Converter provides browser-based file conversion and related
+        Convertek provides browser-based file conversion and related
         utilities. Features, formats, and capacity depend on the server
         configuration and may change. Limits may include maximum upload size,
         request rate limits, and formats that require system tools (for
@@ -96,7 +96,7 @@ export default function TermsPage() {
 
       <h2>6. Intellectual property</h2>
       <p>
-        The Cloud Converter name, site design, and software (except your files)
+        The Convertek name, site design, and software (except your files)
         are owned by the operator or its licensors. You may not copy or
         rebrand the Service without permission.
       </p>

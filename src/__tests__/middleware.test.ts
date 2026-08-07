@@ -73,25 +73,44 @@ describe("middleware", () => {
   });
 
   describe("canonical host redirect", () => {
-    it("redirects apex cloudconveter.tech to www", () => {
-      const req = createMockRequest("/", undefined, "cloudconveter.tech");
+    it("redirects apex convertek.tech to www", () => {
+      const req = createMockRequest("/", undefined, "convertek.tech");
       middleware(req as never);
 
       expect(NextResponse.redirect).toHaveBeenCalled();
       const url = (NextResponse.redirect as ReturnType<typeof vi.fn>).mock
         .calls[0][0] as URL;
-      expect(url.hostname).toBe("www.cloudconveter.tech");
+      expect(url.hostname).toBe("www.convertek.tech");
       expect(url.pathname).toBe("/");
       expect(
         (NextResponse.redirect as ReturnType<typeof vi.fn>).mock.calls[0][1],
       ).toBe(308);
     });
 
+    it("redirects legacy cloudconveter hosts to www.convertek.tech", () => {
+      for (const host of ["cloudconveter.tech", "www.cloudconveter.tech"]) {
+        (NextResponse.redirect as ReturnType<typeof vi.fn>).mockClear();
+        (NextResponse.next as ReturnType<typeof vi.fn>).mockClear();
+        const req = createMockRequest("/", undefined, host);
+        middleware(req as never);
+        expect(NextResponse.redirect).toHaveBeenCalled();
+        const url = (NextResponse.redirect as ReturnType<typeof vi.fn>).mock
+          .calls[0][0] as URL;
+        expect(url.hostname).toBe("www.convertek.tech");
+      }
+    });
+
     it("does not redirect www host", () => {
-      const req = createMockRequest("/", undefined, "www.cloudconveter.tech");
+      const req = createMockRequest("/", undefined, "www.convertek.tech");
       middleware(req as never);
       expect(NextResponse.redirect).not.toHaveBeenCalled();
       expect(NextResponse.next).toHaveBeenCalled();
+    });
+
+    it("does not redirect localhost", () => {
+      const req = createMockRequest("/", undefined, "localhost:3000");
+      middleware(req as never);
+      expect(NextResponse.redirect).not.toHaveBeenCalled();
     });
   });
 

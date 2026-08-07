@@ -205,6 +205,24 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/apple-touch-icon.png",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      {
+        source: "/favicon.ico",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      {
         source: "/og-image.svg",
         headers: [
           {
@@ -280,6 +298,33 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=()",
           },
         ],
+      },
+    ];
+  },
+
+  /**
+   * Permanent host redirects: only www.convertek.tech is public.
+   * Middleware mirrors this (both layers after deploy).
+   */
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "convertek.tech" }],
+        destination: "https://www.convertek.tech/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "cloudconveter.tech" }],
+        destination: "https://www.convertek.tech/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.cloudconveter.tech" }],
+        destination: "https://www.convertek.tech/:path*",
+        permanent: true,
       },
     ];
   },

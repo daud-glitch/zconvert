@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
 
-const SUPPORT = process.env.SUPPORT_EMAIL?.trim() || "support@cloudconveter.tech";
+const SUPPORT = process.env.SUPPORT_EMAIL?.trim() || "support@convertek.tech";
 
 export async function POST(request: NextRequest) {
   const ip =
@@ -48,8 +48,8 @@ export async function POST(request: NextRequest) {
 
     const subject =
       kind === "broken-convert"
-        ? `[Broken convert] ${sourceExt || "?"} → ${targetExt || "?"} · Cloud Converter`
-        : `[Contact] ${kind} · Cloud Converter`;
+        ? `[Broken convert] ${sourceExt || "?"} → ${targetExt || "?"} · Convertek`
+        : `[Contact] ${kind} · Convertek`;
 
     const text = [
       `From: ${name || "(no name)"} <${email}>`,

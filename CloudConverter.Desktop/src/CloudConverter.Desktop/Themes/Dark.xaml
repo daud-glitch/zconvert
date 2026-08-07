@@ -1,0 +1,27 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Dark theme -->
+  <Color x:Key="BgDeep">#FF0B0F14</Color>
+  <Color x:Key="BgPanel">#FF121820</Color>
+  <Color x:Key="BgElevated">#FF1A2230</Color>
+  <Color x:Key="BgHover">#FF243041</Color>
+  <Color x:Key="BorderSubtle">#FF2A3545</Color>
+  <Color x:Key="TextPrimary">#FFF3F6FA</Color>
+  <Color x:Key="TextMuted">#FF93A0B4</Color>
+  <Color x:Key="Accent">#FF10B981</Color>
+  <Color x:Key="AccentSoft">#3310B981</Color>
+  <Color x:Key="Danger">#FFEF4444</Color>
+  <Color x:Key="Warning">#FFF59E0B</Color>
+  <Color x:Key="SplashOrb">#FF10B981</Color>
+
+  <SolidColorBrush x:Key="BrushBgDeep" Color="{StaticResource BgDeep}" />
+  <SolidColorBrush x:Key="BrushBgPanel" Color="{StaticResource BgPanel}" />
+  <SolidColorBrush x:Key="BrushBgElevated" Color="{StaticResource BgElevated}" />
+  <SolidColorBrush x:Key="BrushBgHover" Color="{StaticResource BgHover}" />
+  <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource BorderSubtle}" />
+  <SolidColorBrush x:Key="BrushText" Color="{StaticResource TextPrimary}" />
+  <SolidColorBrush x:Key="BrushMuted" Color="{StaticResource TextMuted}" />
+  <SolidColorBrush x:Key="BrushAccent" Color="{StaticResource Accent}" />
+  <SolidColorBrush x:Key="BrushAccentSoft" Color="{StaticResource AccentSoft}" />
+  <SolidColorBrush x:Key="BrushDanger" Color="{StaticResource Danger}" />
+</ResourceDictionary>

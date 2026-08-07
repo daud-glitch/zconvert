@@ -3,7 +3,7 @@ import { formats } from "@/lib/formats";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech";
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.convertek.tech";
   
   const routes = [
     {

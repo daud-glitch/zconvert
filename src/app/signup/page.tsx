@@ -109,7 +109,7 @@ function SignupForm() {
           <div className="flex flex-col items-center mb-8">
             <BrandMark className="h-14 w-14 mb-4" rounded="rounded-2xl" />
             <h1 className="text-2xl font-bold tracking-tight">
-              Cloud Converter
+              Convertek
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Create your free account

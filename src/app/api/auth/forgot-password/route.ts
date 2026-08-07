@@ -64,16 +64,16 @@ export async function POST(request: NextRequest) {
     const resetUrl = `${publicSiteUrl()}/reset-password?token=${rawToken}`;
     const sent = await sendMail({
       to: user.email,
-      subject: "Reset your Cloud Converter password",
+      subject: "Reset your Convertek password",
       text: [
-        "You requested a password reset for Cloud Converter.",
+        "You requested a password reset for Convertek.",
         "",
         `Open this link within 1 hour: ${resetUrl}`,
         "",
         "If you did not request this, ignore this email.",
       ].join("\n"),
       html: `
-        <p>You requested a password reset for <strong>Cloud Converter</strong>.</p>
+        <p>You requested a password reset for <strong>Convertek</strong>.</p>
         <p><a href="${resetUrl}">Reset password</a> (expires in 1 hour)</p>
         <p style="color:#666;font-size:13px">If you did not request this, you can ignore this email.</p>
       `,
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Could not send email right now. Try again later or contact support@cloudconveter.tech",
+            "Could not send email right now. Try again later or contact support@convertek.tech",
         },
         { status: 503 },
       );

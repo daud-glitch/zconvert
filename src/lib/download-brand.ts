@@ -1,5 +1,5 @@
 /** Brand prefix for converted downloads (server + client safe). */
-export const DOWNLOAD_BRAND_PREFIX = "cloudconverter.tech";
+export const DOWNLOAD_BRAND_PREFIX = "convertek.tech";
 
 export function brandedDownloadFilename(
   baseName: string,
@@ -13,6 +13,8 @@ export function brandedDownloadFilename(
   const lower = raw.toLowerCase();
   if (
     lower.startsWith(DOWNLOAD_BRAND_PREFIX.toLowerCase()) ||
+    lower.includes("convertek.tech") ||
+    lower.includes("cloudconverter.tech") ||
     lower.includes("cloudconveter.tech")
   ) {
     return raw;
@@ -20,7 +22,7 @@ export function brandedDownloadFilename(
   return `${DOWNLOAD_BRAND_PREFIX}-${raw}`;
 }
 
-/** Build a branded ZIP filename: cloudconverter.tech-{name}.zip */
+/** Build a branded ZIP filename: convertek.tech-{name}.zip */
 export function bulkZipDownloadFilename(fileNames: string[]): string {
   const sanitize = (s: string) =>
     s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "files";

@@ -71,7 +71,7 @@ function ResetForm() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight">New password</h1>
             <p className="text-sm text-muted-foreground mt-1 text-center">
-              Choose a strong password for your Cloud Converter account
+              Choose a strong password for your Convertek account
             </p>
           </div>
           <div className="bg-card border border-border rounded-2xl shadow-sm p-6">

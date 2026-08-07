@@ -1,9 +1,42 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-/** Single public brand host — apex always redirects here. */
-const CANONICAL_HOST = "www.cloudconveter.tech";
-const APEX_HOSTS = new Set(["cloudconveter.tech"]);
+/** Public site lives only on this host (users should never stay on apex). */
+export const CANONICAL_HOST = "www.convertek.tech";
+
+const localDevHosts = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "[::1]",
+  "::1",
+]);
+
+/**
+ * True when request host is not the sole public hostname.
+ * Keeps local dev + Heroku *.herokuapp.com (pre-custom-domain / health checks).
+ */
+function shouldForceCanonicalHost(host: string): boolean {
+  if (!host || host === CANONICAL_HOST) return false;
+  const h = host.split(":")[0].trim().toLowerCase();
+  if (h === CANONICAL_HOST) return false;
+  if (localDevHosts.has(h)) return false;
+  if (h.endsWith(".local") || h.endsWith(".localhost")) return false;
+
+  // Any convertek / legacy cloud domain → force www.convertek.tech
+  if (h === "convertek.tech" || h.endsWith(".convertek.tech")) return true;
+  if (h === "cloudconveter.tech" || h.endsWith(".cloudconveter.tech")) return true;
+  if (h === "cloudconverter.tech" || h.endsWith(".cloudconverter.tech")) return true;
+
+  if (
+    process.env.FORCE_CANONICAL_HOST === "1" &&
+    !h.endsWith(".herokuapp.com")
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 const publicRoutes = [
   "/api/convert",
@@ -67,6 +100,12 @@ function hasSessionUser(sessionCookie: { value: string } | undefined): boolean {
   }
 }
 
+function normalizeHost(raw: string): string {
+  // x-forwarded-host may be "a, b" — use first
+  const first = raw.split(",")[0]?.trim() || raw.trim();
+  return first.toLowerCase().split(":")[0].trim();
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -75,10 +114,10 @@ export function middleware(request: NextRequest) {
     request.headers.get("x-forwarded-host") ||
     request.headers.get("host") ||
     request.nextUrl.hostname;
-  const host = rawHost.toLowerCase().split(":")[0].trim();
+  const host = normalizeHost(rawHost);
 
-  // Apex → www (one canonical address, permanent)
-  if (APEX_HOSTS.has(host)) {
+  // Only public domain: www.convertek.tech — apex and aliases redirect forever
+  if (shouldForceCanonicalHost(host)) {
     const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
     return NextResponse.redirect(
       new URL(`https://${CANONICAL_HOST}${path}`),
@@ -101,7 +140,6 @@ export function middleware(request: NextRequest) {
   }
 
   if (adminApiRoutes.some((route) => pathname.startsWith(route))) {
-    // Allow setup bootstrap without a session (still gated by ADMIN_SETUP_SECRET).
     if (pathname === "/api/admin/setup" || pathname.startsWith("/api/admin/setup/")) {
       return NextResponse.next();
     }
@@ -127,7 +165,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on pages + APIs so apex→www applies site-wide; skip static assets.
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|map)$).*)",
   ],

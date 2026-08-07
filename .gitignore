@@ -56,3 +56,9 @@ server.log
 .env*.local
 vendor/ffmpeg/
 vendor/rar/
+
+# local tooling / caches
+.tools/
+promo/__pycache__/
+**/__pycache__/
+CloudConverter.Desktop/crash-*.txt

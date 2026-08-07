@@ -1,0 +1,375 @@
+<Window x:Class="CloudConverter.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Convertek"
+        Width="1280"
+        Height="820"
+        MinWidth="960"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BrushBgDeep}"
+        Foreground="{DynamicResource BrushText}"
+        FontFamily="{StaticResource ShellFont}"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        AllowsTransparency="False"
+        StateChanged="Window_StateChanged"
+        Closing="Window_Closing"
+        Loaded="Window_Loaded">
+
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="48"
+                  ResizeBorderThickness="6"
+                  GlassFrameThickness="0"
+                  CornerRadius="0"
+                  UseAeroCaptionButtons="False" />
+  </WindowChrome.WindowChrome>
+
+  <Border x:Name="RootBorder" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1" Background="{DynamicResource BrushBgDeep}">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="48" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="28" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="208" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Title bar -->
+      <Border Grid.Row="0" Grid.ColumnSpan="2"
+              Background="{DynamicResource BrushBgPanel}"
+              BorderBrush="{DynamicResource BrushBorder}"
+              BorderThickness="0,0,0,1"
+              Panel.ZIndex="100">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,12,0">
+            <Border Width="28" Height="28" CornerRadius="8" Background="{DynamicResource BrushAccent}" Margin="0,0,10,0" ClipToBounds="True">
+              <Grid>
+                <TextBlock x:Name="BrandLetter" Text="C" FontWeight="Bold" FontSize="14" Foreground="#04120C"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Image x:Name="BrandIcon" Width="28" Height="28" Visibility="Collapsed"
+                       Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+              </Grid>
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Convertek" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource BrushText}" />
+              <TextBlock Text="www.convertek.tech" FontSize="10" Foreground="{DynamicResource BrushAccent}" Margin="0,-1,0,0" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+            <Button x:Name="BtnBack" Style="{StaticResource ChromeIconButton}" Content="&lt;" ToolTip="Back"
+                    Click="BtnBack_Click" WindowChrome.IsHitTestVisibleInChrome="True" />
+            <Button x:Name="BtnForward" Style="{StaticResource ChromeIconButton}" Content="&gt;" ToolTip="Forward"
+                    Click="BtnForward_Click" WindowChrome.IsHitTestVisibleInChrome="True" />
+            <Button x:Name="BtnReload" Style="{StaticResource ChromeIconButton}" Content="R" ToolTip="Reload"
+                    Click="BtnReload_Click" WindowChrome.IsHitTestVisibleInChrome="True" />
+            <Button x:Name="BtnHome" Style="{StaticResource ChromeIconButton}" Content="H" ToolTip="Home"
+                    Click="BtnHome_Click" WindowChrome.IsHitTestVisibleInChrome="True" />
+            <Border Height="18" Width="1" Background="{DynamicResource BrushBorder}" Margin="8,0" />
+            <TextBlock x:Name="TxtPageTitle" Text="Loading..." VerticalAlignment="Center" FontSize="12"
+                       Foreground="{DynamicResource BrushMuted}" TextTrimming="CharacterEllipsis" MaxWidth="360" />
+          </StackPanel>
+
+          <!-- Online + Sync + theme -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0"
+                      WindowChrome.IsHitTestVisibleInChrome="True">
+            <Border Background="{DynamicResource BrushBgElevated}" CornerRadius="20" Padding="10,4" Margin="0,0,6,0">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="DotOnline" Width="7" Height="7" Fill="{DynamicResource BrushAccent}" Margin="0,0,6,0" />
+                <TextBlock x:Name="TxtOnline" Text="Online" FontSize="11" Foreground="{DynamicResource BrushMuted}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+            <Button x:Name="BtnTopSync" Style="{StaticResource ThemeToggleButton}" Content="Sync"
+                    Click="BtnTopSync_Click" ToolTip="Sync account from website"
+                    Margin="0,0,6,0" Padding="12,5"
+                    WindowChrome.IsHitTestVisibleInChrome="True" />
+            <Border Background="{DynamicResource BrushBgElevated}" CornerRadius="10" Padding="3">
+              <StackPanel Orientation="Horizontal">
+                <Button x:Name="BtnThemeLight" Style="{StaticResource ThemeToggleButton}" Content="Light"
+                        Click="BtnThemeLight_Click" ToolTip="Light theme (app + website)"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+                <Button x:Name="BtnThemeDark" Style="{StaticResource ThemeToggleButton}" Content="Dark"
+                        Click="BtnThemeDark_Click" ToolTip="Dark theme (app + website)"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <Grid Grid.Column="3" Width="138" Height="48" HorizontalAlignment="Right" Panel.ZIndex="200"
+                WindowChrome.IsHitTestVisibleInChrome="True">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" x:Name="BtnMin" Style="{StaticResource CaptionBarButton}" Click="BtnMin_Click" ToolTip="Minimize"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+              <Path Data="M0,0.5 L10,0.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                    StrokeThickness="1.4" Width="10" Height="1" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+            <Button Grid.Column="1" x:Name="BtnMax" Style="{StaticResource CaptionBarButton}" Click="BtnMax_Click" ToolTip="Maximize"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+              <Path x:Name="MaxIcon" Data="M0,0 H10 V10 H0 Z"
+                    Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                    StrokeThickness="1.3" Fill="Transparent" Width="10" Height="10" Stretch="None"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+            <Button Grid.Column="2" x:Name="BtnClose" Style="{StaticResource CaptionCloseButton}" Click="BtnClose_Click" ToolTip="Close"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+              <Path Data="M0,0 L10,10 M10,0 L0,10"
+                    Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                    StrokeThickness="1.4" Width="10" Height="10" Stretch="None"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <!-- Sidebar -->
+      <Border Grid.Row="1" Grid.Column="0"
+              Background="{DynamicResource BrushBgPanel}"
+              BorderBrush="{DynamicResource BrushBorder}"
+              BorderThickness="0,0,1,0">
+        <DockPanel LastChildFill="True">
+          <StackPanel DockPanel.Dock="Bottom" Margin="6,0,6,10">
+            <RadioButton x:Name="NavAbout" GroupName="ShellNav" Style="{StaticResource NavButton}"
+                         Checked="NavAbout_Checked" ToolTip="About" />
+            <RadioButton x:Name="NavSettings" GroupName="ShellNav" Style="{StaticResource NavButton}"
+                         Checked="NavSettings_Checked" ToolTip="Settings" />
+          </StackPanel>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="6,8,6,0">
+            <StackPanel>
+              <RadioButton x:Name="NavHome" GroupName="ShellNav" Style="{StaticResource NavButton}"
+                           IsChecked="True" Checked="NavHome_Checked" ToolTip="Home" />
+              <Button x:Name="BtnNavDownloads" Style="{StaticResource NavSideButton}"
+                      Click="NavDownloads_Click" ToolTip="Open downloads folder" />
+
+              <TextBlock Text="FAVORITES" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}"
+                         Margin="10,14,8,6" />
+              <ItemsControl x:Name="ListFavorites" />
+              <Button x:Name="BtnEditFavorites" Style="{StaticResource NavSideButton}"
+                      Click="BtnEditFavorites_Click" />
+
+              <TextBlock Text="RECENT DOWNLOADS" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}"
+                         Margin="10,16,8,6" />
+              <ItemsControl x:Name="ListRecent" />
+              <Button x:Name="BtnClearRecent" Style="{StaticResource NavSideButton}"
+                      Click="BtnClearRecent_Click" />
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <!-- Content -->
+      <Grid Grid.Row="1" Grid.Column="1">
+        <Grid x:Name="PanelWeb">
+          <wv2:WebView2 x:Name="WebView" DefaultBackgroundColor="#F5F7FA" />
+
+          <Border x:Name="OverlayLoading" Background="#AA0B0F14" Visibility="Visible">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+              <Border Width="56" Height="56" CornerRadius="16" Background="{DynamicResource BrushAccent}" Margin="0,0,0,16">
+                <TextBlock Text="C" FontSize="26" FontWeight="Bold" Foreground="#04120C"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="Starting Convertek" FontSize="16" FontWeight="SemiBold"
+                         HorizontalAlignment="Center" Margin="0,0,0,6" />
+              <TextBlock x:Name="TxtLoadingHint" Text="Connecting to www.convertek.tech..."
+                         FontSize="12" Foreground="{DynamicResource BrushMuted}" HorizontalAlignment="Center" />
+              <ProgressBar IsIndeterminate="True" Width="180" Height="3" Margin="0,18,0,0"
+                           Foreground="{DynamicResource BrushAccent}" Background="{DynamicResource BrushBgElevated}" BorderThickness="0" />
+            </StackPanel>
+          </Border>
+
+          <Border x:Name="OverlayOffline" Background="{DynamicResource BrushBgDeep}" Visibility="Collapsed" Panel.ZIndex="60">
+            <Grid>
+              <Ellipse Width="320" Height="320" Opacity="0.12" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-80,0,0">
+                <Ellipse.Fill>
+                  <RadialGradientBrush>
+                    <GradientStop Color="#1010B981" Offset="0" />
+                    <GradientStop Color="#0010B981" Offset="1" />
+                  </RadialGradientBrush>
+                </Ellipse.Fill>
+              </Ellipse>
+              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="32">
+                <Border Width="72" Height="72" CornerRadius="20" Background="{DynamicResource BrushAccent}"
+                        HorizontalAlignment="Center" Margin="0,0,0,18">
+                  <TextBlock Text="C" FontSize="32" FontWeight="Bold" Foreground="#04120C"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="You're offline" FontSize="24" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,0,0,8" />
+                <TextBlock Text="Convertek Desktop"
+                           FontSize="13" Foreground="{DynamicResource BrushAccent}" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,0,0,12" />
+                <TextBlock Text="This software needs an internet connection to reach www.convertek.tech. Conversions run in the cloud ? the desktop app is ready again as soon as you reconnect."
+                           TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource BrushMuted}"
+                           FontSize="13" LineHeight="20" Margin="0,0,0,10" />
+                <Border Padding="12,10" CornerRadius="12" Background="{DynamicResource BrushBgPanel}"
+                        BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1" Margin="0,8,0,18">
+                  <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource BrushMuted}" TextAlignment="Center"
+                             Text="Tip: downloads already saved stay on this PC. Sign in when online to sync bookmarks &amp; history with the website." />
+                </Border>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                  <Button Content="Try again" Style="{StaticResource PrimaryButton}" Click="BtnRetry_Click" Padding="18,10" />
+                  <Button Content="Open downloads" Style="{StaticResource GhostButton}" Margin="10,0,0,0"
+                          Click="NavDownloads_Click" Padding="14,10" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Pending "Open with" file strip -->
+          <Border x:Name="BannerPendingFile" Visibility="Collapsed"
+                  VerticalAlignment="Top" Margin="12" Padding="14,12" CornerRadius="12"
+                  Background="{DynamicResource BrushBgElevated}" BorderBrush="{DynamicResource BrushAccent}" BorderThickness="1"
+                  Panel.ZIndex="40">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="File ready for conversion" FontWeight="SemiBold" />
+                <TextBlock x:Name="TxtPendingFile" Text="" FontSize="12" Foreground="{DynamicResource BrushMuted}"
+                           TextWrapping="Wrap" Margin="0,4,0,0" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Open folder" Style="{StaticResource GhostButton}" Padding="10,8" Click="BtnPendingFolder_Click" />
+                <Button Content="OK" Style="{StaticResource PrimaryButton}" Padding="10,8" Margin="8,0,0,0" Click="BtnPendingDismiss_Click" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+
+        <!-- Settings -->
+        <Border x:Name="PanelSettings" Background="{DynamicResource BrushBgDeep}" Visibility="Collapsed">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="36,28">
+            <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+              <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,4" />
+              <TextBlock Text="Customize the desktop app on your PC."
+                         Foreground="{DynamicResource BrushMuted}" FontSize="13" Margin="0,0,0,24" />
+
+              <TextBlock Text="APPEARANCE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}" Margin="0,0,0,8" />
+              <TextBlock Text="Use Light / Dark next to the Online badge in the title bar for quick theme switching."
+                         FontSize="12" Foreground="{DynamicResource BrushMuted}" TextWrapping="Wrap" Margin="0,0,0,16" />
+
+              <TextBlock x:Name="SectionFavorites" Text="FAVORITE TOOLS" FontSize="11" FontWeight="Bold"
+                         Foreground="{DynamicResource BrushMuted}" Margin="0,8,0,8" />
+              <TextBlock Text="Pinned tools appear in the left sidebar for one-click open."
+                         FontSize="12" Foreground="{DynamicResource BrushMuted}" Margin="0,0,0,8" />
+              <ItemsControl x:Name="ListFavoritePickers" Margin="0,0,0,16" />
+
+              <TextBlock Text="DOWNLOADS" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}" Margin="0,8,0,8" />
+              <TextBlock Text="Save converted files to" FontSize="12" Foreground="{DynamicResource BrushMuted}" />
+              <Grid Margin="0,4,0,16">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtDownloadFolder" Style="{StaticResource ShellTextBox}" IsReadOnly="True" />
+                <Button Grid.Column="1" Content="Browse" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Padding="14,8" Click="BtnBrowseDownload_Click" />
+              </Grid>
+
+              <TextBlock Text="WINDOW" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource BrushMuted}" Margin="0,8,0,4" />
+              <CheckBox x:Name="ChkRemember" Style="{StaticResource ShellCheckBox}" Content="Remember window size when not maximized" />
+              <CheckBox x:Name="ChkTray" Style="{StaticResource ShellCheckBox}" Content="Close to system tray" />
+              <CheckBox x:Name="ChkStartup" Style="{StaticResource ShellCheckBox}" Content="Launch when Windows starts" />
+              <CheckBox x:Name="ChkUpdates" Style="{StaticResource ShellCheckBox}" Content="Check for updates on startup" />
+              <CheckBox x:Name="ChkOpenWith" Style="{StaticResource ShellCheckBox}"
+                        Content="Register Open with Convertek (context menu)" />
+
+              <StackPanel Orientation="Horizontal" Margin="0,28,0,0">
+                <Button Content="Save settings" Style="{StaticResource PrimaryButton}" Click="BtnSaveSettings_Click" />
+                <Button Content="Check updates now" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnCheckUpdates_Click" />
+                <Button Content="Open downloads" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnOpenDownloads_Click" />
+              </StackPanel>
+              <TextBlock x:Name="TxtSettingsStatus" Margin="0,14,0,0" FontSize="12"
+                         Foreground="{DynamicResource BrushAccent}" Visibility="Collapsed" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <!-- About -->
+        <Border x:Name="PanelAbout" Background="{DynamicResource BrushBgDeep}" Visibility="Collapsed">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="36,28">
+            <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+              <Border Padding="28" CornerRadius="18" BorderThickness="1"
+                      BorderBrush="{DynamicResource BrushBorder}" Background="{DynamicResource BrushBgPanel}">
+                <StackPanel>
+                  <Border Width="64" Height="64" CornerRadius="16" Background="{DynamicResource BrushAccent}"
+                          HorizontalAlignment="Left" Margin="0,0,0,16">
+                    <TextBlock Text="C" FontSize="30" FontWeight="Bold" Foreground="#04120C"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Text="Convertek" FontSize="26" FontWeight="SemiBold" />
+                  <TextBlock Text="www.convertek.tech" FontSize="16" FontWeight="Bold"
+                             Foreground="{DynamicResource BrushAccent}" Margin="0,6,0,12" />
+                  <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Foreground="{DynamicResource BrushMuted}"
+                             Text="Free online file converter for images, documents, PDF, audio, video, and archives. Convert privately in your browser session. Convertek Desktop is the Windows shell that opens the full website as a native app." />
+                  <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                    <Button Content="Open website" Style="{StaticResource PrimaryButton}" Click="BtnOpenWebsite_Click" />
+                    <Button Content="Report a bug" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnReportBug_Click" />
+                    <Button Content="Contact" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnContact_Click" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <Grid Margin="0,20,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Padding="16" CornerRadius="12" Margin="0,0,8,0"
+                        Background="{DynamicResource BrushBgPanel}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1">
+                  <StackPanel>
+                    <TextBlock Text="Desktop" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBlock x:Name="TxtAboutVersion" FontSize="12" Foreground="{DynamicResource BrushMuted}" TextWrapping="Wrap" />
+                    <TextBlock Text="Internet required for conversion. Files download to your chosen folder."
+                               FontSize="12" Foreground="{DynamicResource BrushMuted}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Padding="16" CornerRadius="12" Margin="8,0,0,0"
+                        Background="{DynamicResource BrushBgPanel}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1">
+                  <StackPanel>
+                    <TextBlock Text="On the web" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource BrushMuted}" TextWrapping="Wrap"
+                               Text="100+ formats, merge PDF tools, quality options, history when signed in, and free guest conversion." />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                <Button Content="Privacy" Style="{StaticResource GhostButton}" Click="BtnPrivacy_Click" />
+                <Button Content="Terms" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnTerms_Click" />
+                <Button Content="Supported formats" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnFormats_Click" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+
+      <Border Grid.Row="2" Grid.ColumnSpan="2"
+              Background="{DynamicResource BrushBgPanel}"
+              BorderBrush="{DynamicResource BrushBorder}"
+              BorderThickness="0,1,0,0">
+        <Grid Margin="12,0">
+          <TextBlock x:Name="TxtStatus" Text="Ready" FontSize="11" Foreground="{DynamicResource BrushMuted}" VerticalAlignment="Center" />
+          <TextBlock x:Name="TxtStatusRight" Text="www.convertek.tech" FontSize="11"
+                     Foreground="{DynamicResource BrushMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

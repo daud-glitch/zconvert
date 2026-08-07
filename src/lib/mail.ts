@@ -18,8 +18,8 @@ export async function sendMail(input: {
     process.env.MAILGUN_FROM?.trim() ||
     process.env.MAIL_FROM?.trim() ||
     (domain
-      ? `Cloud Converter <noreply@${domain}>`
-      : "Cloud Converter <noreply@cloudconveter.tech>");
+      ? `Convertek <noreply@${domain}>`
+      : "Convertek <noreply@convertek.tech>");
 
   if (!apiKey || !domain) {
     console.error("[mail] MAILGUN_API_KEY / MAILGUN_DOMAIN not configured");
@@ -62,6 +62,6 @@ export async function sendMail(input: {
 export function publicSiteUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://www.cloudconveter.tech"
+    "https://www.convertek.tech"
   );
 }

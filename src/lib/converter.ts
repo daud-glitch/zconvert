@@ -993,7 +993,7 @@ function htmlAsMicrosoftWordDoc(htmlOrBody: string, title = "Document"): Buffer 
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="ProgId" content="Word.Document">
-<meta name="Generator" content="Cloud Converter">
+<meta name="Generator" content="Convertek">
 <title>${safeTitle}</title>
 <!--[if gte mso 9]><xml>
  <w:WordDocument>

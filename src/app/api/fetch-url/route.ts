@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
   try {
     response = await fetchSafe(url, {
       headers: {
-        "User-Agent": "CloudConverter/1.0 (File Converter)",
+        "User-Agent": "Convertek/1.0 (File Converter)",
         Accept: "*/*",
       },
       signal: AbortSignal.timeout(MAX_TIMEOUT_MS),

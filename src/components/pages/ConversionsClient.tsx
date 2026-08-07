@@ -163,7 +163,7 @@ export default function ConversionsClient() {
             <Link href="/" className="flex items-center gap-3">
               <BrandMark className="h-9 w-9" rounded="rounded-lg" />
               <span className="text-xl font-bold tracking-tight">
-                Cloud Converter
+                Convertek
               </span>
             </Link>
             <nav className="flex items-center gap-2">
@@ -399,7 +399,7 @@ export default function ConversionsClient() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
             <span>
-              &copy; {new Date().getFullYear()} Cloud Converter. All rights
+              &copy; {new Date().getFullYear()} Convertek. All rights
               reserved.
             </span>
             <Link

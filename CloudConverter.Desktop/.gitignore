@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+dist/
+installer/Bootstrap/payload.zip
+installer/Bootstrap/bin/
+installer/Bootstrap/obj/

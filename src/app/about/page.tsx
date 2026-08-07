@@ -2,26 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
-const SITE = "https://www.cloudconveter.tech";
-const CONTACT = "support@cloudconveter.tech";
+const SITE = "https://www.convertek.tech";
+const CONTACT = "support@convertek.tech";
 const UPDATED = "August 4, 2026";
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "About Cloud Converter — free online file conversion with mixed-type batch, per-file formats, and privacy-first processing.",
+    "About Convertek — free online file conversion with mixed-type batch, per-file formats, and privacy-first processing.",
   alternates: { canonical: "/about" },
   openGraph: {
-    title: "About | Cloud Converter",
+    title: "About | Convertek",
     url: `${SITE}/about`,
   },
 };
 
 export default function AboutPage() {
   return (
-    <LegalPageShell title="About Cloud Converter" updated={UPDATED}>
+    <LegalPageShell title="About Convertek" updated={UPDATED}>
       <p>
-        Cloud Converter (
+        Convertek (
         <a href={SITE}>{SITE.replace("https://", "")}</a>) is a free online file
         converter for images, documents, data, audio, video, archives, fonts,
         subtitles, presentations, and ebooks. Convert without watermarks, with

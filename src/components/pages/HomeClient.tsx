@@ -168,10 +168,10 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
     const onStorage = (e: StorageEvent) => {
       if (e.key === "theme" || e.key === "cc-desktop-theme") applyTheme(e.newValue);
     };
-    window.addEventListener("cloudconverter-theme", onCustom);
+    window.addEventListener("convertek-theme", onCustom);
     window.addEventListener("storage", onStorage);
     return () => {
-      window.removeEventListener("cloudconverter-theme", onCustom);
+      window.removeEventListener("convertek-theme", onCustom);
       window.removeEventListener("storage", onStorage);
     };
   }, []);
@@ -245,7 +245,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" />
               <div className="min-w-0">
                 <span className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate">
-                  Cloud Converter
+                  Convertek
                 </span>
                 <p className="hidden sm:block text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70 truncate">
                   Universal File Lab
@@ -508,7 +508,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   className="h-7 w-7 rounded-lg shadow-sm"
                 />
                 <span className="text-xl font-bold tracking-tight">
-                  Cloud Converter
+                  Convertek
                 </span>
               </div>
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
@@ -630,7 +630,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} Cloud Converter. All rights
+              &copy; {new Date().getFullYear()} Convertek. All rights
               reserved. Built for performance and privacy.
             </p>
             <div className="flex items-center gap-6 text-xs text-muted-foreground">

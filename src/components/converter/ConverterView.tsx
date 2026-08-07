@@ -2611,7 +2611,7 @@ export function ConverterView() {
 
       {/* ─── Feature Cards (original position, larger 5 cards) ─── */}
       <section>
-        <h2 className="section-header mb-5 sm:mb-6">Why Cloud Converter?</h2>
+        <h2 className="section-header mb-5 sm:mb-6">Why Convertek?</h2>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
           {[
             {

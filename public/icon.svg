@@ -1,14 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Convertek">
   <defs>
-    <linearGradient id="cc-bg2" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ctk-icon-bg" x1="6" y1="2" x2="58" y2="62" gradientUnits="userSpaceOnUse">
       <stop stop-color="#34d399"/>
-      <stop offset="0.55" stop-color="#10b981"/>
+      <stop offset="0.45" stop-color="#10b981"/>
       <stop offset="1" stop-color="#047857"/>
     </linearGradient>
+    <linearGradient id="ctk-icon-shine" x1="12" y1="4" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity="0.38"/>
+      <stop offset="0.55" stop-color="#fff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="url(#cc-bg2)"/>
-  <path d="M20 28h18l-5-5" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M44 36H26l5 5" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="18" cy="28" r="2.2" fill="#ecfdf5"/>
-  <circle cx="46" cy="36" r="2.2" fill="#ecfdf5"/>
+  <rect width="64" height="64" rx="16" fill="url(#ctk-icon-bg)"/>
+  <rect width="64" height="64" rx="16" fill="url(#ctk-icon-shine)"/>
+  <circle cx="32" cy="32" r="18.5" stroke="#ecfdf5" stroke-opacity="0.22" stroke-width="1.5" fill="none"/>
+  <g stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M18 27h22"/>
+    <path d="M33 20.5 40 27l-7 6.5"/>
+    <path d="M46 37H24"/>
+    <path d="M31 43.5 24 37l7-6.5"/>
+  </g>
+  <circle cx="17.5" cy="27" r="2.4" fill="#ecfdf5"/>
+  <circle cx="46.5" cy="37" r="2.4" fill="#ecfdf5"/>
 </svg>

@@ -1,11 +1,11 @@
 const SITE =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://www.convertek.tech";
 
 export default function JsonLd() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "Cloud Converter",
+    name: "Convertek",
     description:
       "Online file converter for images, documents, data, audio, video, and more. Temporary processing; converted results stay in your browser. Fair file size limits, no watermarks.",
     url: SITE,
@@ -18,9 +18,9 @@ export default function JsonLd() {
     },
     author: {
       "@type": "Organization",
-      name: "Cloud Converter",
+      name: "Convertek",
       url: SITE,
-      email: "support@cloudconveter.tech",
+      email: "support@convertek.tech",
     },
     featureList: [
       "Mixed-type batch conversion: different file types in one queue, each with its own target format",
@@ -37,7 +37,7 @@ export default function JsonLd() {
     inLanguage: "en-US",
     isAccessibleForFree: true,
     keywords:
-      "file converter, image converter, cloudconveter, PNG to WebP, PDF converter, free online converter",
+      "file converter, image converter, convertek, PNG to WebP, PDF converter, free online converter",
   };
 
   return (

@@ -1,28 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none" role="img" aria-label="Convertek — Universal File Converter">
   <defs>
-    <linearGradient id="ogBg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ecfdf5"/>
-      <stop offset="0.5" stop-color="#d1fae5"/>
-      <stop offset="1" stop-color="#a7f3d0"/>
+    <linearGradient id="og-bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0fdf4"/>
+      <stop offset="0.42" stop-color="#ecfdf5"/>
+      <stop offset="1" stop-color="#d1fae5"/>
     </linearGradient>
-    <linearGradient id="ogMark" x1="80" y1="160" x2="280" y2="420" gradientUnits="userSpaceOnUse">
+    <linearGradient id="og-mark" x1="80" y1="150" x2="300" y2="420" gradientUnits="userSpaceOnUse">
       <stop stop-color="#34d399"/>
-      <stop offset="1" stop-color="#059669"/>
+      <stop offset="0.5" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#047857"/>
     </linearGradient>
+    <linearGradient id="og-shine" x1="110" y1="160" x2="280" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="og-card" x1="840" y1="120" x2="1120" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f0fdf4"/>
+    </linearGradient>
+    <filter id="og-shadow" x="-10%" y="-10%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="28" flood-color="#064e3b" flood-opacity="0.12"/>
+    </filter>
   </defs>
-  <rect width="1200" height="630" fill="url(#ogBg)"/>
-  <!-- soft grid dots -->
-  <g fill="#10b981" opacity="0.12">
-    <circle cx="980" cy="90" r="4"/><circle cx="1040" cy="140" r="3"/><circle cx="1100" cy="100" r="5"/>
-    <circle cx="960" cy="200" r="3"/><circle cx="1080" cy="220" r="4"/>
+
+  <rect width="1200" height="630" fill="url(#og-bg)"/>
+
+  <!-- Atmosphere: soft orbs -->
+  <circle cx="1080" cy="80" r="160" fill="#6ee7b7" opacity="0.22"/>
+  <circle cx="100" cy="560" r="140" fill="#34d399" opacity="0.12"/>
+  <circle cx="700" cy="40" r="90" fill="#a7f3d0" opacity="0.35"/>
+
+  <!-- Soft dots grid (tech lab) -->
+  <g fill="#059669" opacity="0.1">
+    <circle cx="920" cy="160" r="3"/><circle cx="960" cy="200" r="2"/><circle cx="1000" cy="170" r="3"/>
+    <circle cx="1040" cy="230" r="2"/><circle cx="980" cy="280" r="3"/><circle cx="1100" cy="260" r="2"/>
+    <circle cx="880" cy="320" r="2"/><circle cx="1060" cy="340" r="3"/>
   </g>
-  <!-- brand mark -->
-  <rect x="96" y="200" width="168" height="168" rx="40" fill="url(#ogMark)"/>
-  <path d="M140 278h84l-14-14" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M220 298h-84l14 14" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- wordmark -->
-  <text x="300" y="280" font-family="system-ui,Segoe UI,sans-serif" font-size="64" font-weight="800" fill="#064e3b">Cloud Converter</text>
-  <text x="300" y="340" font-family="system-ui,Segoe UI,sans-serif" font-size="30" font-weight="500" fill="#047857">Convert any file · Private temp process · Browser history</text>
-  <text x="300" y="400" font-family="system-ui,Segoe UI,sans-serif" font-size="24" fill="#065f46">www.cloudconveter.tech</text>
-  <text x="96" y="560" font-family="system-ui,Segoe UI,sans-serif" font-size="20" fill="#6b7280">Images · Video · Docs · Data · Audio</text>
+
+  <!-- Left brand mark -->
+  <g filter="url(#og-shadow)">
+    <rect x="88" y="190" width="200" height="200" rx="48" fill="url(#og-mark)"/>
+    <rect x="88" y="190" width="200" height="200" rx="48" fill="url(#og-shine)"/>
+    <circle cx="188" cy="290" r="56" stroke="#ecfdf5" stroke-opacity="0.28" stroke-width="3.5" fill="none"/>
+    <g stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M140 272h88"/>
+      <path d="M199 248 228 272l-29 24"/>
+      <path d="M236 308H148"/>
+      <path d="M177 332 148 308l29-24"/>
+    </g>
+    <circle cx="138" cy="272" r="7" fill="#ecfdf5"/>
+    <circle cx="238" cy="308" r="7" fill="#ecfdf5"/>
+  </g>
+
+  <!-- Wordmark + copy -->
+  <text x="330" y="255" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="72" font-weight="800" fill="#064e3b" letter-spacing="-1.5">Convertek</text>
+  <text x="330" y="320" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="32" font-weight="600" fill="#047857">Universal File Converter</text>
+  <text x="330" y="375" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="24" font-weight="500" fill="#065f46">Convert any file · Fair limits · No watermarks</text>
+  <text x="330" y="430" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#10b981">www.convertek.tech</text>
+
+  <!-- Right feature card (product vibe) -->
+  <g filter="url(#og-shadow)">
+    <rect x="860" y="150" width="260" height="320" rx="28" fill="url(#og-card)" stroke="#a7f3d0" stroke-width="2"/>
+    <text x="990" y="210" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#047857">BATCH READY</text>
+    <!-- mini format chips -->
+    <rect x="900" y="240" width="72" height="36" rx="10" fill="#d1fae5"/>
+    <text x="936" y="264" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">PNG</text>
+    <rect x="988" y="240" width="72" height="36" rx="10" fill="#d1fae5"/>
+    <text x="1024" y="264" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">PDF</text>
+    <rect x="900" y="294" width="72" height="36" rx="10" fill="#d1fae5"/>
+    <text x="936" y="318" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">MP4</text>
+    <rect x="988" y="294" width="72" height="36" rx="10" fill="#d1fae5"/>
+    <text x="1024" y="318" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">DOCX</text>
+    <!-- arrow pill -->
+    <rect x="930" y="360" width="120" height="44" rx="22" fill="#10b981"/>
+    <text x="990" y="388" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#fff">Convert →</text>
+    <text x="990" y="430" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#6b7280">Mixed types · Per file</text>
+  </g>
+
+  <!-- Footer strip -->
+  <text x="88" y="560" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="500" fill="#6b7280">Images · Video · Documents · Audio · Archives · Data</text>
 </svg>

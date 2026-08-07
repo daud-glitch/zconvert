@@ -2,17 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
-const SITE = "https://www.cloudconveter.tech";
-const CONTACT = "support@cloudconveter.tech";
+const SITE = "https://www.convertek.tech";
+const CONTACT = "support@convertek.tech";
 const UPDATED = "August 2, 2026";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Cloud Converter handles uploads, local history, accounts, and aggregate usage data.",
+    "How Convertek handles uploads, local history, accounts, and aggregate usage data.",
   alternates: { canonical: "/privacy" },
   openGraph: {
-    title: "Privacy Policy | Cloud Converter",
+    title: "Privacy Policy | Convertek",
     url: `${SITE}/privacy`,
   },
 };
@@ -21,7 +21,7 @@ export default function PrivacyPage() {
   return (
     <LegalPageShell title="Privacy Policy" updated={UPDATED}>
       <p>
-        This policy describes how Cloud Converter (
+        This policy describes how Convertek (
         <a href={SITE}>{SITE.replace("https://", "")}</a>) handles information
         when you use our file conversion service. We aim to be transparent and
         accurate about what happens during conversion.

@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/octet-stream",
         "X-Original-Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="cloudconverter.tech-merged-${Date.now()}.pdf"`,
+        "Content-Disposition": `attachment; filename="convertek.tech-merged-${Date.now()}.pdf"`,
         "Content-Length": String(resultBuffer.length),
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store",

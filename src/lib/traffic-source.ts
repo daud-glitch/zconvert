@@ -6,6 +6,8 @@ const SITE_HOSTS = new Set(
   [
     "localhost",
     "127.0.0.1",
+    "convertek.tech",
+    "www.convertek.tech",
     "cloudconveter.tech",
     "www.cloudconveter.tech",
     "thawing-chamber-85072-80160349ba84.herokuapp.com",
@@ -58,6 +60,7 @@ export function resolveTrafficSource(input: {
     if (
       SITE_HOSTS.has(siteKey) ||
       SITE_HOSTS.has(host) ||
+      host.includes("convertek") ||
       host.includes("cloudconveter") ||
       host.includes("herokuapp.com")
     ) {

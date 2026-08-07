@@ -33,8 +33,8 @@ export function LegalPageShell({
             {children}
           </div>
           <p className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
-            Cloud Converter ·{" "}
-            <a href="https://www.cloudconveter.tech">www.cloudconveter.tech</a>
+            Convertek ·{" "}
+            <a href="https://www.convertek.tech">www.convertek.tech</a>
           </p>
         </article>
       </div>

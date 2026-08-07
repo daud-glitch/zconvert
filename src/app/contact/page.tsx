@@ -69,7 +69,7 @@ export default function ContactPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Contact</h1>
             <p className="text-sm text-muted-foreground">
-              Report a broken conversion or reach support@cloudconveter.tech
+              Report a broken conversion or reach support@convertek.tech
             </p>
           </div>
         </div>

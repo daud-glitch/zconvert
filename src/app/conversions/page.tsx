@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import ConversionsClient from "@/components/pages/ConversionsClient";
 
 export const metadata: Metadata = {
-  title: "Supported File Formats — Cloud Converter",
+  title: "Supported File Formats — Convertek",
   description:
     "Explore 100+ supported file formats for conversion. Images, documents, audio, data files, and more. Free, private, and high-quality online conversions.",
   keywords: [

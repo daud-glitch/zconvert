@@ -17,11 +17,11 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech",
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.convertek.tech",
   ),
   title: {
-    default: "Cloud Converter — Universal File Converter",
-    template: "%s | Cloud Converter",
+    default: "Convertek — Universal File Converter",
+    template: "%s | Convertek",
   },
   description:
     "Convert images, documents, data, audio, and video online — mix different file types in one batch and pick a separate format per file. Temporary processing, local browser history, fair limits (30 MB per file · 100 MB video), no watermarks.",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     "format converter",
     "batch converter",
     "mixed file conversion",
-    "cloudconveter",
+    "convertek",
     "PNG to WebP",
     "PDF converter",
     "JSON converter",
@@ -44,9 +44,9 @@ export const metadata: Metadata = {
     "convert images",
     "convert documents",
   ],
-  authors: [{ name: "Cloud Converter" }],
-  creator: "Cloud Converter",
-  publisher: "Cloud Converter",
+  authors: [{ name: "Convertek" }],
+  creator: "Convertek",
+  publisher: "Convertek",
   alternates: {
     canonical: "/",
   },
@@ -58,9 +58,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.cloudconveter.tech",
-    siteName: "Cloud Converter",
-    title: "Cloud Converter — Universal File Converter",
+    url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.convertek.tech",
+    siteName: "Convertek",
+    title: "Convertek — Universal File Converter",
     description:
       "Convert images, documents, data, audio, and video online. Mix different file types in one batch — choose a separate output format per file. Temporary processing, local history, fair limits, no watermarks.",
     images: [
@@ -68,13 +68,14 @@ export const metadata: Metadata = {
         url: "/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "Cloud Converter — www.cloudconveter.tech",
+        alt: "Convertek — www.convertek.tech",
+        type: "image/svg+xml",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Cloud Converter — Universal File Converter",
+    title: "Convertek — Universal File Converter",
     description:
       "Convert images, documents, data, audio, and video online. Mixed-type batch with per-file formats. Fair limits, no watermarks.",
     images: ["/og-image.svg"],
@@ -91,9 +92,13 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
     shortcut: "/favicon.svg",
-    apple: "/icon.svg",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 

@@ -46,8 +46,8 @@ const DEFAULT_VALUES: Record<SettingKey, string> = {
   max_file_size_mb: "100",
   allow_custom_formats: "true",
   analytics_enabled: "true",
-  email_from_address: "noreply@cloudconveter.tech",
-  brand_name: "Cloud Converter",
+  email_from_address: "noreply@convertek.tech",
+  brand_name: "Convertek",
   primary_color: "#10b981",
 };
 
