@@ -1,7 +1,9 @@
 /** Client helpers for reliable large media uploads (chunked on mobile/Heroku). */
 
 const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round-trips
-const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
+/** Files at or under this size skip temp staging and are POSTed once at convert time. */
+export const INLINE_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+const SINGLE_SHOT_MAX = INLINE_UPLOAD_MAX_BYTES;
 const CHUNK_RETRIES = 3;
 /** Short enough that a hang fails fast; XHR aborts cleanly so we can retry with a fresh body. */
 const CHUNK_TIMEOUT_MS = 35_000;

@@ -57,7 +57,7 @@ import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
-import { uploadAndConvert, stageFileUpload } from "@/lib/client-upload";
+import { uploadAndConvert, stageFileUpload, INLINE_UPLOAD_MAX_BYTES } from "@/lib/client-upload";
 import {
   audioUnavailableMessage,
   videoUnavailableMessage,
@@ -242,13 +242,27 @@ export function ConverterView() {
     getCategoryFromExt(ext) === "video" ||
     (target ? getCategoryFromExt(target) === "video" : false);
 
-  /** Stage file on server as soon as it enters the queue (upload only, no convert). */
+  /** Stage large files on the server. Small files stay local — uploaded only at Convert. */
   const stageFileItem = (item: FileItem): Promise<string | null> => {
     const existing = uploadJobsRef.current.get(item.id);
     if (existing) return existing;
 
     const job = (async (): Promise<string | null> => {
       if (!filesRef.current.some((f) => f.id === item.id)) return null;
+
+      // Fast path: PDFs/docs under ~4MB — no intermediate chunk API (was causing stuck 95%).
+      if (item.file.size > 0 && item.file.size <= INLINE_UPLOAD_MAX_BYTES) {
+        updateFile(item.id, {
+          uploading: false,
+          uploadReady: true,
+          uploadId: undefined,
+          uploadError: undefined,
+          progress: undefined,
+          progressPhase: undefined,
+        });
+        return null;
+      }
+
       updateFile(item.id, {
         uploading: true,
         uploadReady: false,
@@ -262,8 +276,8 @@ export function ConverterView() {
           fileName: item.name,
           onProgress: (p) => {
             updateFile(item.id, {
-              progress: Math.max(3, p.percent),
-              progressPhase: p.phase === "reading" ? "uploading" : "uploading",
+              progress: Math.max(3, Math.min(99, p.percent)),
+              progressPhase: "uploading",
               uploading: true,
             });
           },
@@ -411,8 +425,10 @@ export function ConverterView() {
             startTime: undefined,
             endTime: undefined,
             outputSize: undefined,
-            uploading: true,
-            uploadReady: false,
+            // Small files: ready immediately; body POSTed only on Convert (avoids stuck staging).
+            uploading: file.size > INLINE_UPLOAD_MAX_BYTES,
+            uploadReady:
+              file.size > 0 && file.size <= INLINE_UPLOAD_MAX_BYTES,
             uploadError: undefined,
           });
           if (isVid) videosAdded += 1;
@@ -460,10 +476,12 @@ export function ConverterView() {
       return [...activePrev, ...supported];
     });
 
-    // Auto-upload only (stage on server). Convert still waits for Convert button.
+    // Stage large files only; small ones are already uploadReady from addFiles.
     if (added.length > 0) {
-      const toUpload = added;
-      setTimeout(() => enqueueAutoUpload(toUpload), 0);
+      const toUpload = added.filter((f) => f.size > INLINE_UPLOAD_MAX_BYTES);
+      if (toUpload.length > 0) {
+        setTimeout(() => enqueueAutoUpload(toUpload), 0);
+      }
     }
   };
 
@@ -576,6 +594,8 @@ export function ConverterView() {
   };
 
   const duplicateFile = (item: FileItem) => {
+    const small =
+      item.file.size > 0 && item.file.size <= INLINE_UPLOAD_MAX_BYTES;
     const newItem: FileItem = {
       ...item,
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -586,8 +606,8 @@ export function ConverterView() {
       outputSize: undefined,
       // Fresh staging session (server consume is one-shot per uploadId)
       uploadId: undefined,
-      uploading: false,
-      uploadReady: false,
+      uploading: !small,
+      uploadReady: small,
       uploadError: undefined,
       progress: undefined,
       progressPhase: undefined,
@@ -596,7 +616,9 @@ export function ConverterView() {
     const newFiles = [...files];
     newFiles.splice(itemIndex + 1, 0, newItem);
     setFiles(newFiles);
-    setTimeout(() => enqueueAutoUpload([newItem]), 0);
+    if (!small) {
+      setTimeout(() => enqueueAutoUpload([newItem]), 0);
+    }
   };
 
   const removeFile = (id: string) => {
@@ -616,8 +638,11 @@ export function ConverterView() {
       return false;
     }
 
-    // Block convert until auto-staging finishes (prevents stuck double-upload)
-    if (item.uploading || (!item.uploadReady && !item.uploadError)) {
+    // Block convert until auto-staging finishes (pending only; error retry re-uploads)
+    if (
+      item.status === "pending" &&
+      (item.uploading || (!item.uploadReady && !item.uploadError))
+    ) {
       showToast(
         "Wait until this file finishes uploading before converting.",
         "error",
@@ -1662,7 +1687,7 @@ export function ConverterView() {
                                 !item.uploading && (
                                   <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                                     <Check className="w-3 h-3" />
-                                    Uploaded — ready to convert
+                                    Ready to convert
                                   </span>
                                 )}
                               {item.status === "pending" && item.uploadError && (
@@ -1773,6 +1798,9 @@ export function ConverterView() {
                                   item.status === "done" ||
                                   item.status === "error"
                                 ) {
+                                  const small =
+                                    item.file.size > 0 &&
+                                    item.file.size <= INLINE_UPLOAD_MAX_BYTES;
                                   const reset: Partial<FileItem> = {
                                     targetFormat: val,
                                     status: "pending",
@@ -1782,18 +1810,20 @@ export function ConverterView() {
                                     pageCount: undefined,
                                     endTime: undefined,
                                     uploadId: undefined,
-                                    uploadReady: false,
-                                    uploading: false,
+                                    uploadReady: small,
+                                    uploading: !small,
                                     uploadError: undefined,
                                   };
                                   updateFile(item.id, reset);
-                                  // Re-stage after failed/reconvert path
-                                  setTimeout(() => {
-                                    const live = filesRef.current.find(
-                                      (f) => f.id === item.id,
-                                    );
-                                    if (live) enqueueAutoUpload([live]);
-                                  }, 0);
+                                  // Re-stage large files only after failed/reconvert
+                                  if (!small) {
+                                    setTimeout(() => {
+                                      const live = filesRef.current.find(
+                                        (f) => f.id === item.id,
+                                      );
+                                      if (live) enqueueAutoUpload([live]);
+                                    }, 0);
+                                  }
                                 } else {
                                   updateFile(item.id, { targetFormat: val });
                                 }
