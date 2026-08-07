@@ -5,6 +5,7 @@ const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round
 const PARALLEL_CHUNKS = 1;
 const SINGLE_SHOT_MAX = 4 * 1024 * 1024;
 const CHUNK_RETRIES = 4;
+const CHUNK_TIMEOUT_MS = 55_000;
 const JOB_POLL_MS = 2000;
 const JOB_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min cap for long video encodes
 /** How many times to wait+retry when server convert queue is full (503). */
@@ -25,6 +26,15 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Prefer same-origin absolute URLs so apex vs www never mid-flight drifts. */
+function sameOriginUrl(path: string): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const base = window.location.origin.replace(/\/$/, "");
+    return path.startsWith("http") ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+  }
+  return path;
+}
+
 async function postChunk(
   uploadId: string,
   chunkIndex: number,
@@ -34,9 +44,12 @@ async function postChunk(
   body: ArrayBuffer,
 ): Promise<void> {
   let lastErr: Error | null = null;
+  const url = sameOriginUrl("/api/convert/chunk");
   for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
     try {
-      const res = await fetch("/api/convert/chunk", {
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/octet-stream",
@@ -48,7 +61,14 @@ async function postChunk(
         },
         body,
         cache: "no-store",
+        redirect: "error", // never follow host redirects mid-upload
+        signal: controller.signal,
       });
+      if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
+        throw new Error(
+          "Upload redirected off this host. Open https://www.convertek.tech and try again.",
+        );
+      }
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         let msg = `Chunk ${chunkIndex + 1}/${chunkTotal} failed (${res.status})`;
@@ -62,10 +82,18 @@ async function postChunk(
       }
       return;
     } catch (err) {
-      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (err instanceof Error && err.name === "AbortError") {
+        lastErr = new Error(
+          `Chunk ${chunkIndex + 1}/${chunkTotal} timed out. Check connection and retry.`,
+        );
+      } else {
+        lastErr = err instanceof Error ? err : new Error(String(err));
+      }
       if (attempt < CHUNK_RETRIES) {
         await sleep(400 * attempt);
       }
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw lastErr || new Error("Chunk upload failed");
@@ -97,7 +125,7 @@ async function waitForConvertJob(
     });
 
     const st = await fetch(
-      `/api/convert/job?id=${encodeURIComponent(jobId)}`,
+      sameOriginUrl(`/api/convert/job?id=${encodeURIComponent(jobId)}`),
       { cache: "no-store" },
     );
     if (st.status === 404) {
@@ -122,7 +150,9 @@ async function waitForConvertJob(
         totalBytes,
       });
       const fileRes = await fetch(
-        `/api/convert/job?id=${encodeURIComponent(jobId)}&download=1`,
+        sameOriginUrl(
+          `/api/convert/job?id=${encodeURIComponent(jobId)}&download=1`,
+        ),
         { cache: "no-store" },
       );
       if (!fileRes.ok) {
@@ -157,9 +187,14 @@ async function postConvertWithQueue(
 ): Promise<Response> {
   let lastMessage =
     "Server is busy converting other files. Wait a moment and try again.";
+  const absoluteUrl = sameOriginUrl(url);
 
   for (let attempt = 0; attempt <= QUEUE_RETRIES; attempt++) {
-    const res = await fetch(url, { ...init, cache: "no-store" });
+    const res = await fetch(absoluteUrl, {
+      ...init,
+      cache: "no-store",
+      redirect: "error",
+    });
 
     if (res.status === 503) {
       const data = (await res.json().catch(() => ({}))) as {

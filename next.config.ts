@@ -303,27 +303,47 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * Permanent host redirects: only www.convertek.tech is public.
-   * Middleware mirrors this (both layers after deploy).
+   * Permanent host redirects for HTML only.
+   * Exclude /api/* so chunk uploads and convert POSTs are not 308'd
+   * (breaks staging and leaves the UI stuck on "Uploading").
    */
   async redirects() {
     return [
       {
-        source: "/:path*",
+        source: "/:path((?!api/).*)",
         has: [{ type: "host", value: "convertek.tech" }],
         destination: "https://www.convertek.tech/:path*",
         permanent: true,
       },
       {
-        source: "/:path*",
+        source: "/:path((?!api/).*)",
         has: [{ type: "host", value: "cloudconveter.tech" }],
         destination: "https://www.convertek.tech/:path*",
         permanent: true,
       },
       {
-        source: "/:path*",
+        source: "/:path((?!api/).*)",
         has: [{ type: "host", value: "www.cloudconveter.tech" }],
         destination: "https://www.convertek.tech/:path*",
+        permanent: true,
+      },
+      // Root path on apex (path* may not match empty)
+      {
+        source: "/",
+        has: [{ type: "host", value: "convertek.tech" }],
+        destination: "https://www.convertek.tech/",
+        permanent: true,
+      },
+      {
+        source: "/",
+        has: [{ type: "host", value: "cloudconveter.tech" }],
+        destination: "https://www.convertek.tech/",
+        permanent: true,
+      },
+      {
+        source: "/",
+        has: [{ type: "host", value: "www.cloudconveter.tech" }],
+        destination: "https://www.convertek.tech/",
         permanent: true,
       },
     ];

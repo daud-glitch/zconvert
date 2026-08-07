@@ -107,6 +107,21 @@ describe("middleware", () => {
       expect(NextResponse.next).toHaveBeenCalled();
     });
 
+    it("does not redirect apex API or OPTIONS (upload safety)", () => {
+      for (const [path, method] of [
+        ["/api/convert/chunk", "POST"],
+        ["/api/convert/chunk", "OPTIONS"],
+        ["/api/ready", "GET"],
+      ] as const) {
+        (NextResponse.redirect as ReturnType<typeof vi.fn>).mockClear();
+        (NextResponse.next as ReturnType<typeof vi.fn>).mockClear();
+        const req = createMockRequest(path, undefined, "convertek.tech");
+        (req as { method: string }).method = method;
+        middleware(req as never);
+        expect(NextResponse.redirect).not.toHaveBeenCalled();
+      }
+    });
+
     it("does not redirect localhost", () => {
       const req = createMockRequest("/", undefined, "localhost:3000");
       middleware(req as never);

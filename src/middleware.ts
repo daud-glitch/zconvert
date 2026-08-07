@@ -70,17 +70,39 @@ const adminApiRoutes = ["/api/admin"];
 const adminUiRoutes = ["/system/core/admin", "/core/system/admin", "/admin"];
 
 function corsPreflightResponse(): NextResponse {
+  // Real NextResponse supports header init; tests mock .next() only.
   const origin = process.env.ALLOWED_ORIGIN || "*";
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "Content-Type, X-File-Name, X-Target-Format, X-Quality, X-Width, X-Height, X-Upload-Id, X-Chunk-Index, X-Chunk-Total, X-Total-Size",
-      "Access-Control-Max-Age": "86400",
-    },
-  });
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctor = NextResponse as any;
+    if (typeof Ctor === "function") {
+      return new Ctor(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": origin,
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers":
+            "Content-Type, X-File-Name, X-Target-Format, X-Quality, X-Width, X-Height, X-Upload-Id, X-Chunk-Index, X-Chunk-Total, X-Total-Size",
+          "Access-Control-Max-Age": "86400",
+        },
+      }) as NextResponse;
+    }
+  } catch {
+    // fall through to next()
+  }
+  const res = NextResponse.next();
+  try {
+    res.headers.set("Access-Control-Allow-Origin", origin);
+    res.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.headers.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, X-File-Name, X-Target-Format, X-Quality, X-Width, X-Height, X-Upload-Id, X-Chunk-Index, X-Chunk-Total, X-Total-Size",
+    );
+    res.headers.set("Access-Control-Max-Age", "86400");
+  } catch {
+    // mock Map may be immutable in tests — preflight still reaches handler
+  }
+  return res;
 }
 
 function hasSessionUser(sessionCookie: { value: string } | undefined): boolean {
@@ -108,6 +130,7 @@ function normalizeHost(raw: string): string {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const method = request.method.toUpperCase();
 
   // Prefer Host header (Heroku / reverse proxies); fall back to URL hostname.
   const rawHost =
@@ -116,8 +139,18 @@ export function middleware(request: NextRequest) {
     request.nextUrl.hostname;
   const host = normalizeHost(rawHost);
 
-  // Only public domain: www.convertek.tech — apex and aliases redirect forever
-  if (shouldForceCanonicalHost(host)) {
+  /**
+   * Host canonicalization is for page navigations only.
+   * Never redirect /api or OPTIONS — browsers drop/broken-follow upload bodies
+   * after 308 and CORS preflight fails (upload stuck on "Uploading").
+   */
+  const isApi = pathname.startsWith("/api/") || pathname === "/api";
+  if (
+    !isApi &&
+    method !== "OPTIONS" &&
+    (method === "GET" || method === "HEAD") &&
+    shouldForceCanonicalHost(host)
+  ) {
     const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
     return NextResponse.redirect(
       new URL(`https://${CANONICAL_HOST}${path}`),
@@ -125,7 +158,7 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  if (request.method === "OPTIONS" && pathname.startsWith("/api/convert")) {
+  if (method === "OPTIONS" && pathname.startsWith("/api/convert")) {
     return corsPreflightResponse();
   }
 
