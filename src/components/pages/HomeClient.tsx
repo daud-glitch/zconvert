@@ -250,6 +250,9 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 <p className="hidden sm:block text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70 truncate">
                   Any file · Any format
                 </p>
+                <p className="hidden lg:block text-[9px] text-muted-foreground/80 font-medium tracking-wide -mt-0.5 truncate">
+                  Drop it. Convert it. Download it.
+                </p>
               </div>
             </div>
 
@@ -511,6 +514,12 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   Convertek
                 </span>
               </div>
+              <p className="text-sm font-medium text-foreground/90">
+                Any file. Any format.
+              </p>
+              <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                Drop it. Convert it. Download it.
+              </p>
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
                 Free online file converter for images, PDF, documents, audio,
                 video &amp; more. Mixed batches, no watermarks — up to 30 MB per

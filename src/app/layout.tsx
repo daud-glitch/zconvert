@@ -8,6 +8,7 @@ import { AppProvider } from "@/lib/app-context";
 import { TrafficTracker } from "@/components/analytics/TrafficTracker";
 import {
   BRAND_TAGLINE,
+  BRAND_TAGLINE_ACTION,
   DEFAULT_DESCRIPTION,
   DEFAULT_KEYWORDS,
   DEFAULT_TITLE,
@@ -75,7 +76,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: `${SITE_NAME} — ${BRAND_TAGLINE}`,
+        alt: `${SITE_NAME} — ${BRAND_TAGLINE} ${BRAND_TAGLINE_ACTION}`,
         type: "image/png",
       },
     ],

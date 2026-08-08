@@ -1,5 +1,6 @@
 import {
   BRAND_TAGLINE,
+  BRAND_TAGLINE_ACTION,
   DEFAULT_DESCRIPTION,
   SITE_EMAIL,
   SITE_NAME,
@@ -61,6 +62,7 @@ export default function JsonLd() {
         publisher: { "@id": `${SITE_URL}/#organization` },
         featureList: [
           BRAND_TAGLINE,
+          BRAND_TAGLINE_ACTION,
           "Mixed-type batch conversion with per-file output formats",
           "Images: PNG, JPG, WebP, AVIF, GIF, and more",
           "Documents & PDF conversion",

@@ -70,20 +70,26 @@ export const SITE_NAME = "Convertek";
 export const SITE_DOMAIN = "www.convertek.tech";
 export const SITE_EMAIL = "support@convertek.tech";
 
-/** Short brand subline (nav / product mark) */
+/** Primary brand line (nav / product mark / headline) */
 export const BRAND_TAGLINE = "Any file. Any format.";
+
+/** Secondary action line — pairs with BRAND_TAGLINE */
+export const BRAND_TAGLINE_ACTION = "Drop it. Convert it. Download it.";
+
+/** Combined for meta descriptions and footers */
+export const BRAND_TAGLINE_PAIR = `${BRAND_TAGLINE} ${BRAND_TAGLINE_ACTION}`;
 
 /**
  * Primary marketing tagline candidates — pick one for campaigns.
- * BRAND_TAGLINE is the live default used in UI + meta where space is tight.
+ * Live pair: BRAND_TAGLINE + BRAND_TAGLINE_ACTION.
  */
 export const TAGLINE_OPTIONS = [
   "Any file. Any format.",
+  "Drop it. Convert it. Download it.",
   "Convert anything. Watermark nothing.",
   "One queue. Every format.",
   "Mixed files. Perfect conversion.",
   "Free. Fast. Format-ready.",
-  "Drop it. Convert it. Download it.",
   "Your files. Your formats. Your control.",
   "From PNG to PDF — and everything between.",
   "Batch convert without the lock-in.",

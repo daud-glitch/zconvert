@@ -1,11 +1,11 @@
 import type { MetadataRoute } from "next";
-import { BRAND_TAGLINE, SITE_NAME } from "@/lib/seo";
+import { BRAND_TAGLINE, BRAND_TAGLINE_ACTION, SITE_NAME } from "@/lib/seo";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: `${SITE_NAME} — Free Online File Converter`,
     short_name: SITE_NAME,
-    description: `${BRAND_TAGLINE} Convert images, PDF, documents, audio, video and more — free, no watermarks.`,
+    description: `${BRAND_TAGLINE} ${BRAND_TAGLINE_ACTION} Convert images, PDF, documents, audio, video and more — free, no watermarks.`,
     start_url: "/",
     display: "standalone",
     background_color: "#0a0a0a",

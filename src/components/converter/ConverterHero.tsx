@@ -130,14 +130,18 @@ export function ConverterHero({
               id="converter-hero-heading"
               className="text-[1.75rem] leading-tight font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.08]"
             >
-              Convert any file.
+              Any file.
               <br />
               <span className="text-emerald-600 dark:text-emerald-400">
                 Any format.
               </span>
             </h1>
 
-            <p className="mt-3 sm:mt-4 text-sm leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="mt-3 sm:mt-4 text-base font-semibold tracking-tight text-foreground sm:text-xl">
+              Drop it. Convert it. Download it.
+            </p>
+
+            <p className="mt-2 sm:mt-3 text-sm leading-relaxed text-muted-foreground sm:text-lg">
               Drop images, video, documents, spreadsheets, audio, archives — even
               mixed types in one batch. Choose a different output format for each
               file, then download in seconds.

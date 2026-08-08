@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import HomeClient from "@/components/pages/HomeClient";
 import {
   BRAND_TAGLINE,
+  BRAND_TAGLINE_ACTION,
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
   OG_DESCRIPTION,
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: `${SITE_NAME} — ${BRAND_TAGLINE}`,
+        alt: `${SITE_NAME} — ${BRAND_TAGLINE} ${BRAND_TAGLINE_ACTION}`,
       },
     ],
   },
