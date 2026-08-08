@@ -9,11 +9,21 @@ const UPDATED = "August 4, 2026";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "About Convertek — free online file conversion with mixed-type batch, per-file formats, and privacy-first processing.",
+    "About Convertek — free online file converter with mixed-type batch conversion, per-file formats, no watermarks, and privacy-first temporary processing.",
   alternates: { canonical: "/about" },
   openGraph: {
-    title: "About | Convertek",
+    title: "About Convertek | Free Online File Converter",
+    description:
+      "Learn how Convertek converts files online: mixed batches, per-file formats, fair limits, and no watermarks.",
     url: `${SITE}/about`,
+    type: "website",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About Convertek",
+    description:
+      "Free online file converter — mixed batches, privacy-first processing, no watermarks.",
   },
 };
 

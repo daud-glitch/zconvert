@@ -231,8 +231,11 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
                 </Badge>
               </div>
               <h1 className="text-xl sm:text-2xl font-bold mb-1">
-                {format.name}
+                Convert {format.ext.toUpperCase()} Files Online Free
               </h1>
+              <p className="text-base font-semibold text-foreground/90 mb-1">
+                {format.name}
+              </p>
               <p className="text-muted-foreground">{format.description}</p>
               {format.mimeTypes.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-2 font-mono">

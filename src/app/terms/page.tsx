@@ -9,12 +9,16 @@ const UPDATED = "August 2, 2026";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Rules for using Convertek file conversion at www.convertek.tech.",
+    "Terms of Service for Convertek — free online file conversion at www.convertek.tech. Fair use, limits, and acceptable use.",
   alternates: { canonical: "/terms" },
   openGraph: {
     title: "Terms of Service | Convertek",
+    description:
+      "Rules for using Convertek online file conversion at www.convertek.tech.",
     url: `${SITE}/terms`,
+    type: "website",
   },
+  robots: { index: true, follow: true },
 };
 
 export default function TermsPage() {

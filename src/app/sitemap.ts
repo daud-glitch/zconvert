@@ -1,50 +1,69 @@
-import { MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
 import { formats } from "@/lib/formats";
+import { CANONICAL_SITE_URL, resolveSiteUrl } from "@/lib/seo";
 
+/**
+ * XML sitemap for Google Search Console & Bing Webmaster Tools.
+ * Served at: https://www.convertek.tech/sitemap.xml
+ *
+ * Submit this URL in:
+ * - Google: https://search.google.com/search-console
+ * - Bing:   https://www.bing.com/webmasters
+ *
+ * Always emits www.convertek.tech — never legacy cloudconveter.tech,
+ * even if NEXT_PUBLIC_SITE_URL is still set to the old domain on the host.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.convertek.tech";
-  
-  const routes = [
+  const now = new Date();
+  // resolve at request/build time (not module cache of a bad env at import)
+  const base = resolveSiteUrl() || CANONICAL_SITE_URL;
+
+  const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: "daily" as const,
+      url: base,
+      lastModified: now,
+      changeFrequency: "daily",
       priority: 1,
     },
     {
-      url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
-      changeFrequency: "yearly" as const,
-      priority: 0.4,
+      url: `${base}/conversions`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.95,
     },
     {
-      url: `${baseUrl}/terms`,
-      lastModified: new Date(),
-      changeFrequency: "yearly" as const,
-      priority: 0.4,
+      url: `${base}/about`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.7,
     },
     {
-      url: `${baseUrl}/contact`,
-      lastModified: new Date(),
-      changeFrequency: "yearly" as const,
-      priority: 0.4,
+      url: `${base}/contact`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.6,
     },
     {
-      url: `${baseUrl}/login`,
-      lastModified: new Date(),
-      changeFrequency: "monthly" as const,
-      priority: 0.5,
+      url: `${base}/privacy`,
+      lastModified: now,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${base}/terms`,
+      lastModified: now,
+      changeFrequency: "yearly",
+      priority: 0.3,
     },
   ];
 
-  // Add all format pages
-  const formatRoutes = formats.map((f) => ({
-    url: `${baseUrl}/conversions/${f.ext}`,
-    lastModified: new Date(),
+  // High-intent SEO pages: /conversions/{ext}
+  const formatRoutes: MetadataRoute.Sitemap = formats.map((f) => ({
+    url: `${base}/conversions/${encodeURIComponent(f.ext)}`,
+    lastModified: now,
     changeFrequency: "weekly" as const,
-    priority: 0.8,
+    priority: 0.85,
   }));
 
-  return [...routes, ...formatRoutes];
+  return [...staticRoutes, ...formatRoutes];
 }

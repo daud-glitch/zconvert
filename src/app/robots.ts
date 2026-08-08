@@ -1,15 +1,41 @@
-import { MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
+import { CANONICAL_SITE_URL, resolveSiteUrl } from "@/lib/seo";
 
+/**
+ * robots.txt for Googlebot, Bingbot, and other crawlers.
+ * Served at: https://www.convertek.tech/robots.txt
+ */
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.convertek.tech";
+  const base = resolveSiteUrl() || CANONICAL_SITE_URL;
+  const disallow = [
+    "/api/",
+    "/core/",
+    "/system/",
+    "/admin",
+    "/admin/",
+    "/forgot-password",
+    "/reset-password",
+  ];
 
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      disallow: ["/api/", "/core/", "/system/"],
-    },
-    sitemap: `${baseUrl}/sitemap.xml`,
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow,
+      },
+      {
+        userAgent: "Googlebot",
+        allow: "/",
+        disallow,
+      },
+      {
+        userAgent: "Bingbot",
+        allow: "/",
+        disallow,
+      },
+    ],
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }

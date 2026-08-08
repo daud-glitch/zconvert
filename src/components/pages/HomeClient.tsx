@@ -248,7 +248,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   Convertek
                 </span>
                 <p className="hidden sm:block text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70 truncate">
-                  Universal File Lab
+                  Any file · Any format
                 </p>
               </div>
             </div>
@@ -512,8 +512,9 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 </span>
               </div>
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-                A high-performance file conversion suite. Convert images, video,
-                documents, and more — up to 30 MB per file (100 MB for video).
+                Free online file converter for images, PDF, documents, audio,
+                video &amp; more. Mixed batches, no watermarks — up to 30 MB per
+                file (100 MB video).
               </p>
               <div className="flex items-center gap-4">
                 <Button

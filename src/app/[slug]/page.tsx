@@ -44,10 +44,25 @@ async function loadPage(slug: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const page = await loadPage(slug);
-  if (!page) return { title: "Not found" };
+  if (!page) {
+    return {
+      title: "Not found",
+      robots: { index: false, follow: false },
+    };
+  }
+  const title = page.seoTitle || page.title;
+  const description = page.seoDesc || undefined;
   return {
-    title: page.seoTitle || page.title,
-    description: page.seoDesc || undefined,
+    title,
+    description,
+    alternates: { canonical: `/${slug}` },
+    openGraph: {
+      title,
+      description,
+      url: `https://www.convertek.tech/${slug}`,
+      type: "article",
+    },
+    robots: { index: true, follow: true },
   };
 }
 

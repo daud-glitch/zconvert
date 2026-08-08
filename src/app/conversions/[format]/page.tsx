@@ -1,6 +1,13 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import { formats } from "@/lib/formats";
 import FormatDetailClient from "@/components/pages/FormatDetailClient";
+import { FormatJsonLd } from "@/components/format-json-ld";
+import {
+  formatPageDescription,
+  formatPageTitle,
+  SITE_NAME,
+  absoluteUrl,
+} from "@/lib/seo";
 
 interface Props {
   params: Promise<{ format: string }>;
@@ -13,12 +20,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!format) {
     return {
       title: "Format Not Found",
-      description: "The requested file format is not supported.",
+      description: "The requested file format is not supported on Convertek.",
+      robots: { index: false, follow: true },
     };
   }
 
-  const title = `Convert ${format.ext.toUpperCase()} Files Online — ${format.name}`;
-  const description = `Free online ${format.ext.toUpperCase()} converter. ${format.description.slice(0, 150)}... Convert ${format.ext} to ${format.targetFormats.slice(0, 5).join(", ")} and more.`;
+  const title = formatPageTitle(format.ext, format.name);
+  const description = formatPageDescription(
+    format.ext,
+    format.name,
+    format.description,
+    format.targetFormats,
+  );
+  const upper = format.ext.toUpperCase();
+  const path = `/conversions/${ext}`;
 
   return {
     title,
@@ -26,40 +41,67 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     keywords: [
       `convert ${format.ext}`,
       `${format.ext} converter`,
-      `${format.ext} to pdf`,
       `online ${format.ext} converter`,
-      ...format.targetFormats.map((t) => `${format.ext} to ${t}`),
+      `free ${format.ext} converter`,
+      `${upper} to ${format.targetFormats[0] || "file"}`,
+      ...format.targetFormats
+        .slice(0, 12)
+        .map((t) => `${format.ext} to ${t}`),
+      format.name,
+      format.category,
+      "file converter",
+      "free online converter",
+      SITE_NAME,
     ],
     alternates: {
-      canonical: `/conversions/${ext}`,
+      canonical: path,
     },
     openGraph: {
-      title,
+      title: `${title} | ${SITE_NAME}`,
       description,
+      url: absoluteUrl(path),
+      type: "website",
+      siteName: SITE_NAME,
       images: [
         {
           url: "/og-image.png",
           width: 1200,
           height: 630,
-          alt: `Convert ${format.ext} files online`,
+          alt: `Convert ${upper} files online free with ${SITE_NAME}`,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title,
+      title: `${title} | ${SITE_NAME}`,
       description,
       images: ["/og-image.png"],
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
     },
   };
 }
 
 export default async function Page({ params }: Props) {
   const { format: ext } = await params;
-  return <FormatDetailClient ext={ext} />;
+  const format = formats.find((f) => f.ext === ext);
+
+  return (
+    <>
+      {format ? <FormatJsonLd format={format} /> : null}
+      <FormatDetailClient ext={ext} />
+    </>
+  );
 }
 
-// Generate static params for all supported formats for better performance
 export async function generateStaticParams() {
   return formats.map((f) => ({
     format: f.ext,

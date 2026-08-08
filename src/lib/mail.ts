@@ -2,6 +2,8 @@
  * Mailgun send helper (Heroku Mailgun addon).
  * Env: MAILGUN_API_KEY, MAILGUN_DOMAIN, optional MAILGUN_FROM / MAIL_FROM
  */
+import { resolveSiteUrl } from "@/lib/seo";
+
 export async function sendMail(input: {
   to: string;
   subject: string;
@@ -60,8 +62,6 @@ export async function sendMail(input: {
 }
 
 export function publicSiteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://www.convertek.tech"
-  );
+  // Same canonicalization as SEO so password-reset links never use legacy domains
+  return resolveSiteUrl();
 }

@@ -214,14 +214,15 @@ export default function ConversionsClient() {
         {/* Heading */}
         <div className="mb-8">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3">
-            All{" "}
+            Supported{" "}
             <span className="text-emerald-600 dark:text-emerald-400">
-              Conversions
+              File Formats
             </span>
           </h1>
           <p className="text-lg text-muted-foreground">
-            {formats.length} input formats &middot; {totalConversions}+
-            conversion pairs &middot; {categories.length} categories
+            Free online conversion — {formats.length} input formats &middot;{" "}
+            {totalConversions}+ conversion pairs &middot; {categories.length}{" "}
+            categories
           </p>
         </div>
 

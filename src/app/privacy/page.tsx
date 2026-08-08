@@ -9,12 +9,16 @@ const UPDATED = "August 2, 2026";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Convertek handles uploads, local history, accounts, and aggregate usage data.",
+    "How Convertek handles uploads, temporary processing, local browser history, accounts, and aggregate usage data. Privacy-first file conversion.",
   alternates: { canonical: "/privacy" },
   openGraph: {
     title: "Privacy Policy | Convertek",
+    description:
+      "How Convertek handles uploads, temporary processing, local history, and accounts.",
     url: `${SITE}/privacy`,
+    type: "website",
   },
+  robots: { index: true, follow: true },
 };
 
 export default function PrivacyPage() {

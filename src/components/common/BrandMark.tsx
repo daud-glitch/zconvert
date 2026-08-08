@@ -1,5 +1,5 @@
 /**
- * Convertek brand mark — HD dual-file convert symbol (public/logo-mark.png, transparent).
+ * Convertek premium 3D glass mark — transparent PNG (public/logo-mark.png).
  */
 export function BrandMark({
   className = "h-8 w-8 sm:h-10 sm:w-10",
