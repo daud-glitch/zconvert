@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Lock, Mail, User, UserPlus } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
+import { BrandTitle } from "@/components/common/BrandTitle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,7 +110,7 @@ function SignupForm() {
           <div className="flex flex-col items-center mb-8">
             <BrandMark className="h-14 w-14 mb-4" rounded="rounded-2xl" />
             <h1 className="text-2xl font-bold tracking-tight">
-              Convertek
+              <BrandTitle className="text-2xl font-bold tracking-tight text-foreground" />
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Create your free account

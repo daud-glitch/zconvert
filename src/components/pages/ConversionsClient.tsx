@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/common/BrandMark";
+import { BrandTitle } from "@/components/common/BrandTitle";
 import {
   Search,
   Moon,
@@ -162,9 +163,7 @@ export default function ConversionsClient() {
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-3">
               <BrandMark className="h-9 w-9" rounded="rounded-lg" />
-              <span className="text-xl font-bold tracking-tight">
-                Convertek
-              </span>
+              <BrandTitle className="text-xl font-bold tracking-tight text-foreground" />
             </Link>
             <nav className="flex items-center gap-2">
               <Link href="/">

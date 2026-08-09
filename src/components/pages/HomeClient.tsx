@@ -21,6 +21,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
+import { BrandTaglines, BrandTitle } from "@/components/common/BrandTitle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -244,15 +245,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             >
               <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" />
               <div className="min-w-0">
-                <span className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate">
-                  Convertek
-                </span>
-                <p className="hidden sm:block text-[10px] text-muted-foreground font-medium uppercase tracking-widest -mt-1 opacity-70 truncate">
-                  Any file · Any format
-                </p>
-                <p className="hidden lg:block text-[9px] text-muted-foreground/80 font-medium tracking-wide -mt-0.5 truncate">
-                  Drop it. Convert it. Download it.
-                </p>
+                <BrandTitle className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate" />
+                <BrandTaglines className="hidden sm:block -mt-0.5" />
               </div>
             </div>
 
@@ -510,16 +504,12 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   height={28}
                   className="h-7 w-7 object-contain bg-transparent"
                 />
-                <span className="text-xl font-bold tracking-tight">
-                  Convertek
-                </span>
+                <BrandTitle className="text-xl font-bold tracking-tight text-foreground" />
               </div>
-              <p className="text-sm font-medium text-foreground/90">
-                Any file. Any format.
-              </p>
-              <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                Drop it. Convert it. Download it.
-              </p>
+              <BrandTaglines
+                primaryClassName="text-sm font-medium text-foreground/90 normal-case tracking-normal opacity-100"
+                secondaryClassName="text-sm text-emerald-700 dark:text-emerald-400"
+              />
               <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
                 Free online file converter for images, PDF, documents, audio,
                 video &amp; more. Mixed batches, no watermarks — up to 30 MB per
