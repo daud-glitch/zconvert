@@ -20,7 +20,7 @@ cd CloudConverter.Desktop
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 ```
 
-Output: `dist\installer\CloudConverter-Setup-1.1.0.exe`
+Output: `dist\installer\CloudConverter-Setup-1.3.0.exe`
 
 - Double-click to install (or run with `/S` for silent)
 - Installs to `%LocalAppData%\Programs\CloudConverter`

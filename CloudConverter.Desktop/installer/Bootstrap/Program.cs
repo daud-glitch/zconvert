@@ -11,7 +11,8 @@ internal static class Program
     private const string AppName = "Convertek";
     private const string AppId = "CloudConverter.Desktop";
     private const string ExeName = "CloudConverter.exe";
-    private const string Version = "1.2.0";
+    private const string Version = "1.3.0";
+    private const string SiteUrl = "https://www.convertek.tech";
 
     [STAThread]
     private static int Main(string[] args)
@@ -199,7 +200,8 @@ Write-Host 'Convertek removed.'
         if (!File.Exists(uninstaller)) uninstaller = Environment.ProcessPath!;
         key.SetValue("UninstallString", $"\"{uninstaller}\" /uninstall");
         key.SetValue("QuietUninstallString", $"\"{uninstaller}\" /uninstall /S");
-        $        key.SetValue("URLInfoAbout", "https://www.convertek.tech");
+        key.SetValue("URLInfoAbout", SiteUrl);
+        key.SetValue("HelpLink", SiteUrl);
     }
 
     private static void UnregisterUninstall()

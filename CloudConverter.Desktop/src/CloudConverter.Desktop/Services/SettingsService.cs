@@ -68,10 +68,20 @@ public sealed class SettingsService
         }
     }
 
-    /// <summary>Lock desktop shell to official www.convertek.tech after domain rebrand.</summary>
+    /// <summary>Always force official production site + update feed on load.</summary>
     private void ApplyDomainDefaults(bool forceSave)
     {
         var changed = false;
+
+        // Always pin to official domain (never keep saved legacy / typo domains)
+        if (!string.Equals(
+                (Current.SiteUrl ?? "").TrimEnd('/'),
+                Branding.CanonicalSiteUrl,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Current.SiteUrl = Branding.CanonicalSiteUrl;
+            changed = true;
+        }
 
         var site = Current.SiteUrl;
         if (Branding.EnsureCanonicalSiteUrl(ref site))
@@ -80,8 +90,10 @@ public sealed class SettingsService
             changed = true;
         }
 
-        if (string.IsNullOrWhiteSpace(Current.UpdateManifestUrl) ||
-            !Current.UpdateManifestUrl.Contains("convertek.tech", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(
+                (Current.UpdateManifestUrl ?? "").Trim(),
+                UpdateCheckService.DefaultManifestUrl,
+                StringComparison.OrdinalIgnoreCase))
         {
             Current.UpdateManifestUrl = UpdateCheckService.DefaultManifestUrl;
             changed = true;
@@ -94,14 +106,19 @@ public sealed class SettingsService
                     StringComparison.OrdinalIgnoreCase)
                 || Current.DownloadFolder.EndsWith(
                     Path.AltDirectorySeparatorChar + "CloudConverter",
-                    StringComparison.OrdinalIgnoreCase)))
+                    StringComparison.OrdinalIgnoreCase)
+                || Current.DownloadFolder.Contains("cloudconveter", StringComparison.OrdinalIgnoreCase)))
         {
             var parent = Path.GetDirectoryName(Current.DownloadFolder);
-            if (!string.IsNullOrEmpty(parent))
+            if (string.IsNullOrEmpty(parent) ||
+                Current.DownloadFolder.Contains("cloudconveter", StringComparison.OrdinalIgnoreCase))
             {
-                Current.DownloadFolder = Path.Combine(parent, Branding.DefaultDownloadsFolderName);
-                changed = true;
+                parent = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Downloads");
             }
+            Current.DownloadFolder = Path.Combine(parent, Branding.DefaultDownloadsFolderName);
+            changed = true;
         }
 
         EnsureDownloadFolder();

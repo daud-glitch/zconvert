@@ -504,7 +504,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 {/* Brand mark — HD transparent symbol */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/logo-mark.png"
+                  src="/logo-mark.png?v=3"
                   alt=""
                   width={28}
                   height={28}

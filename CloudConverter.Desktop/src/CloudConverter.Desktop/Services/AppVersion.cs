@@ -9,7 +9,7 @@ public static class AppVersion
         get
         {
             var v = Assembly.GetExecutingAssembly().GetName().Version;
-            return v is null ? "1.2.0" : $"{v.Major}.{v.Minor}.{v.Build}";
+            return v is null ? "1.3.0" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
 }

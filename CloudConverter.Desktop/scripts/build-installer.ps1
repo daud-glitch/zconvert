@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Publish Desktop app and build CloudConverter-Setup-1.2.0.exe (embedded payload installer).
+  Publish Desktop app and build CloudConverter-Setup-1.3.0.exe (embedded payload installer).
 #>
 param(
   [switch]$SkipPublish,
@@ -15,7 +15,7 @@ $publishDir = Join-Path $root "dist\CloudConverter"
 $installerDir = Join-Path $root "dist\installer"
 $bootstrap = Join-Path $root "installer\Bootstrap"
 $payloadZip = Join-Path $bootstrap "payload.zip"
-$version = "1.2.0"
+$version = "1.3.0"
 $setupName = "CloudConverter-Setup-$version.exe"
 
 function Get-DotNet {

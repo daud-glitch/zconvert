@@ -15,13 +15,11 @@ namespace CloudConverter.Desktop;
 
 public sealed class SplashWindow : Window
 {
-    public const string BrandHost = "www.convertek.tech";
-
     public SplashWindow(string? theme = null)
     {
         var isDark = ThemeService.Normalize(theme) == ThemeService.Dark;
 
-        Title = "Convertek";
+        Title = Branding.AppName;
         Width = 480;
         Height = 340;
         WindowStyle = WindowStyle.None;
@@ -114,24 +112,24 @@ public sealed class SplashWindow : Window
 
         content.Children.Add(new TextBlock
         {
-            Text = "Convertek",
+            Text = Branding.AppName,
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(text),
             HorizontalAlignment = HA.Center,
         });
 
-        // Prominent site identity
+        // Prominent site identity — official product URL
         var site = new TextBlock
         {
-            Text = BrandHost,
+            Text = Branding.CanonicalHost,
             FontSize = 18,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(accent),
             HorizontalAlignment = HA.Center,
             Margin = new Thickness(0, 10, 0, 2),
             Cursor = System.Windows.Input.Cursors.Hand,
-            ToolTip = "https://www.convertek.tech",
+            ToolTip = Branding.CanonicalSiteUrl,
         };
         site.MouseLeftButtonUp += (_, _) =>
         {
@@ -139,7 +137,7 @@ public sealed class SplashWindow : Window
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = "https://www.convertek.tech",
+                    FileName = Branding.CanonicalSiteUrl,
                     UseShellExecute = true,
                 });
             }
@@ -149,11 +147,28 @@ public sealed class SplashWindow : Window
 
         content.Children.Add(new TextBlock
         {
-            Text = "Online file converter · Desktop app",
+            Text = Branding.TaglinePrimary,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(text),
+            HorizontalAlignment = HA.Center,
+            Margin = new Thickness(0, 8, 0, 0),
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = Branding.TaglineAction,
             FontSize = 11,
             Foreground = new SolidColorBrush(muted),
             HorizontalAlignment = HA.Center,
-            Margin = new Thickness(0, 2, 0, 20),
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"Desktop v{AppVersion.Current} · {Branding.CanonicalHost}",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(muted),
+            HorizontalAlignment = HA.Center,
+            Margin = new Thickness(0, 6, 0, 18),
         });
 
         var track = new Border

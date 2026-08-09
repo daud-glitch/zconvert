@@ -11,6 +11,8 @@ public static class Branding
     public const string CanonicalSiteUrl = "https://www.convertek.tech";
     public const string SupportEmail = "support@convertek.tech";
     public const string DownloadBrandPrefix = "convertek.tech";
+    public const string TaglinePrimary = "Any file. Any format.";
+    public const string TaglineAction = "Drop it. Convert it. Download it.";
     /// <summary>Windows AppData / LocalAppData product folder (stable for upgrades).</summary>
     public const string AppDataFolderName = "CloudConverter";
     public const string DefaultDownloadsFolderName = "Convertek";

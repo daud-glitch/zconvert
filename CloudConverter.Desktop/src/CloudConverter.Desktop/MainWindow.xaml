@@ -320,9 +320,13 @@
                   </Border>
                   <TextBlock Text="Convertek" FontSize="26" FontWeight="SemiBold" />
                   <TextBlock Text="www.convertek.tech" FontSize="16" FontWeight="Bold"
-                             Foreground="{DynamicResource BrushAccent}" Margin="0,6,0,12" />
+                             Foreground="{DynamicResource BrushAccent}" Margin="0,6,0,4" />
+                  <TextBlock Text="Any file. Any format." FontSize="13" FontWeight="SemiBold"
+                             Margin="0,0,0,2" />
+                  <TextBlock Text="Drop it. Convert it. Download it." FontSize="12"
+                             Foreground="{DynamicResource BrushMuted}" Margin="0,0,0,12" />
                   <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Foreground="{DynamicResource BrushMuted}"
-                             Text="Free online file converter for images, documents, PDF, audio, video, and archives. Convert privately in your browser session. Convertek Desktop is the Windows shell that opens the full website as a native app." />
+                             Text="Free online file converter for images, documents, PDF, audio, video, and archives. Convert privately in your browser session. Convertek Desktop is the Windows shell that opens https://www.convertek.tech as a native app." />
                   <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
                     <Button Content="Open website" Style="{StaticResource PrimaryButton}" Click="BtnOpenWebsite_Click" />
                     <Button Content="Report a bug" Style="{StaticResource GhostButton}" Margin="10,0,0,0" Click="BtnReportBug_Click" />
