@@ -8,6 +8,7 @@ import path from "path";
 import { gunzipSync } from "zlib";
 import { XMLParser } from "fast-xml-parser";
 import * as tar from "tar-stream";
+import { extractRarWithToolchain } from "@/lib/external-toolchain";
 
 /** sav-reader is CJS-only (`exports.require`); Turbopack cannot resolve ESM import. */
 const nodeRequire = createRequire(
@@ -376,10 +377,17 @@ export async function extractWith7zip(
   input: Buffer,
   ext: string,
 ): Promise<ArchiveEntry[]> {
+  const safeExt = (ext || "bin").toLowerCase().replace(/^\./, "") || "bin";
+
+  // 7za (7zip-min) often cannot open modern RAR5 (exit code 2). Prefer UnRAR/WinRAR.
+  if (safeExt === "rar" || looksLikeRarMagic(input)) {
+    const viaUnrar = await extractRarWithToolchain(input);
+    if (viaUnrar && viaUnrar.length > 0) return viaUnrar;
+  }
+
   const { unpack } = await import("7zip-min");
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-7z-"));
   // Always use a real archive extension so 7za auto-detects correctly
-  const safeExt = (ext || "bin").toLowerCase().replace(/^\./, "") || "bin";
   const inPath = path.join(tmp, `archive.${safeExt}`);
   const outDir = path.join(tmp, "out");
   try {
@@ -395,12 +403,21 @@ export async function extractWith7zip(
         try {
           await unpack(rarPath, outDir);
         } catch (retryErr) {
+          // Final attempt via UnRAR toolchain
+          const viaUnrar = await extractRarWithToolchain(input);
+          if (viaUnrar && viaUnrar.length > 0) return viaUnrar;
           throw new Error(
             `Could not extract archive (.${safeExt}): ${
               retryErr instanceof Error ? retryErr.message : String(err)
             }`,
           );
         }
+      } else if (safeExt === "rar" || looksLikeRarMagic(input)) {
+        throw new Error(
+          `Could not extract RAR archive. Install UnRAR/WinRAR (or set UNRAR_BIN), or ensure RAR_BIN is available. ` +
+            `Details: ${err instanceof Error ? err.message : "unknown error"}. ` +
+            `The file may also be password-protected or corrupt.`,
+        );
       } else {
         throw new Error(
           `Could not extract .${safeExt.toUpperCase()} archive: ${
@@ -432,14 +449,17 @@ export async function extractWith7zip(
 }
 
 function looksLikeRarMagic(buf: Buffer): boolean {
-  // "Rar!" signature (RAR 1.5+) or RAR5
-  return (
-    buf.length >= 4 &&
+  // RAR1.5+ "Rar!\x1a\x07\x00" or RAR5 "Rar!\x1a\x07\x01"
+  if (buf.length < 7) return false;
+  if (
     buf[0] === 0x52 &&
     buf[1] === 0x61 &&
     buf[2] === 0x72 &&
     buf[3] === 0x21
-  );
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export async function packTo7zip(

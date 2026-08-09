@@ -303,12 +303,19 @@ export function humanizeConversionError(message: string): string {
   if (
     lower.includes("rar_bin") ||
     lower.includes("winrar") ||
+    lower.includes("unrar") ||
+    lower.includes("unrar_bin") ||
     (lower.includes("rar") &&
       (lower.includes("external rar") ||
         lower.includes("packaging is not available") ||
-        lower.includes("choose zip")))
+        lower.includes("choose zip") ||
+        lower.includes("could not extract rar") ||
+        lower.includes("install unrar")))
   ) {
-    return rarUnavailableMessage();
+    if (lower.includes("packaging") || lower.includes("rar_bin")) {
+      return rarUnavailableMessage();
+    }
+    return "Could not open this RAR file. It may be password-protected or corrupt — or UnRAR/WinRAR is missing on the server. Try ZIP instead, or set UNRAR_BIN.";
   }
   if (
     lower.includes("failed to extract") ||

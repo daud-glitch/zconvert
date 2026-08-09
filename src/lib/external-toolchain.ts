@@ -57,10 +57,48 @@ function getCalibreCandidates(): string[] {
   ]);
 }
 
+function getUnrarCandidates(): string[] {
+  return unique([
+    ...splitCandidates(process.env.UNRAR_BIN),
+    ...splitCandidates(process.env.RAR_BIN), // Rar.exe / rar can also extract with `x`
+    path.join(
+      process.cwd(),
+      "vendor",
+      "rar",
+      process.platform === "win32" ? "UnRAR.exe" : "unrar",
+    ),
+    path.join(
+      process.cwd(),
+      "vendor",
+      "rar",
+      process.platform === "win32" ? "Rar.exe" : "rar",
+    ),
+    "unrar",
+    "unrar.exe",
+    "rar",
+    "rar.exe",
+    "C:\\Program Files\\WinRAR\\UnRAR.exe",
+    "C:\\Program Files\\WinRAR\\Rar.exe",
+    "C:\\Program Files\\WinRAR\\rar.exe",
+    "C:\\Program Files (x86)\\WinRAR\\UnRAR.exe",
+    "C:\\Program Files (x86)\\WinRAR\\Rar.exe",
+    // Full 7-Zip GUI build supports RAR extract; 7za from 7zip-bin does not
+    "C:\\Program Files\\7-Zip\\7z.exe",
+    "C:\\Program Files (x86)\\7-Zip\\7z.exe",
+    "7z",
+    "7z.exe",
+  ]);
+}
+
 function getRarCandidates(): string[] {
   return unique([
     ...splitCandidates(process.env.RAR_BIN),
-    path.join(process.cwd(), "vendor", "rar", process.platform === "win32" ? "Rar.exe" : "rar"),
+    path.join(
+      process.cwd(),
+      "vendor",
+      "rar",
+      process.platform === "win32" ? "Rar.exe" : "rar",
+    ),
     path.join(process.cwd(), "vendor", "rar", "rar"),
     "rar",
     "rar.exe",
@@ -68,6 +106,76 @@ function getRarCandidates(): string[] {
     "C:\\Program Files\\WinRAR\\rar.exe",
     "C:\\Program Files (x86)\\WinRAR\\Rar.exe",
   ]);
+}
+
+/**
+ * Extract RAR (RAR4/RAR5) using UnRAR / WinRAR / full 7z.
+ * Note: 7zip-min ships 7za which often fails on modern RAR (exit code 2).
+ */
+export async function extractRarWithToolchain(
+  input: Buffer,
+): Promise<ArchiveEntry[] | null> {
+  if (!TOOLCHAIN_ENABLED) return null;
+  if (!input?.length) return null;
+
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-unrar-"));
+  const rarPath = path.join(tmp, "archive.rar");
+  const outDir = path.join(tmp, "out");
+  await fs.mkdir(outDir, { recursive: true });
+  await fs.writeFile(rarPath, input);
+
+  try {
+    const candidates = getUnrarCandidates();
+
+    for (const candidate of candidates) {
+      // Skip missing absolute paths; bare names resolve via PATH (ENOENT → code 127)
+      if (path.isAbsolute(candidate) && !existsSync(candidate)) continue;
+
+      const base = path.basename(candidate).toLowerCase();
+      let args: string[];
+      if (base === "7z.exe" || base === "7z") {
+        args = ["x", rarPath, `-o${outDir}`, "-y"];
+      } else if (base === "unrar.exe" || base === "unrar") {
+        args = ["x", "-y", "-idq", rarPath, outDir + path.sep];
+      } else {
+        args = ["x", "-y", "-idq", rarPath, outDir + path.sep];
+      }
+
+      const res = await runCommand(candidate, args, {
+        timeoutMs: TOOLCHAIN_TIMEOUT_MS,
+      });
+      if (res.code !== 0) {
+        if (res.code !== 127) {
+          console.warn(
+            `[rar-extract] ${candidate} failed code=${res.code}: ${res.stderr.slice(0, 200)}`,
+          );
+        }
+        continue;
+      }
+
+      const files: ArchiveEntry[] = [];
+      async function walk(dir: string, prefix = ""): Promise<void> {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const e of entries) {
+          const full = path.join(dir, e.name);
+          const rel = prefix ? `${prefix}/${e.name}` : e.name;
+          if (e.isDirectory()) await walk(full, rel);
+          else {
+            files.push({
+              name: rel.replace(/\\/g, "/"),
+              data: await fs.readFile(full),
+            });
+          }
+        }
+      }
+      await walk(outDir);
+      if (files.length > 0) return files;
+    }
+
+    return null;
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function runCommand(
