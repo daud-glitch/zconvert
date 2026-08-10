@@ -159,8 +159,8 @@ export async function assembleUpload(
   const meta = await readMeta(dir);
   if (!meta) {
     throw new Error(
-      "Upload session not found or expired. Large uploads need a single dyno (or sticky sessions). Re-upload the file and retry.",
-    );
+    "Upload session not found or expired. Re-upload the file (staging is local to one server — sticky sessions help if you have many dynos).",
+  );
   }
   if (Date.now() - meta.createdAt > TTL_MS) {
     await cleanupUpload(id).catch(() => undefined);

@@ -65,6 +65,10 @@ export async function GET(request: NextRequest) {
   if (!profile.email) {
     return fail("Google account has no email");
   }
+  // Google marks most accounts verified; never accept explicitly unverified profiles
+  if (profile.verified_email === false) {
+    return fail("Google email is not verified. Verify the email, then try again.");
+  }
 
   const prisma = getOptionalDb();
   if (!prisma) {

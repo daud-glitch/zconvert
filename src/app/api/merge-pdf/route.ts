@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
 
     const mergedPdf = await PDFDocument.create();
     const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
+    const failed: string[] = [];
 
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
             updateMetadata: false,
             throwOnInvalidObject: false,
           });
+          if (srcPdf.getPageCount() === 0) {
+            throw new Error("PDF has no pages");
+          }
           const pages = await mergedPdf.copyPages(
             srcPdf,
             srcPdf.getPageIndices(),
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
           const maxW = pageW - margin * 2;
 
           const titlePage = mergedPdf.addPage([pageW, pageH]);
-          titlePage.drawText(file.name, {
+          titlePage.drawText(file.name.slice(0, 80), {
             x: margin,
             y: pageH - margin,
             size: 14,
@@ -173,15 +177,27 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch {
-        const errPage = mergedPdf.addPage([595.28, 841.89]);
-        errPage.drawText(`[Could not embed: ${file.name}]`, {
-          x: 50,
-          y: 750,
-          size: 12,
-          font,
-          color: rgb(0.8, 0.2, 0.2),
-        });
+        failed.push(file.name || "unnamed");
       }
+    }
+
+    if (failed.length > 0) {
+      const list = failed.slice(0, 5).join(", ");
+      const more =
+        failed.length > 5 ? ` (+${failed.length - 5} more)` : "";
+      return NextResponse.json(
+        {
+          error: `Could not merge ${failed.length} file(s): ${list}${more}. Encrypted, corrupt, or unsupported files must be fixed first.`,
+        },
+        { status: 422 },
+      );
+    }
+
+    if (mergedPdf.getPageCount() === 0) {
+      return NextResponse.json(
+        { error: "Merge produced an empty PDF. Check your source files." },
+        { status: 422 },
+      );
     }
 
     const pdfBytes = await mergedPdf.save();

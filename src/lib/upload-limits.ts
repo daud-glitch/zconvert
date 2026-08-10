@@ -282,6 +282,21 @@ export function humanizeConversionError(message: string): string {
     return "Too many conversions right now. Wait a minute and try again.";
   }
   if (
+    lower.includes("upload session not found") ||
+    lower.includes("session not found or expired") ||
+    lower.includes("upload session expired") ||
+    (lower.includes("sticky") && lower.includes("dyno"))
+  ) {
+    return "Upload session expired or could not be found. Re-add the file and convert again (keep the same tab open on slow networks).";
+  }
+  if (
+    lower.includes("job not found") ||
+    lower.includes("job expired") ||
+    lower.includes("conversion job expired")
+  ) {
+    return "Conversion job expired. Try Convert again — keep this tab open for long video encodes.";
+  }
+  if (
     lower.includes("busy converting") ||
     lower.includes("in line") ||
     lower.includes("queue") ||

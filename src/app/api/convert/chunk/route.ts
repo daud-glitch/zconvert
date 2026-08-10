@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     request.headers.get("x-real-ip") ||
     "unknown";
-  const rl = checkRateLimit(`chunk:${ip}`, 120, 60_000);
+  const rl = checkRateLimit(`chunk:${ip}`, 240, 60_000);
   if (!rl.allowed) {
     return withRateLimit(
       NextResponse.json(

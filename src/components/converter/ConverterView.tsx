@@ -74,6 +74,7 @@ import {
   humanizeConversionError,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
+import { getFormatByExt } from "@/lib/formats";
 
 const MAX_NONVIDEO_BATCH = getMaxNonVideoBatchFiles();
 const MAX_VIDEO_BYTES = getVideoMaxUploadBytes();
@@ -100,6 +101,63 @@ function mergeOutputFileName(item: FileItem): string {
     return item.name.toLowerCase().endsWith(".pdf") ? item.name : `${baseName}.pdf`;
   }
   return `${baseName}.${item.targetFormat}`;
+}
+
+/** API map first; fall back to built-in catalog so cold loads still accept files. */
+function targetsForExt(
+  ext: string,
+  map: Record<string, string[]>,
+): string[] {
+  const fromMap = map[ext];
+  if (fromMap && fromMap.length > 0) return fromMap;
+  return getFormatByExt(ext)?.targetFormats ?? [];
+}
+
+/** Human size change: avoid crazy % like ↑13428% on WAV/uncompressed output. */
+function formatSizeChangeLabel(input: number, output: number): string {
+  if (input <= 0) return "—";
+  if (output < input) return `↓${Math.round((1 - output / input) * 100)}%`;
+  if (output === input) return "same";
+  const ratio = output / input;
+  if (ratio >= 2) {
+    return `↑${ratio >= 10 ? ratio.toFixed(0) : ratio.toFixed(1)}×`;
+  }
+  return `↑${Math.round((ratio - 1) * 100)}%`;
+}
+
+function canPreviewResult(item: FileItem): boolean {
+  if (!item.result || item.outputPackage === "zip") return false;
+  const t = (item.targetFormat || "").toLowerCase();
+  return [
+    "png",
+    "jpg",
+    "jpeg",
+    "webp",
+    "gif",
+    "bmp",
+    "svg",
+    "pdf",
+    "avif",
+    "ico",
+  ].includes(t);
+}
+
+function uniqueZipEntryName(
+  used: Set<string>,
+  preferred: string,
+): string {
+  if (!used.has(preferred)) {
+    used.add(preferred);
+    return preferred;
+  }
+  const dot = preferred.lastIndexOf(".");
+  const base = dot > 0 ? preferred.slice(0, dot) : preferred;
+  const ext = dot > 0 ? preferred.slice(dot) : "";
+  let n = 2;
+  while (used.has(`${base}-${n}${ext}`)) n += 1;
+  const name = `${base}-${n}${ext}`;
+  used.add(name);
+  return name;
 }
 
 export function ConverterView() {
@@ -444,12 +502,13 @@ export function ConverterView() {
         MAX_NONVIDEO_BATCH -
           activePrev.filter((f) => !isVideoItem(f.ext)).length,
       );
-      // Videos: max 1 active (one-at-a-time processing / queue)
-      const videoSpace = Math.max(0, 1 - activeVideos);
+      // Multiple videos may sit in queue; conversion still runs one at a time
+      const MAX_VIDEOS_IN_QUEUE = 5;
+      const videoSpace = Math.max(0, MAX_VIDEOS_IN_QUEUE - activeVideos);
 
       if (nonVideoSpace <= 0 && videoSpace <= 0) {
         showToast(
-          `Queue full (${MAX_NONVIDEO_BATCH} non-video files max, 1 video at a time).`,
+          `Queue full (${MAX_NONVIDEO_BATCH} non-video files max, ${MAX_VIDEOS_IN_QUEUE} videos max).`,
           "error",
         );
         return activePrev;
@@ -462,15 +521,21 @@ export function ConverterView() {
       let videosAdded = 0;
       let otherAdded = 0;
 
+      const emptyFiles: string[] = [];
       fileArray.forEach((file) => {
         const name = file.name;
         const dotIdx = name.lastIndexOf(".");
         const ext = dotIdx >= 0 ? name.slice(dotIdx + 1).toLowerCase() : "";
-        const targets = targetFormatsMap[ext] || [];
+        const targets = targetsForExt(ext, targetFormatsMap);
         const isVid = isVideoItem(ext);
         const maxBytes = getMaxUploadBytesForCategory(
           isVid ? "video" : getCategoryFromExt(ext) || "other",
         );
+
+        if (!file.size || file.size <= 0) {
+          emptyFiles.push(name);
+          return;
+        }
 
         if (file.size > maxBytes) {
           tooLarge.push(name);
@@ -478,7 +543,7 @@ export function ConverterView() {
         }
 
         if (isVid) {
-          if (videosAdded + activeVideos >= 1) {
+          if (videosAdded + activeVideos >= 5) {
             skippedExtraVideos += 1;
             return;
           }
@@ -511,8 +576,7 @@ export function ConverterView() {
             outputSize: undefined,
             // Small files: ready immediately; body POSTed only on Convert (avoids stuck staging).
             uploading: file.size > INLINE_UPLOAD_MAX_BYTES,
-            uploadReady:
-              file.size > 0 && file.size <= INLINE_UPLOAD_MAX_BYTES,
+            uploadReady: file.size <= INLINE_UPLOAD_MAX_BYTES,
             uploadError: undefined,
           });
           if (isVid) videosAdded += 1;
@@ -522,9 +586,18 @@ export function ConverterView() {
         }
       });
 
+      if (emptyFiles.length > 0) {
+        showToast(
+          emptyFiles.length === 1
+            ? `${emptyFiles[0]} is empty (0 bytes) and cannot be converted.`
+            : `${emptyFiles.length} empty files were skipped.`,
+          "error",
+        );
+      }
+
       if (skippedExtraVideos > 0) {
         showToast(
-          "Video: only one file at a time. Finish or remove the current video first.",
+          "Video queue full (max 5). Convert or remove a video first.",
           "error",
         );
       }
@@ -592,7 +665,7 @@ export function ConverterView() {
     item: FileItem,
     preset: CategoryQuickPreset,
   ): string | null => {
-    const targets = targetFormatsMap[item.ext] || [];
+    const targets = targetsForExt(item.ext, targetFormatsMap);
     if (preset.toggleTargets) {
       const [a, b] = preset.toggleTargets;
       if (item.ext === a && targets.includes(b)) return b;
@@ -970,6 +1043,34 @@ export function ConverterView() {
       );
       const endTime = Date.now();
       const startTime = item.startTime || endTime;
+      const needsRestage =
+        item.file.size > INLINE_UPLOAD_MAX_BYTES &&
+        /session expired|session not found|re-add the file|re-upload/i.test(
+          message,
+        );
+      if (needsRestage) {
+        updateFile(item.id, {
+          status: "pending",
+          error: undefined,
+          endTime,
+          progress: 3,
+          progressPhase: "uploading",
+          uploadId: undefined,
+          uploadReady: false,
+          uploading: true,
+          uploadError: message,
+        });
+        abortControllersRef.current.delete(item.id);
+        setTimeout(() => {
+          const live = filesRef.current.find((f) => f.id === item.id);
+          if (live) void stageFileItem(live);
+        }, 0);
+        showToast(
+          `${item.name}: upload expired — re-uploading automatically…`,
+          "error",
+        );
+        return true;
+      }
       updateFile(item.id, {
         status: "error",
         error: message,
@@ -1021,12 +1122,11 @@ export function ConverterView() {
 
     const nonVideos = pending.filter((f) => !isVideoItem(f.ext, f.targetFormat));
     const videos = pending.filter((f) => isVideoItem(f.ext, f.targetFormat));
-    // Only first pending video — never batch videos
-    const ordered = [...nonVideos, ...videos.slice(0, 1)];
+    // Videos one-by-one after faster non-video batch (full queue, not only first video)
+    const ordered = [...nonVideos, ...videos];
     if (videos.length > 1) {
       showToast(
-        `Video jobs run one at a time — converting 1 of ${videos.length} videos. Run Convert All again for the rest.`,
-        "error",
+        `${videos.length} videos will convert one at a time (keeps the server stable).`,
       );
     }
 
@@ -1079,9 +1179,16 @@ export function ConverterView() {
     "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "ico", "avif",
   ]);
 
-  const downloadAll = () => {
+  const downloadAll = async () => {
     if (!canBulkExport) return;
-    files.filter((f) => f.status === "done").forEach(downloadFile);
+    const done = files.filter((f) => f.status === "done" && f.result);
+    for (let i = 0; i < done.length; i++) {
+      downloadFile(done[i]);
+      // Stagger so browsers / WebView allow multiple downloads
+      if (i < done.length - 1) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
   };
 
   const saveBookmark = async (item: FileItem) => {
@@ -1172,7 +1279,7 @@ export function ConverterView() {
   const allTargetFormats = (() => {
     const all = new Set<string>();
     files.filter((f) => f.status === "pending").forEach((f) => {
-      (targetFormatsMap[f.ext] || []).forEach((t) => all.add(t));
+      (targetsForExt(f.ext, targetFormatsMap) || []).forEach((t) => all.add(t));
     });
     return [...all].sort();
   })();
@@ -1191,7 +1298,7 @@ export function ConverterView() {
     setFiles((prev) =>
       prev.map((f) => {
         if (f.status !== "pending") return f;
-        const targets = targetFormatsMap[f.ext] || [];
+        const targets = targetsForExt(f.ext, targetFormatsMap);
         if (targets.includes(format)) {
           return { ...f, targetFormat: format };
         }
@@ -1199,7 +1306,9 @@ export function ConverterView() {
       }),
     );
     const applicableCount = files.filter(
-      (f) => f.status === "pending" && (targetFormatsMap[f.ext] || []).includes(format),
+      (f) =>
+        f.status === "pending" &&
+        targetsForExt(f.ext, targetFormatsMap).includes(format),
     ).length;
     showToast(`Applied .${format.toUpperCase()} to ${applicableCount} file(s)`);
   };
@@ -1312,7 +1421,7 @@ export function ConverterView() {
                 Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
               <p className="text-[11px] text-muted-foreground/70 mt-2">
-                Up to {MAX_NONVIDEO_BATCH} files (1 video at a time) · {formatNonVideoMaxUploadLabel()} · video {formatVideoMaxUploadLabel()} · Ctrl+U to browse
+                Up to {MAX_NONVIDEO_BATCH} files · up to 5 videos (convert one-by-one) · {formatNonVideoMaxUploadLabel()} · video {formatVideoMaxUploadLabel()} · Ctrl+U to browse
               </p>
               <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
                 <HardDrive className="h-3 w-3 shrink-0" />
@@ -1576,11 +1685,24 @@ export function ConverterView() {
                     try {
                       const { default: JSZip } = await import("jszip");
                       const zip = new JSZip();
+                      const usedNames = new Set<string>();
                       for (const f of doneFiles) {
                         const baseName = f.name.replace(/\.[^/.]+$/, "");
                         const arrayBuffer = await f.result!.arrayBuffer();
+                        const entryBase =
+                          f.outputPackage === "zip"
+                            ? `${baseName}-pages`
+                            : baseName;
+                        const entryExt =
+                          f.outputPackage === "zip"
+                            ? "zip"
+                            : f.targetFormat || "bin";
+                        const preferred = brandedDownloadFilename(
+                          entryBase,
+                          entryExt,
+                        );
                         zip.file(
-                          brandedDownloadFilename(baseName, f.targetFormat || "bin"),
+                          uniqueZipEntryName(usedNames, preferred),
                           arrayBuffer,
                         );
                       }
@@ -1766,11 +1888,10 @@ export function ConverterView() {
                                             : "border-border text-muted-foreground"
                                       }`}
                                     >
-                                      {item.outputSize < item.size
-                                        ? `↓${Math.round((1 - item.outputSize / item.size) * 100)}%`
-                                        : item.outputSize > item.size
-                                          ? `↑${Math.round((item.outputSize / item.size - 1) * 100)}%`
-                                          : "same"}
+                                      {formatSizeChangeLabel(
+                                        item.size,
+                                        item.outputSize,
+                                      )}
                                     </Badge>
                                   )}
                                   {item.startTime && item.endTime && (
@@ -1849,14 +1970,21 @@ export function ConverterView() {
                                           ? "Reading file…"
                                           : "Uploading…"}
                                     {typeof item.progress === "number" &&
-                                    item.progressPhase !== "queued"
+                                    item.progressPhase !== "queued" &&
+                                    item.progressPhase !== "converting"
                                       ? ` ${item.progress}%`
-                                      : ""}
+                                      : item.progressPhase === "converting"
+                                        ? ""
+                                        : ""}
                                   </span>
                                   <span
                                     className="h-1.5 w-full rounded-full bg-sky-100 dark:bg-sky-950 overflow-hidden"
                                     role="progressbar"
-                                    aria-valuenow={item.progress ?? 0}
+                                    aria-valuenow={
+                                      item.progressPhase === "converting"
+                                        ? 70
+                                        : (item.progress ?? 0)
+                                    }
                                     aria-valuemin={0}
                                     aria-valuemax={100}
                                   >
@@ -1865,9 +1993,16 @@ export function ConverterView() {
                                         item.progressPhase === "queued"
                                           ? "bg-amber-500"
                                           : "bg-sky-500"
+                                      } ${
+                                        item.progressPhase === "converting"
+                                          ? "animate-pulse"
+                                          : ""
                                       }`}
                                       style={{
-                                        width: `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
+                                        width:
+                                          item.progressPhase === "converting"
+                                            ? "70%"
+                                            : `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
                                       }}
                                     />
                                   </span>
@@ -1973,7 +2108,7 @@ export function ConverterView() {
                               </SelectTrigger>
                               <SelectContent>
                                 {groupedTargetFormats(
-                                  (targetFormatsMap[item.ext] || []).filter(
+                                  (targetsForExt(item.ext, targetFormatsMap) || []).filter(
                                     (f) => item.ext === "pdf" || f !== item.ext,
                                   ),
                                 ).map(
@@ -2097,7 +2232,8 @@ export function ConverterView() {
                                 >
                                   <Download className="w-4 h-4 text-emerald-600" />
                                 </Button>
-                                {item.outputPackage !== "zip" && (
+                                {item.outputPackage !== "zip" &&
+                                  canPreviewResult(item) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"

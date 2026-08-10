@@ -1,12 +1,21 @@
 /** Client helpers for reliable large media uploads (chunked on mobile/Heroku). */
 
+import { getConvertApiBaseUrl } from "@/lib/convert-api-url";
+
 const CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB — matches server max; fewer round-trips
 /** Files at or under this size skip temp staging and are POSTed once at convert time. */
 export const INLINE_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 const SINGLE_SHOT_MAX = INLINE_UPLOAD_MAX_BYTES;
 const CHUNK_RETRIES = 3;
-/** Short enough that a hang fails fast; XHR aborts cleanly so we can retry with a fresh body. */
-const CHUNK_TIMEOUT_MS = 35_000;
+/**
+ * Per-chunk XHR timeout. Slow mobile needs headroom for 4 MB;
+ * still fails faster than multi-minute hangs.
+ */
+const CHUNK_TIMEOUT_MS =
+  typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || "")
+    ? 90_000
+    : 55_000;
 const JOB_POLL_MS = 2000;
 const JOB_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min cap for long video encodes
 /** How many times to wait+retry when server convert queue is full (503). */
@@ -77,6 +86,20 @@ function sameOriginUrl(path: string): string {
 }
 
 /**
+ * Convert/chunk/job endpoints live on the same host as convert POSTs.
+ * When NEXT_PUBLIC_CONVERT_API_URL is set (Vercel UI → remote worker),
+ * staging must hit the worker or assemble later fails.
+ */
+function convertServiceUrl(path: string): string {
+  const remote = getConvertApiBaseUrl();
+  if (remote) {
+    const p = path.startsWith("/") ? path : `/${path}`;
+    return `${remote}${p}`;
+  }
+  return sameOriginUrl(path);
+}
+
+/**
  * Browser: XHR upload (real progress + clean abort).
  * Non-browser / tests: fetch with a fresh Blob body each attempt.
  *
@@ -93,7 +116,7 @@ async function postChunk(
   signal?: AbortSignal,
 ): Promise<void> {
   let lastErr: Error | null = null;
-  const url = sameOriginUrl("/api/convert/chunk");
+  const url = convertServiceUrl("/api/convert/chunk");
   const chunkBytes = body.byteLength;
 
   for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt++) {
@@ -265,9 +288,9 @@ async function waitForConvertJob(
   while (Date.now() - started < JOB_MAX_WAIT_MS) {
     throwIfAborted(signal);
     tick += 1;
-    const pulse = Math.min(99, 70 + (tick % 25));
+    // Encode progress is unknown — stable bar; UI hides misleading % for convert phase
     onProgress?.({
-      percent: pulse,
+      percent: 88,
       phase: initialQueueWaiting > 0 && tick < 3 ? "queued" : "converting",
       loadedBytes: totalBytes,
       totalBytes,
@@ -280,7 +303,7 @@ async function waitForConvertJob(
     });
 
     const st = await fetch(
-      sameOriginUrl(`/api/convert/job?id=${encodeURIComponent(jobId)}`),
+      convertServiceUrl(`/api/convert/job?id=${encodeURIComponent(jobId)}`),
       { cache: "no-store", signal },
     );
     if (st.status === 404) {
@@ -305,7 +328,7 @@ async function waitForConvertJob(
         totalBytes,
       });
       const fileRes = await fetch(
-        sameOriginUrl(
+        convertServiceUrl(
           `/api/convert/job?id=${encodeURIComponent(jobId)}&download=1`,
         ),
         { cache: "no-store", signal },
