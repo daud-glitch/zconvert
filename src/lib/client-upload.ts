@@ -27,6 +27,44 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    const err = new Error("Cancelled");
+    err.name = "AbortError";
+    throw err;
+  }
+}
+
+function isAbortError(err: unknown): boolean {
+  if (!err) return false;
+  if (err instanceof DOMException && err.name === "AbortError") return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  return false;
+}
+
+export { isAbortError };
+
+async function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await sleep(ms);
+    return;
+  }
+  throwIfAborted(signal);
+  await new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(t);
+      const err = new Error("Cancelled");
+      err.name = "AbortError";
+      reject(err);
+    };
+    const t = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 /** Prefer same-origin absolute URLs so apex vs www never mid-flight drifts. */
 function sameOriginUrl(path: string): string {
   if (typeof window !== "undefined" && window.location?.origin) {
@@ -52,12 +90,14 @@ async function postChunk(
   fileName: string,
   body: ArrayBuffer,
   onWireProgress?: (loadedInChunk: number, chunkBytes: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   let lastErr: Error | null = null;
   const url = sameOriginUrl("/api/convert/chunk");
   const chunkBytes = body.byteLength;
 
   for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt++) {
+    throwIfAborted(signal);
     try {
       // Fresh copy every attempt — avoids "stuck" after abort/timeout locking a body
       const payload = new Blob([body.slice(0)], {
@@ -77,6 +117,24 @@ async function postChunk(
           xhr.setRequestHeader("X-File-Name", encodeURIComponent(fileName));
           xhr.responseType = "text";
 
+          const onAbort = () => {
+            try {
+              xhr.abort();
+            } catch {
+              /* ignore */
+            }
+            const err = new Error("Cancelled");
+            err.name = "AbortError";
+            reject(err);
+          };
+          if (signal) {
+            if (signal.aborted) {
+              onAbort();
+              return;
+            }
+            signal.addEventListener("abort", onAbort, { once: true });
+          }
+
           xhr.upload.onprogress = (ev) => {
             if (ev.lengthComputable) {
               onWireProgress?.(ev.loaded, ev.total || chunkBytes);
@@ -86,6 +144,7 @@ async function postChunk(
           };
 
           xhr.onload = () => {
+            signal?.removeEventListener("abort", onAbort);
             if (xhr.status >= 200 && xhr.status < 300) {
               onWireProgress?.(chunkBytes, chunkBytes);
               resolve();
@@ -102,30 +161,42 @@ async function postChunk(
             }
             reject(new Error(msg));
           };
-          xhr.ontimeout = () =>
+          xhr.ontimeout = () => {
+            signal?.removeEventListener("abort", onAbort);
             reject(
               new Error(
                 `Chunk ${chunkIndex + 1}/${chunkTotal} timed out. Check connection and retry.`,
               ),
             );
-          xhr.onerror = () =>
+          };
+          xhr.onerror = () => {
+            signal?.removeEventListener("abort", onAbort);
             reject(
               new Error(
                 `Chunk ${chunkIndex + 1}/${chunkTotal} network error. Retry.`,
               ),
             );
-          xhr.onabort = () =>
-            reject(
-              new Error(
-                `Chunk ${chunkIndex + 1}/${chunkTotal} was aborted. Retry.`,
-              ),
-            );
+          };
+          xhr.onabort = () => {
+            signal?.removeEventListener("abort", onAbort);
+            const err = new Error("Cancelled");
+            err.name = "AbortError";
+            reject(err);
+          };
 
           xhr.send(payload);
         });
       } else {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
+        const onUserAbort = () => controller.abort();
+        if (signal) {
+          if (signal.aborted) {
+            clearTimeout(timer);
+            throwIfAborted(signal);
+          }
+          signal.addEventListener("abort", onUserAbort, { once: true });
+        }
         try {
           const res = await fetch(url, {
             method: "POST",
@@ -155,10 +226,17 @@ async function postChunk(
           onWireProgress?.(chunkBytes, chunkBytes);
         } finally {
           clearTimeout(timer);
+          signal?.removeEventListener("abort", onUserAbort);
         }
       }
       return;
     } catch (err) {
+      // User cancelled the queue item — do not retry.
+      if (signal?.aborted) {
+        const e = new Error("Cancelled");
+        e.name = "AbortError";
+        throw e;
+      }
       if (err instanceof Error && err.name === "AbortError") {
         lastErr = new Error(
           `Chunk ${chunkIndex + 1}/${chunkTotal} timed out. Check connection and retry.`,
@@ -180,10 +258,12 @@ async function waitForConvertJob(
   onProgress?: (p: UploadProgress) => void,
   totalBytes = 1,
   initialQueueWaiting = 0,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const started = Date.now();
   let tick = 0;
   while (Date.now() - started < JOB_MAX_WAIT_MS) {
+    throwIfAborted(signal);
     tick += 1;
     const pulse = Math.min(99, 70 + (tick % 25));
     onProgress?.({
@@ -201,7 +281,7 @@ async function waitForConvertJob(
 
     const st = await fetch(
       sameOriginUrl(`/api/convert/job?id=${encodeURIComponent(jobId)}`),
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     if (st.status === 404) {
       throw new Error("Conversion job expired. Please try again.");
@@ -211,7 +291,7 @@ async function waitForConvertJob(
       error?: string;
     };
     if (data.status === "processing") {
-      await sleep(JOB_POLL_MS);
+      await sleepAbortable(JOB_POLL_MS, signal);
       continue;
     }
     if (data.status === "error" || st.status === 422) {
@@ -228,7 +308,7 @@ async function waitForConvertJob(
         sameOriginUrl(
           `/api/convert/job?id=${encodeURIComponent(jobId)}&download=1`,
         ),
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
       if (!fileRes.ok) {
         const errText = await fileRes.text().catch(() => "");
@@ -243,7 +323,7 @@ async function waitForConvertJob(
       }
       return fileRes;
     }
-    await sleep(JOB_POLL_MS);
+    await sleepAbortable(JOB_POLL_MS, signal);
   }
   throw new Error(
     "Video conversion is taking too long. Try lower quality or a shorter clip.",
@@ -259,15 +339,18 @@ async function postConvertWithQueue(
   init: RequestInit,
   onProgress: ((p: UploadProgress) => void) | undefined,
   totalBytes: number,
+  signal?: AbortSignal,
 ): Promise<Response> {
   let lastMessage =
     "Server is busy converting other files. Wait a moment and try again.";
   const absoluteUrl = sameOriginUrl(url);
 
   for (let attempt = 0; attempt <= QUEUE_RETRIES; attempt++) {
+    throwIfAborted(signal);
     const res = await fetch(absoluteUrl, {
       ...init,
       cache: "no-store",
+      signal: signal ?? init.signal,
     });
 
     if (res.status === 503) {
@@ -291,7 +374,7 @@ async function postConvertWithQueue(
       if (attempt >= QUEUE_RETRIES) {
         throw new Error(lastMessage);
       }
-      await sleep(QUEUE_RETRY_MS);
+      await sleepAbortable(QUEUE_RETRY_MS, signal);
       continue;
     }
 
@@ -316,7 +399,13 @@ async function postConvertWithQueue(
           queueMessage: data.message,
         });
       }
-      return waitForConvertJob(data.jobId, onProgress, totalBytes, waiting);
+      return waitForConvertJob(
+        data.jobId,
+        onProgress,
+        totalBytes,
+        waiting,
+        signal,
+      );
     }
 
     return res;
@@ -339,8 +428,9 @@ export async function stageFileUpload(options: {
   file: File;
   fileName: string;
   onProgress?: (p: UploadProgress) => void;
+  signal?: AbortSignal;
 }): Promise<string> {
-  const { file, fileName, onProgress } = options;
+  const { file, fileName, onProgress, signal } = options;
 
   if (!file.size) {
     throw new Error("The selected file is empty. Pick another file.");
@@ -366,6 +456,7 @@ export async function stageFileUpload(options: {
   });
 
   for (let j = 0; j < chunkTotal; j++) {
+    throwIfAborted(signal);
     const start = j * CHUNK_BYTES;
     const end = Math.min(start + CHUNK_BYTES, file.size);
     const slice = file.slice(start, end);
@@ -379,6 +470,7 @@ export async function stageFileUpload(options: {
       totalBytes: file.size,
     });
     const bytes = await slice.arrayBuffer();
+    throwIfAborted(signal);
     if (bytes.byteLength !== end - start) {
       throw new Error(
         `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
@@ -405,6 +497,7 @@ export async function stageFileUpload(options: {
           totalBytes: file.size,
         });
       },
+      signal,
     );
     completedBytes = end;
     report({
@@ -444,6 +537,7 @@ export async function uploadAndConvert(options: {
   /** Pre-staged session from stageFileUpload — skips re-upload */
   uploadId?: string | null;
   onProgress?: (p: UploadProgress) => void;
+  signal?: AbortSignal;
 }): Promise<Response> {
   const {
     file,
@@ -455,6 +549,7 @@ export async function uploadAndConvert(options: {
     convertUrl,
     uploadId: stagedUploadId,
     onProgress,
+    signal,
   } = options;
 
   const convertHeaders: Record<string, string> = {
@@ -472,6 +567,8 @@ export async function uploadAndConvert(options: {
       // ignore
     }
   };
+
+  throwIfAborted(signal);
 
   // Already staged on server — convert only
   if (stagedUploadId) {
@@ -494,6 +591,7 @@ export async function uploadAndConvert(options: {
       },
       onProgress,
       file.size,
+      signal,
     );
   }
 
@@ -505,6 +603,7 @@ export async function uploadAndConvert(options: {
       totalBytes: file.size,
     });
     const fileBytes = await file.arrayBuffer();
+    throwIfAborted(signal);
     if (!fileBytes.byteLength) {
       throw new Error("The selected file is empty. Pick another file.");
     }
@@ -532,6 +631,7 @@ export async function uploadAndConvert(options: {
       },
       onProgress,
       file.size,
+      signal,
     );
   }
 
@@ -546,10 +646,12 @@ export async function uploadAndConvert(options: {
   });
 
   for (let j = 0; j < chunkTotal; j++) {
+    throwIfAborted(signal);
     const start = j * CHUNK_BYTES;
     const end = Math.min(start + CHUNK_BYTES, file.size);
     const slice = file.slice(start, end);
     const bytes = await slice.arrayBuffer();
+    throwIfAborted(signal);
     if (bytes.byteLength !== end - start) {
       throw new Error(
         `Failed to read file chunk ${j + 1}/${chunkTotal}. Re-select the file and retry.`,
@@ -575,6 +677,7 @@ export async function uploadAndConvert(options: {
           totalBytes: file.size,
         });
       },
+      signal,
     );
     completedBytes = end;
   }
@@ -599,5 +702,6 @@ export async function uploadAndConvert(options: {
     },
     onProgress,
     file.size,
+    signal,
   );
 }

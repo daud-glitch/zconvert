@@ -57,7 +57,12 @@ import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
-import { uploadAndConvert, stageFileUpload, INLINE_UPLOAD_MAX_BYTES } from "@/lib/client-upload";
+import {
+  uploadAndConvert,
+  stageFileUpload,
+  INLINE_UPLOAD_MAX_BYTES,
+  isAbortError,
+} from "@/lib/client-upload";
 import {
   audioUnavailableMessage,
   videoUnavailableMessage,
@@ -129,8 +134,79 @@ export function ConverterView() {
   const uploadJobsRef = useRef(
     new Map<string, Promise<string | null>>(),
   );
+  /** Per-file AbortControllers for upload/convert (cancelled on remove/clear) */
+  const abortControllersRef = useRef(new Map<string, AbortController>());
+  /** Bumped to cancel an in-flight Convert All loop */
+  const batchRunRef = useRef(0);
+  /** Ordered ids for the active Convert All batch (for live progress totals) */
+  const batchIdsRef = useRef<string[] | null>(null);
 
   filesRef.current = files;
+
+  const isQueued = (id: string) =>
+    filesRef.current.some((f) => f.id === id);
+
+  /** Create or reuse a non-aborted controller for this queue item. */
+  const ensureAbortController = (id: string) => {
+    const existing = abortControllersRef.current.get(id);
+    if (existing && !existing.signal.aborted) return existing;
+    const controller = new AbortController();
+    abortControllersRef.current.set(id, controller);
+    return controller;
+  };
+
+  const cancelFileWork = (id: string) => {
+    const controller = abortControllersRef.current.get(id);
+    if (controller) {
+      try {
+        controller.abort();
+      } catch {
+        /* ignore */
+      }
+      abortControllersRef.current.delete(id);
+    }
+    uploadJobsRef.current.delete(id);
+  };
+
+  const cancelAllFileWork = () => {
+    for (const controller of abortControllersRef.current.values()) {
+      try {
+        controller.abort();
+      } catch {
+        /* ignore */
+      }
+    }
+    abortControllersRef.current.clear();
+    uploadJobsRef.current.clear();
+  };
+
+  /** Recompute batch bar from files still in the queue. */
+  const syncBatchProgress = () => {
+    const ids = batchIdsRef.current;
+    if (!ids || ids.length === 0) {
+      setBatchProgress(null);
+      return;
+    }
+    const alive = ids.filter((id) => isQueued(id));
+    if (alive.length === 0) {
+      batchIdsRef.current = null;
+      setBatchProgress(null);
+      return;
+    }
+    const finished = alive.filter((id) => {
+      const f = filesRef.current.find((x) => x.id === id);
+      return f?.status === "done" || f?.status === "error";
+    }).length;
+    const converting = alive.some((id) => {
+      const f = filesRef.current.find((x) => x.id === id);
+      return f?.status === "converting";
+    });
+    const current = Math.min(
+      alive.length,
+      Math.max(1, finished + (converting || finished < alive.length ? 1 : 0)),
+    );
+    setBatchProgress({ current, total: alive.length });
+  };
 
   const showToast = (
     message: string,
@@ -161,7 +237,9 @@ export function ConverterView() {
     const accountKey = currentUser?.id ?? null;
 
     setFiles([]);
-    uploadJobsRef.current.clear();
+    cancelAllFileWork();
+    batchRunRef.current += 1;
+    batchIdsRef.current = null;
     autoUploadChainRef.current = Promise.resolve();
     setBatchProgress(null);
     setPreviewUrl((prev) => {
@@ -248,7 +326,7 @@ export function ConverterView() {
     if (existing) return existing;
 
     const job = (async (): Promise<string | null> => {
-      if (!filesRef.current.some((f) => f.id === item.id)) return null;
+      if (!isQueued(item.id)) return null;
 
       // Fast path: PDFs/docs under ~4MB — no intermediate chunk API (was causing stuck 95%).
       if (item.file.size > 0 && item.file.size <= INLINE_UPLOAD_MAX_BYTES) {
@@ -263,6 +341,7 @@ export function ConverterView() {
         return null;
       }
 
+      const controller = ensureAbortController(item.id);
       updateFile(item.id, {
         uploading: true,
         uploadReady: false,
@@ -274,7 +353,9 @@ export function ConverterView() {
         const uploadId = await stageFileUpload({
           file: item.file,
           fileName: item.name,
+          signal: controller.signal,
           onProgress: (p) => {
+            if (!isQueued(item.id) || controller.signal.aborted) return;
             updateFile(item.id, {
               progress: Math.max(3, Math.min(99, p.percent)),
               progressPhase: "uploading",
@@ -282,7 +363,7 @@ export function ConverterView() {
             });
           },
         });
-        if (!filesRef.current.some((f) => f.id === item.id)) return null;
+        if (!isQueued(item.id) || controller.signal.aborted) return null;
         updateFile(item.id, {
           uploadId,
           uploading: false,
@@ -293,9 +374,12 @@ export function ConverterView() {
         });
         return uploadId;
       } catch (err) {
+        if (isAbortError(err) || controller.signal.aborted || !isQueued(item.id)) {
+          return null;
+        }
         const message =
           err instanceof Error ? err.message : "Upload failed";
-        if (filesRef.current.some((f) => f.id === item.id)) {
+        if (isQueued(item.id)) {
           updateFile(item.id, {
             uploading: false,
             uploadReady: false,
@@ -588,9 +672,11 @@ export function ConverterView() {
   };
 
   const updateFile = (id: string, updates: Partial<FileItem>) => {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, ...updates } : f)),
-    );
+    if (!isQueued(id)) return;
+    setFiles((prev) => {
+      if (!prev.some((f) => f.id === id)) return prev;
+      return prev.map((f) => (f.id === id ? { ...f, ...updates } : f));
+    });
   };
 
   const duplicateFile = (item: FileItem) => {
@@ -622,16 +708,30 @@ export function ConverterView() {
   };
 
   const removeFile = (id: string) => {
+    cancelFileWork(id);
+    // Keep ref in sync immediately so convertAll / upload check skip this id
+    filesRef.current = filesRef.current.filter((f) => f.id !== id);
+    if (batchIdsRef.current) {
+      batchIdsRef.current = batchIdsRef.current.filter((x) => x !== id);
+    }
     setFiles((prev) => prev.filter((f) => f.id !== id));
+    syncBatchProgress();
   };
 
   const clearAll = () => {
+    cancelAllFileWork();
+    batchRunRef.current += 1;
+    batchIdsRef.current = null;
+    filesRef.current = [];
     setFiles([]);
+    setBatchProgress(null);
   };
 
   const convertFile = async (raw: FileItem): Promise<boolean> => {
-    // Latest queue row (auto-upload may have set uploadId; user may change format)
-    const item = filesRef.current.find((f) => f.id === raw.id) || raw;
+    // Latest queue row only — never continue work for deleted items
+    if (!isQueued(raw.id)) return false;
+    const item = filesRef.current.find((f) => f.id === raw.id);
+    if (!item) return false;
 
     if (!item.targetFormat) {
       showToast(`Please select a target format for ${item.name}`, "error");
@@ -719,6 +819,8 @@ export function ConverterView() {
       return true;
     }
 
+    const controller = ensureAbortController(item.id);
+
     // Wait for auto-upload if still in progress, then convert with staged uploadId
     let stagedUploadId = item.uploadId;
     const inflight = uploadJobsRef.current.get(item.id);
@@ -730,8 +832,12 @@ export function ConverterView() {
         startTime: Date.now(),
         error: undefined,
       });
+      syncBatchProgress();
       stagedUploadId = (await inflight) ?? undefined;
+      if (!isQueued(item.id) || controller.signal.aborted) return false;
     }
+
+    if (!isQueued(item.id) || controller.signal.aborted) return false;
 
     updateFile(item.id, {
       status: "converting",
@@ -748,6 +854,7 @@ export function ConverterView() {
       uploadId: undefined,
       uploadReady: false,
     });
+    syncBatchProgress();
 
     try {
       const response = await uploadAndConvert({
@@ -760,7 +867,9 @@ export function ConverterView() {
         resizeHeight: item.resizeHeight,
         convertUrl: getConvertApiPath(item.ext),
         uploadId: stagedUploadId,
+        signal: controller.signal,
         onProgress: (p) => {
+          if (!isQueued(item.id) || controller.signal.aborted) return;
           updateFile(item.id, {
             progress: p.percent,
             progressPhase: p.phase,
@@ -769,6 +878,8 @@ export function ConverterView() {
         },
       });
 
+      if (!isQueued(item.id) || controller.signal.aborted) return false;
+
       if (!response.ok) {
         throw new Error(
           await readApiError(response, `Conversion failed (${response.status})`),
@@ -776,6 +887,7 @@ export function ConverterView() {
       }
 
       const blob = await response.blob();
+      if (!isQueued(item.id) || controller.signal.aborted) return false;
       if (blob.size === 0) throw new Error("Received empty file from server");
 
       const conversionId = response.headers.get("X-Conversion-Id") || item.id;
@@ -808,6 +920,8 @@ export function ConverterView() {
         });
       }
 
+      if (!isQueued(item.id) || controller.signal.aborted) return false;
+
       updateFile(item.id, {
         status: "done",
         result: blob,
@@ -818,6 +932,7 @@ export function ConverterView() {
         progress: undefined,
         progressPhase: undefined,
       });
+      syncBatchProgress();
 
       if (currentUser?.id) {
         setRecentConversions((prev) => [
@@ -847,6 +962,9 @@ export function ConverterView() {
       }
       return true;
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted || !isQueued(item.id)) {
+        return false;
+      }
       const message = humanizeConversionError(
         err instanceof Error ? err.message : "Conversion failed",
       );
@@ -893,7 +1011,7 @@ export function ConverterView() {
     }
 
     // Non-videos first (batch OK), then videos one-by-one
-    const pending = files.filter(
+    const pending = filesRef.current.filter(
       (f) =>
         f.status === "pending" &&
         f.targetFormat &&
@@ -912,11 +1030,35 @@ export function ConverterView() {
       );
     }
 
+    const runId = ++batchRunRef.current;
+    batchIdsRef.current = ordered.map((o) => o.id);
+
     for (let i = 0; i < ordered.length; i++) {
-      setBatchProgress({ current: i + 1, total: ordered.length });
+      if (batchRunRef.current !== runId) break;
+      if (!isQueued(ordered[i].id)) continue;
+
+      const alive = ordered.filter((o) => isQueued(o.id));
+      if (alive.length === 0) break;
+
+      const finished = alive.filter((o) => {
+        const f = filesRef.current.find((x) => x.id === o.id);
+        return f?.status === "done" || f?.status === "error";
+      }).length;
+      setBatchProgress({
+        current: Math.min(alive.length, finished + 1),
+        total: alive.length,
+      });
+
       await convertFile(ordered[i]);
+
+      if (batchRunRef.current !== runId) break;
+      syncBatchProgress();
     }
-    setBatchProgress(null);
+
+    if (batchRunRef.current === runId) {
+      batchIdsRef.current = null;
+      setBatchProgress(null);
+    }
   };
 
   const downloadFile = (item: FileItem) => {
@@ -1544,13 +1686,9 @@ export function ConverterView() {
                   variant="ghost"
                   size="sm"
                   onClick={clearAll}
-                  disabled={isQueueBusy}
+                  disabled={files.length === 0}
                   aria-label="Clear all files"
-                  title={
-                    isQueueBusy
-                      ? "Remove individual files with X while converting"
-                      : "Clear queue"
-                  }
+                  title="Clear queue and cancel active uploads/conversions"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
