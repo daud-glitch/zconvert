@@ -255,13 +255,17 @@ export function ConverterView() {
       const f = filesRef.current.find((x) => x.id === id);
       return f?.status === "done" || f?.status === "error";
     }).length;
-    const converting = alive.some((id) => {
+    const convertingCount = alive.filter((id) => {
       const f = filesRef.current.find((x) => x.id === id);
       return f?.status === "converting";
-    });
+    }).length;
+    // finished + in-flight — works for parallel batches (up to 5 at once)
     const current = Math.min(
       alive.length,
-      Math.max(1, finished + (converting || finished < alive.length ? 1 : 0)),
+      Math.max(
+        finished < alive.length ? 1 : finished,
+        finished + convertingCount,
+      ),
     );
     setBatchProgress({ current, total: alive.length });
   };
@@ -1111,7 +1115,7 @@ export function ConverterView() {
       return;
     }
 
-    // Non-videos first (batch OK), then videos one-by-one
+    // Small files first; non-video parallel (≤5), videos one-by-one after
     const pending = filesRef.current.filter(
       (f) =>
         f.status === "pending" &&
@@ -1120,37 +1124,60 @@ export function ConverterView() {
     );
     if (pending.length === 0) return;
 
-    const nonVideos = pending.filter((f) => !isVideoItem(f.ext, f.targetFormat));
-    const videos = pending.filter((f) => isVideoItem(f.ext, f.targetFormat));
-    // Videos one-by-one after faster non-video batch (full queue, not only first video)
+    const bySizeAsc = (a: FileItem, b: FileItem) => a.size - b.size;
+    const nonVideos = pending
+      .filter((f) => !isVideoItem(f.ext, f.targetFormat))
+      .sort(bySizeAsc);
+    const videos = pending
+      .filter((f) => isVideoItem(f.ext, f.targetFormat))
+      .sort(bySizeAsc);
     const ordered = [...nonVideos, ...videos];
     if (videos.length > 1) {
       showToast(
-        `${videos.length} videos will convert one at a time (keeps the server stable).`,
+        `${videos.length} videos will convert one at a time after smaller files (keeps the server stable).`,
       );
     }
 
     const runId = ++batchRunRef.current;
     batchIdsRef.current = ordered.map((o) => o.id);
+    syncBatchProgress();
 
-    for (let i = 0; i < ordered.length; i++) {
+    /** Parallel worker pool — min(limit, items), each worker pulls next index. */
+    const runPool = async (
+      items: FileItem[],
+      limit: number,
+    ): Promise<void> => {
+      if (items.length === 0) return;
+      let next = 0;
+      const workers = Array.from(
+        { length: Math.min(Math.max(1, limit), items.length) },
+        async () => {
+          while (true) {
+            if (batchRunRef.current !== runId) return;
+            const i = next;
+            next += 1;
+            if (i >= items.length) return;
+            const item = items[i];
+            if (!isQueued(item.id)) continue;
+            syncBatchProgress();
+            await convertFile(item);
+            if (batchRunRef.current !== runId) return;
+            syncBatchProgress();
+          }
+        },
+      );
+      await Promise.all(workers);
+    };
+
+    // Match server CONVERT_MAX_CONCURRENT default (5 light jobs)
+    await runPool(nonVideos, 5);
+
+    // Videos: still serial (heavy ffmpeg + server video slot = 1)
+    for (let i = 0; i < videos.length; i++) {
       if (batchRunRef.current !== runId) break;
-      if (!isQueued(ordered[i].id)) continue;
-
-      const alive = ordered.filter((o) => isQueued(o.id));
-      if (alive.length === 0) break;
-
-      const finished = alive.filter((o) => {
-        const f = filesRef.current.find((x) => x.id === o.id);
-        return f?.status === "done" || f?.status === "error";
-      }).length;
-      setBatchProgress({
-        current: Math.min(alive.length, finished + 1),
-        total: alive.length,
-      });
-
-      await convertFile(ordered[i]);
-
+      if (!isQueued(videos[i].id)) continue;
+      syncBatchProgress();
+      await convertFile(videos[i]);
       if (batchRunRef.current !== runId) break;
       syncBatchProgress();
     }
@@ -1421,7 +1448,7 @@ export function ConverterView() {
                 Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
               <p className="text-[11px] text-muted-foreground/70 mt-2">
-                Up to {MAX_NONVIDEO_BATCH} files · up to 5 videos (convert one-by-one) · {formatNonVideoMaxUploadLabel()} · video {formatVideoMaxUploadLabel()} · Ctrl+U to browse
+                Up to {MAX_NONVIDEO_BATCH} files · up to 5 parallel converts (small first) · videos one-by-one · {formatNonVideoMaxUploadLabel()} · video {formatVideoMaxUploadLabel()} · Ctrl+U to browse
               </p>
               <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
                 <HardDrive className="h-3 w-3 shrink-0" />

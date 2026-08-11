@@ -165,13 +165,15 @@ export async function claimNextConvertJob(): Promise<{
   const prisma = getOptionalDb();
   if (!prisma) return null;
 
-  // Prefer light jobs (isVideo=false) then oldest
+  // Prefer light jobs, then smaller inputs (short jobs), then oldest
   const claimed = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<
       Array<{ id: string }>
     >`SELECT id FROM "ConvertJob"
       WHERE status = 'queued' AND "expiresAt" > NOW()
-      ORDER BY "isVideo" ASC, "createdAt" ASC
+      ORDER BY "isVideo" ASC,
+               octet_length("inputData") ASC NULLS LAST,
+               "createdAt" ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED`;
 

@@ -295,29 +295,33 @@ export async function handleConvertPost(
 
       void (async () => {
         try {
-          await withConvertSlot(true, async () => {
-            const out = await runConvert(
-              buffer,
-              sourceExt,
-              target,
-              quality,
-              width,
-              height,
-            );
-            const conversionId = await logConversion({
-              userId,
-              fileName,
-              originalExt: sourceExt,
-              targetExt: target,
-              category,
-              inputSize: buffer.length,
-              outputSize: out.buffer.length,
-              status: "done",
-              duration: Date.now() - startTime,
-              ipAddress: ipAddr,
-            });
-            await markMediaJobDone(jobId, out.buffer, conversionId);
-          });
+          await withConvertSlot(
+            true,
+            async () => {
+              const out = await runConvert(
+                buffer,
+                sourceExt,
+                target,
+                quality,
+                width,
+                height,
+              );
+              const conversionId = await logConversion({
+                userId,
+                fileName,
+                originalExt: sourceExt,
+                targetExt: target,
+                category,
+                inputSize: buffer.length,
+                outputSize: out.buffer.length,
+                status: "done",
+                duration: Date.now() - startTime,
+                ipAddress: ipAddr,
+              });
+              await markMediaJobDone(jobId, out.buffer, conversionId);
+            },
+            buffer.length,
+          );
         } catch (convertError) {
           const errorMessage =
             convertError instanceof Error
@@ -401,7 +405,7 @@ export async function handleConvertPost(
         return { result: out.buffer, pdfZipMeta: out.pdfZipMeta };
       };
 
-      const ran = await withConvertSlot(isVideoJob, runBody);
+      const ran = await withConvertSlot(isVideoJob, runBody, buffer.length);
       result = ran.result;
       pdfZipMeta = ran.pdfZipMeta;
     } catch (convertError) {
