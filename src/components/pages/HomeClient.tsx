@@ -243,7 +243,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink"
               onClick={() => toggleView("converter")}
             >
-              <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" />
+              <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" priority />
               <div className="min-w-0">
                 <BrandTitle className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate" />
                 <BrandTaglines className="hidden sm:block -mt-0.5" />
@@ -495,15 +495,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="md:col-span-2 space-y-4">
               <div className="flex items-center gap-2">
-                {/* Brand mark — HD transparent symbol */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/logo-mark.png?v=3"
-                  alt=""
-                  width={28}
-                  height={28}
-                  className="h-7 w-7 object-contain bg-transparent"
-                />
+                <BrandMark className="h-7 w-7" rounded="rounded-lg" />
                 <BrandTitle className="text-xl font-bold tracking-tight text-foreground" />
               </div>
               <BrandTaglines

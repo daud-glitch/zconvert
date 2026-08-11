@@ -22,6 +22,8 @@ const SRC = path.resolve(
 const OUT = {
   brandSource: path.join(ROOT, "public", "brand", "convertek-logo-source.png"),
   logoMark: path.join(ROOT, "public", "logo-mark.png"),
+  logoMarkWebp: path.join(ROOT, "public", "logo-mark.webp"),
+  logoMarkFallback: path.join(ROOT, "public", "logo-mark-fallback.png"),
   brandMark: path.join(ROOT, "public", "brand", "logo-mark.png"),
   brandPremium: path.join(ROOT, "public", "brand", "convertek-premium-3d-mark.png"),
   brand3d: path.join(ROOT, "public", "brand", "convertek-3d-logo-mark.png"),
@@ -195,15 +197,33 @@ async function main() {
   await fs.promises.mkdir(path.dirname(OUT.brandSource), { recursive: true });
   await sharp(raw).png().toFile(OUT.brandSource);
 
-  // Master transparent 1024 mark
+  // Master transparent 1024 mark (high-res source / PWA store only — not UI logo)
   const mark1024 = await makeTransparentMark(raw, 1024).then((s) =>
-    s.png().toBuffer(),
+    s.png({ compressionLevel: 9, effort: 10 }).toBuffer(),
   );
   await fs.promises.writeFile(OUT.icon1024, mark1024);
-  await fs.promises.writeFile(OUT.logoMark, mark1024);
+  // Keep design masters under brand/ (not loaded by the webpage header)
   await fs.promises.writeFile(OUT.brandMark, mark1024);
   await fs.promises.writeFile(OUT.brandPremium, mark1024);
   await fs.promises.writeFile(OUT.brand3d, mark1024);
+
+  // Web logo-mark: small PNG for crawlers/JSON-LD (not full 1024)
+  const mark384 = await makeTransparentMark(raw, 384).then((s) =>
+    s.png({ compressionLevel: 9, effort: 10 }).toBuffer(),
+  );
+  await fs.promises.writeFile(OUT.logoMark, mark384);
+
+  // UI marks: retina ~160px WebP + PNG fallback (~8–15KB)
+  const markUi = await makeTransparentMark(raw, 160);
+  await markUi
+    .clone()
+    .webp({ quality: 80, alphaQuality: 90, effort: 6 })
+    .toFile(OUT.logoMarkWebp);
+  await markUi
+    .clone()
+    .png({ compressionLevel: 9, effort: 10 })
+    .toFile(OUT.logoMarkFallback);
+  console.log("wrote logo-mark.webp + logo-mark-fallback.png (UI)");
 
   const sizes = [
     [512, OUT.icon512],
@@ -216,7 +236,7 @@ async function main() {
   const pngForIco = [];
   for (const [size, dest] of sizes) {
     const buf = await makeTransparentMark(raw, size).then((s) =>
-      s.png().toBuffer(),
+      s.png({ compressionLevel: 9, effort: 10 }).toBuffer(),
     );
     await fs.promises.writeFile(dest, buf);
     if ([16, 32, 48, 64].includes(size)) pngForIco.push(buf);

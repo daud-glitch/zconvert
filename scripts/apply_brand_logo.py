@@ -195,12 +195,21 @@ def main() -> None:
     a = np.asarray(logo.split()[3])
     print(f"transparent crop {logo.size}, opaque={(a > 10).mean():.1%}")
 
-    # Masters
+    # Masters (design / PWA store only under brand + icon-1024)
     logo.save(BRAND / "convertek-3d-logo-mark.png", "PNG", optimize=True)
     master = fit_square(logo, 1024, pad_ratio=0.07)
     master.save(BRAND / "logo-mark.png", "PNG", optimize=True)
-    master.save(PUBLIC / "logo-mark.png", "PNG", optimize=True)
     master.save(PUBLIC / "icon-1024.png", "PNG", optimize=True)
+
+    # Site UI logo — small assets (header is ~40px; do not ship 1024 PNG in pages)
+    web = fit_square(logo, 384, pad_ratio=0.07)
+    web.save(PUBLIC / "logo-mark.png", "PNG", optimize=True)
+    ui = fit_square(logo, 160, pad_ratio=0.07)
+    ui.save(PUBLIC / "logo-mark-fallback.png", "PNG", optimize=True)
+    try:
+        ui.save(PUBLIC / "logo-mark.webp", "WEBP", quality=80, method=6)
+    except Exception as e:
+        print("webp skip:", e)
 
     for size, name, pad in [
         (512, "icon-512.png", 0.07),
