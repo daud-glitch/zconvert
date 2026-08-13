@@ -78,8 +78,8 @@ function loadTurnstileScript(): Promise<void> {
 }
 
 /**
- * Soft Turnstile widget (interaction-only): invisible for most users,
- * challenge only when Cloudflare suspects a bot.
+ * Managed Turnstile widget (visible). Protects forms when
+ * NEXT_PUBLIC_TURNSTILE_SITE_KEY is set.
  */
 export const TurnstileField = forwardRef<TurnstileHandle, Props>(
   function TurnstileField({ onToken, onExpire, className }, ref) {
@@ -139,7 +139,9 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
         hostRef.current.innerHTML = "";
         widgetIdRef.current = window.turnstile.render(hostRef.current, {
           sitekey: siteKey,
-          appearance: "interaction-only",
+          // Always show Managed widget so users see the Cloudflare check
+          // (interaction-only stays invisible for most real users).
+          appearance: "always",
           theme: "auto",
           "response-field": false,
           callback: (token: string) => {
