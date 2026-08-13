@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,11 @@ import {
   GoogleAuthButton,
   isGoogleAuthEnabled,
 } from "@/components/auth/GoogleAuthButton";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -37,8 +42,11 @@ export function AuthDialog({
   const [requires2FA, setRequires2FA] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
   const { login, refreshUser } = useApp();
   const googleOn = isGoogleAuthEnabled();
+  const turnstileOn = isTurnstileEnabled();
 
   useEffect(() => {
     if (isOpen) {
@@ -46,6 +54,8 @@ export function AuthDialog({
       setRequires2FA(false);
       setTotpToken("");
       setError(null);
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
     }
   }, [isOpen, initialMode]);
 
@@ -56,6 +66,8 @@ export function AuthDialog({
     setTotpToken("");
     setRequires2FA(false);
     setError(null);
+    setTurnstileToken("");
+    turnstileRef.current?.reset();
   };
 
   const handleClose = () => {
@@ -68,27 +80,45 @@ export function AuthDialog({
     setError(null);
     setIsLoading(true);
 
+    const captcha =
+      turnstileToken || turnstileRef.current?.getToken() || undefined;
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (mode === "login") {
         const result = await login(
           email,
           password,
           requires2FA ? totpToken : undefined,
+          captcha,
         );
         if (result.requiresTwoFactor) {
           setRequires2FA(true);
+          turnstileRef.current?.reset();
+          setTurnstileToken("");
           return;
         }
         if (result.success) {
           handleClose();
         } else {
           setError(result.error || "Login failed");
+          turnstileRef.current?.reset();
+          setTurnstileToken("");
         }
       } else {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name }),
+          body: JSON.stringify({
+            email,
+            password,
+            name,
+            ...(captcha ? { turnstileToken: captcha } : {}),
+          }),
         });
         const data = await res.json();
         if (res.ok) {
@@ -98,10 +128,14 @@ export function AuthDialog({
           setError(
             typeof data.error === "string" ? data.error : "Signup failed",
           );
+          turnstileRef.current?.reset();
+          setTurnstileToken("");
         }
       }
     } catch {
       setError("An error occurred. Please try again.");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +168,6 @@ export function AuthDialog({
             </div>
           )}
 
-          {/* Google first so login + signup modal both surface it clearly */}
           {!requires2FA && googleOn && (
             <GoogleAuthButton
               label={
@@ -234,6 +267,12 @@ export function AuthDialog({
               </>
             )}
 
+            <TurnstileField
+              ref={turnstileRef}
+              onToken={setTurnstileToken}
+              className="flex justify-center min-h-[0]"
+            />
+
             <Button
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -261,6 +300,8 @@ export function AuthDialog({
                       onClick={() => {
                         setMode("signup");
                         setError(null);
+                        turnstileRef.current?.reset();
+                        setTurnstileToken("");
                       }}
                       className="text-emerald-600 hover:underline font-medium"
                     >
@@ -275,6 +316,8 @@ export function AuthDialog({
                       onClick={() => {
                         setMode("login");
                         setError(null);
+                        turnstileRef.current?.reset();
+                        setTurnstileToken("");
                       }}
                       className="text-emerald-600 hover:underline font-medium"
                     >
@@ -293,6 +336,8 @@ export function AuthDialog({
                   setRequires2FA(false);
                   setTotpToken("");
                   setError(null);
+                  turnstileRef.current?.reset();
+                  setTurnstileToken("");
                 }}
               >
                 Back to password

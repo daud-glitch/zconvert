@@ -58,11 +58,13 @@ type AppContextValue = {
     email: string,
     password: string,
     twoFactorCode?: string,
+    turnstileToken?: string,
   ) => Promise<AuthResult>;
   signup: (
     name: string,
     email: string,
     password: string,
+    turnstileToken?: string,
   ) => Promise<AuthResult>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -194,6 +196,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       email: string,
       password: string,
       twoFactorCode?: string,
+      turnstileToken?: string,
     ): Promise<AuthResult> => {
       try {
         const res = await fetch("/api/auth/login", {
@@ -203,6 +206,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             email,
             password,
             ...(twoFactorCode ? { token: twoFactorCode } : {}),
+            ...(turnstileToken ? { turnstileToken } : {}),
           }),
         });
         const payload = await readJson(res);
@@ -240,12 +244,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       name: string,
       email: string,
       password: string,
+      turnstileToken?: string,
     ): Promise<AuthResult> => {
       try {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+            ...(turnstileToken ? { turnstileToken } : {}),
+          }),
         });
         const payload = await readJson(res);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -20,6 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 function LoginForm() {
   const router = useRouter();
@@ -34,6 +39,9 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstileOn = isTurnstileEnabled();
 
   // Sync dark mode with main app preference
   useEffect(() => {
@@ -66,6 +74,14 @@ function LoginForm() {
     setError("");
     setLoading(true);
 
+    const captcha =
+      turnstileToken || turnstileRef.current?.getToken() || undefined;
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -75,6 +91,7 @@ function LoginForm() {
           password,
           isAdminLogin: false,
           ...(requires2FA && { token: totpToken }),
+          ...(captcha ? { turnstileToken: captcha } : {}),
         }),
       });
 
@@ -82,12 +99,16 @@ function LoginForm() {
 
       if (!res.ok) {
         setError(data.error || `Login failed (Status ${res.status})`);
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         setLoading(false);
         return;
       }
 
       if (data.requires2FA) {
         setRequires2FA(true);
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         setLoading(false);
         return;
       }
@@ -95,6 +116,8 @@ function LoginForm() {
       router.push(redirectTo);
     } catch (err) {
       setError(`Network error: ${err instanceof Error ? err.message : "Could not reach server"}`);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setLoading(false);
     }
   };
@@ -215,6 +238,12 @@ function LoginForm() {
                   </div>
                 )}
 
+                <TurnstileField
+                  ref={turnstileRef}
+                  onToken={setTurnstileToken}
+                  className="flex justify-center"
+                />
+
                 <Button
                   type="submit"
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
@@ -302,6 +331,12 @@ function LoginForm() {
                   </div>
                 )}
 
+                <TurnstileField
+                  ref={turnstileRef}
+                  onToken={setTurnstileToken}
+                  className="flex justify-center"
+                />
+
                 <Button
                   type="submit"
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
@@ -327,6 +362,8 @@ function LoginForm() {
                     setRequires2FA(false);
                     setTotpToken("");
                     setError("");
+                    turnstileRef.current?.reset();
+                    setTurnstileToken("");
                   }}
                 >
                   ← Use a different account

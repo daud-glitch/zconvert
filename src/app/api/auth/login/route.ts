@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import speakeasy from "speakeasy";
 import crypto from "crypto";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +24,13 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
-    const { email, password, token, isAdminLogin } = await request.json();
+    const body = await request.json();
+    const { email, password, token, isAdminLogin, turnstileToken } = body;
+
+    const captcha = await verifyTurnstileToken(turnstileToken, ip);
+    if (!captcha.ok) {
+      return NextResponse.json({ error: captcha.error }, { status: 400 });
+    }
 
     if (!email || !password) {
       return NextResponse.json(

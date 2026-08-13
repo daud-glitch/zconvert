@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, LifeBuoy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
@@ -17,12 +22,24 @@ export default function ContactPage() {
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstileOn = isTurnstileEnabled();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setOk("");
     setLoading(true);
+
+    const captcha =
+      turnstileToken || turnstileRef.current?.getToken() || undefined;
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
@@ -34,17 +51,24 @@ export default function ContactPage() {
           sourceExt,
           targetExt,
           message,
+          ...(captcha ? { turnstileToken: captcha } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Send failed");
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
       } else {
         setOk(data.message || "Sent");
         setMessage("");
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
       }
     } catch {
       setError("Network error");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     } finally {
       setLoading(false);
     }
@@ -153,6 +177,12 @@ export default function ContactPage() {
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           {ok ? <p className="text-sm text-emerald-600">{ok}</p> : null}
+
+          <TurnstileField
+            ref={turnstileRef}
+            onToken={setTurnstileToken}
+            className="flex justify-center"
+          />
 
           <Button
             type="submit"

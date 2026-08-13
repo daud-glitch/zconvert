@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,6 +11,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 export default function AdminLoginPage() {
   const [step, setStep] = useState<"password" | "2fa">("password");
@@ -20,29 +25,51 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [_userId, setUserId] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstileOn = isTurnstileEnabled();
+
+  const captchaToken = () =>
+    turnstileToken || turnstileRef.current?.getToken() || undefined;
 
   const handlePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    const captcha = captchaToken();
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, isAdminLogin: true }),
+        body: JSON.stringify({
+          email,
+          password,
+          isAdminLogin: true,
+          ...(captcha ? { turnstileToken: captcha } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({ error: "Invalid response from server" }));
 
       if (data.requires2FA) {
         setUserId(data.userId);
         setStep("2fa");
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         setLoading(false);
         return;
       }
 
       if (!res.ok) {
         setError(data.error || `Error ${res.status}: Invalid password`);
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         setLoading(false);
         return;
       }
@@ -50,6 +77,8 @@ export default function AdminLoginPage() {
       window.location.href = "/";
     } catch (err) {
       setError(`Connection error: ${err instanceof Error ? err.message : "Network failed"}`);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setLoading(false);
     }
   };
@@ -59,16 +88,31 @@ export default function AdminLoginPage() {
     setLoading(true);
     setError("");
 
+    const captcha = captchaToken();
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, token, isAdminLogin: true }),
+        body: JSON.stringify({
+          email,
+          password,
+          token,
+          isAdminLogin: true,
+          ...(captcha ? { turnstileToken: captcha } : {}),
+        }),
       });
       const data = await res.json();
 
       if (!res.ok) {
         setError(data.error || "Invalid code");
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         setLoading(false);
         return;
       }
@@ -76,6 +120,8 @@ export default function AdminLoginPage() {
       window.location.href = "/";
     } catch {
       setError("Connection error");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setLoading(false);
     }
   };
@@ -126,6 +172,11 @@ export default function AdminLoginPage() {
                   {error}
                 </div>
               )}
+              <TurnstileField
+                ref={turnstileRef}
+                onToken={setTurnstileToken}
+                className="flex justify-center"
+              />
               <Button
                 type="submit"
                 className="w-full h-12 text-lg"
@@ -160,6 +211,11 @@ export default function AdminLoginPage() {
                   {error}
                 </div>
               )}
+              <TurnstileField
+                ref={turnstileRef}
+                onToken={setTurnstileToken}
+                className="flex justify-center"
+              />
               <Button
                 type="submit"
                 className="w-full h-12 text-lg"
@@ -181,6 +237,8 @@ export default function AdminLoginPage() {
                 onClick={() => {
                   setStep("password");
                   setToken("");
+                  turnstileRef.current?.reset();
+                  setTurnstileToken("");
                 }}
               >
                 Back to Password

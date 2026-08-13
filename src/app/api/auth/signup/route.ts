@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 function passwordStrongEnough(password: string): string | null {
   if (password.length < 8) {
@@ -32,7 +33,12 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
-    const { email, password, name } = await request.json();
+    const { email, password, name, turnstileToken } = await request.json();
+
+    const captcha = await verifyTurnstileToken(turnstileToken, ip);
+    if (!captcha.ok) {
+      return NextResponse.json({ error: captcha.error }, { status: 400 });
+    }
 
     if (!email || !password) {
       return NextResponse.json(

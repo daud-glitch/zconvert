@@ -1,11 +1,16 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import MainApp from "@/components/pages/HomeClient";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 export default function AdminSecretPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -13,17 +18,33 @@ export default function AdminSecretPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstileOn = isTurnstileEnabled();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    const captcha =
+      turnstileToken || turnstileRef.current?.getToken() || undefined;
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, isAdminLogin: true }),
+        body: JSON.stringify({
+          email,
+          password,
+          isAdminLogin: true,
+          ...(captcha ? { turnstileToken: captcha } : {}),
+        }),
       });
 
       const data = await res.json().catch(() => ({ error: "Invalid response from server" }));
@@ -31,9 +52,13 @@ export default function AdminSecretPage() {
         setIsAuthenticated(true);
       } else {
         setError(data.error || `Error ${res.status}: Login failed`);
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
       }
     } catch (err) {
       setError(`Network error: ${err instanceof Error ? err.message : "Connection failed"}`);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     } finally {
       setLoading(false);
     }
@@ -82,6 +107,11 @@ export default function AdminSecretPage() {
                 className="h-11"
               />
             </div>
+            <TurnstileField
+              ref={turnstileRef}
+              onToken={setTurnstileToken}
+              className="flex justify-center"
+            />
             <Button
               type="submit"
               className="w-full h-11 text-base font-semibold"

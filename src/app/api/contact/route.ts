@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const SUPPORT = process.env.SUPPORT_EMAIL?.trim() || "support@convertek.tech";
 
@@ -23,6 +24,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    const captcha = await verifyTurnstileToken(body.turnstileToken, ip);
+    if (!captcha.ok) {
+      return NextResponse.json({ error: captcha.error }, { status: 400 });
+    }
+
     const name = String(body.name || "").trim().slice(0, 100);
     const email = String(body.email || "").trim().slice(0, 200);
     const kind = String(body.kind || "general").trim().slice(0, 40);

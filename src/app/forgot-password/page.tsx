@@ -1,40 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstileOn = isTurnstileEnabled();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
     setLoading(true);
+
+    const captcha =
+      turnstileToken || turnstileRef.current?.getToken() || undefined;
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          ...(captcha ? { turnstileToken: captcha } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Request failed");
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
       } else {
         setMessage(
           data.message ||
             "If an account exists for that email, we sent reset instructions.",
         );
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
       }
     } catch {
       setError("Network error");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     } finally {
       setLoading(false);
     }
@@ -83,6 +109,11 @@ export default function ForgotPasswordPage() {
               {message ? (
                 <p className="text-sm text-emerald-600">{message}</p>
               ) : null}
+              <TurnstileField
+                ref={turnstileRef}
+                onToken={setTurnstileToken}
+                className="flex justify-center"
+              />
               <Button
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-600"

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { getOptionalDb } from "@/lib/db";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { publicSiteUrl, sendMail } from "@/lib/mail";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const GENERIC =
   "If an account exists for that email, we sent password reset instructions.";
@@ -25,7 +26,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { email } = await request.json();
+    const { email, turnstileToken } = await request.json();
+
+    const captcha = await verifyTurnstileToken(turnstileToken, ip);
+    if (!captcha.ok) {
+      return NextResponse.json({ error: captcha.error }, { status: 400 });
+    }
+
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
