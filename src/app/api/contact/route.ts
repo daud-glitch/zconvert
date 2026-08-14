@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { sendMail } from "@/lib/mail";
+import {
+  DEFAULT_MAIL_FROM,
+  DEFAULT_SUPPORT_EMAIL,
+  sendMail,
+} from "@/lib/mail";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
-const SUPPORT = process.env.SUPPORT_EMAIL?.trim() || "support@convertek.tech";
+const SUPPORT =
+  process.env.SUPPORT_EMAIL?.trim() || DEFAULT_SUPPORT_EMAIL;
 
 export async function POST(request: NextRequest) {
   const ip =
@@ -72,16 +77,18 @@ export async function POST(request: NextRequest) {
       .join("\n");
 
     const sent = await sendMail({
+      from: DEFAULT_MAIL_FROM,
       to: SUPPORT,
       subject,
       text,
       html: `<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap">${text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")}</pre>`,
-      replyTo: name ? `${name} <${email}>` : email,
+      replyTo: email,
     });
 
     if (!sent.ok) {
+      console.error("[contact] mail failed:", sent.error);
       return NextResponse.json(
         {
           error: `Could not send message. Email ${SUPPORT} directly.`,

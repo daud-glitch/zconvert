@@ -7,6 +7,30 @@ import { resolveSiteUrl } from "@/lib/seo";
 /** Verified sender for password reset, contact relay, and other system mail. */
 export const DEFAULT_MAIL_FROM = "Convertek <noreply@convertek.tech>";
 
+/** Inbound address for contact form and user support messages. */
+export const DEFAULT_SUPPORT_EMAIL = "support@convertek.tech";
+
+function resolveMailgunDomain(): string | undefined {
+  return (
+    process.env.MAILGUN_SENDING_DOMAIN?.trim() ||
+    process.env.MAILGUN_DOMAIN?.trim() ||
+    process.env.MAILGUN_DOMAIN_NAME?.trim()
+  );
+}
+
+function resolveMailgunEndpoint(domain: string): string {
+  const custom = process.env.MAILGUN_API_BASE?.trim();
+  if (custom) return custom;
+
+  const host =
+    process.env.MAILGUN_API_HOST?.trim() ||
+    (process.env.MAILGUN_REGION?.trim().toLowerCase() === "eu"
+      ? "api.eu.mailgun.net"
+      : "api.mailgun.net");
+
+  return `https://${host}/v3/${domain}/messages`;
+}
+
 export async function sendMail(input: {
   to: string;
   subject: string;
@@ -18,9 +42,7 @@ export async function sendMail(input: {
   const apiKey =
     process.env.MAILGUN_API_KEY?.trim() ||
     process.env.MAILGUN_APIKEY?.trim();
-  const domain =
-    process.env.MAILGUN_DOMAIN?.trim() ||
-    process.env.MAILGUN_DOMAIN_NAME?.trim();
+  const domain = resolveMailgunDomain();
   const from =
     input.from?.trim() ||
     process.env.MAILGUN_FROM?.trim() ||
@@ -40,9 +62,7 @@ export async function sendMail(input: {
   if (input.html) body.set("html", input.html);
   if (input.replyTo) body.set("h:Reply-To", input.replyTo);
 
-  const endpoint =
-    process.env.MAILGUN_API_BASE?.trim() ||
-    `https://api.mailgun.net/v3/${domain}/messages`;
+  const endpoint = resolveMailgunEndpoint(domain);
 
   try {
     const res = await fetch(endpoint, {
