@@ -22,13 +22,12 @@ declare global {
       getResponse: (widgetId?: string) => string;
       ready: (cb: () => void) => void;
     };
-    onTurnstileApiLoad?: () => void;
   }
 }
 
 const SCRIPT_ID = "cf-turnstile-script";
 const SCRIPT_SRC =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileApiLoad";
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
 export function getTurnstileSiteKey(): string {
   return (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
@@ -39,25 +38,23 @@ export function isTurnstileEnabled(): boolean {
 }
 
 export type TurnstileHandle = {
-  /** Current token (may be empty until solved). */
   getToken: () => string;
-  /** Reset widget after failed submit (tokens are one-time). */
   reset: () => void;
 };
 
 type Props = {
   onToken: (token: string) => void;
   onExpire?: () => void;
+  onLoadError?: () => void;
   className?: string;
-  /** When false, widget is removed (use in dialogs until open). */
   active?: boolean;
 };
 
-function waitForTurnstileApi(timeoutMs = 20_000): Promise<void> {
+function waitForTurnstileApi(timeoutMs = 15_000): Promise<void> {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
 
-    const tryReady = () => {
+    const done = () => {
       if (window.turnstile?.ready) {
         window.turnstile.ready(() => resolve());
         return true;
@@ -69,10 +66,10 @@ function waitForTurnstileApi(timeoutMs = 20_000): Promise<void> {
       return false;
     };
 
-    if (tryReady()) return;
+    if (done()) return;
 
     const tick = () => {
-      if (tryReady()) return;
+      if (done()) return;
       if (Date.now() > deadline) {
         reject(new Error("Turnstile load timeout"));
         return;
@@ -83,40 +80,49 @@ function waitForTurnstileApi(timeoutMs = 20_000): Promise<void> {
   });
 }
 
-function loadTurnstileScript(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (window.turnstile) return waitForTurnstileApi();
+function removeTurnstileScript(): void {
+  document.getElementById(SCRIPT_ID)?.remove();
+  delete window.turnstile;
+}
 
+function injectTurnstileScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const existing = document.getElementById(SCRIPT_ID);
-    if (existing) {
-      waitForTurnstileApi().then(resolve).catch(reject);
-      return;
-    }
-
-    const prevOnLoad = window.onTurnstileApiLoad;
-    window.onTurnstileApiLoad = () => {
-      prevOnLoad?.();
-      waitForTurnstileApi().then(resolve).catch(reject);
-    };
-
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.src = SCRIPT_SRC;
     script.async = true;
     script.defer = true;
+    script.onload = () => {
+      waitForTurnstileApi().then(resolve).catch(reject);
+    };
     script.onerror = () => reject(new Error("Failed to load Turnstile"));
     document.head.appendChild(script);
   });
 }
 
-/**
- * Managed Turnstile widget (visible). Protects forms when
- * NEXT_PUBLIC_TURNSTILE_SITE_KEY is set.
- */
+async function loadTurnstileScript(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (window.turnstile) {
+    await waitForTurnstileApi();
+    return;
+  }
+
+  const existing = document.getElementById(SCRIPT_ID);
+  if (existing) {
+    try {
+      await waitForTurnstileApi(4_000);
+      return;
+    } catch {
+      removeTurnstileScript();
+    }
+  }
+
+  await injectTurnstileScript();
+}
+
 export const TurnstileField = forwardRef<TurnstileHandle, Props>(
   function TurnstileField(
-    { onToken, onExpire, className, active = true },
+    { onToken, onExpire, onLoadError, className, active = true },
     ref,
   ) {
     const siteKey = getTurnstileSiteKey();
@@ -130,8 +136,10 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
 
     const onTokenRef = useRef(onToken);
     const onExpireRef = useRef(onExpire);
+    const onLoadErrorRef = useRef(onLoadError);
     onTokenRef.current = onToken;
     onExpireRef.current = onExpire;
+    onLoadErrorRef.current = onLoadError;
 
     const hostCallbackRef = useCallback((node: HTMLDivElement | null) => {
       hostRef.current = node;
@@ -190,6 +198,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
         } catch {
           if (!cancelled) {
             setLoadError("Could not load security check. Refresh and try again.");
+            onLoadErrorRef.current?.();
           }
           return;
         }
@@ -229,6 +238,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
         } catch {
           if (!cancelled) {
             setLoadError("Security check failed to start. Try again.");
+            onLoadErrorRef.current?.();
           }
         }
       };
@@ -248,9 +258,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
       };
     }, [siteKey, active, hostEl, mountKey]);
 
-    if (!siteKey) return null;
-
-    if (!active) return null;
+    if (!siteKey || !active) return null;
 
     return (
       <div className={className} data-testid="turnstile">
@@ -266,6 +274,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
               type="button"
               className="text-xs text-emerald-600 hover:underline"
               onClick={() => {
+                removeTurnstileScript();
                 setLoadError(null);
                 setMountKey((k) => k + 1);
               }}

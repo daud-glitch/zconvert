@@ -177,6 +177,13 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
           }}
         />
+        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? (
+          <Script
+            id="cf-turnstile-script"
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+            strategy="lazyOnload"
+          />
+        ) : null}
         <JsonLd />
         <AppProvider>
           {children}
