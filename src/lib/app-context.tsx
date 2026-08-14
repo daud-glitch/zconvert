@@ -284,6 +284,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Swallow logout transport errors and still clear local session state.
     } finally {
       setUser(null);
+      setCurrentView("converter");
+      if (typeof window !== "undefined") {
+        const path = window.location.pathname.replace(/\/$/, "") || "/";
+        const onAdminPage =
+          path === "/admin" ||
+          path === "/system/core/admin" ||
+          path === "/core/system/admin";
+        if (onAdminPage) {
+          window.location.assign("/");
+        }
+      }
     }
   }, []);
 

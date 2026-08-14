@@ -5,12 +5,13 @@ import { ReactNode } from "react";
 
 // Helper component to test context
 function TestConsumer() {
-  const { currentUser, loading, login, logout } = useApp();
+  const { currentUser, currentView, loading, login, logout } = useApp();
   return (
     <div>
       <div data-testid="loading">{loading ? "loading" : "loaded"}</div>
       <div data-testid="user">{currentUser ? currentUser.email : "no-user"}</div>
       <div data-testid="role">{currentUser ? currentUser.role : "none"}</div>
+      <div data-testid="view">{currentView}</div>
       <button
         data-testid="login-btn"
         onClick={async () => {
@@ -223,6 +224,7 @@ describe("AppProvider", () => {
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", { method: "POST" });
         expect(screen.getByTestId("user").textContent).toBe("no-user");
+        expect(screen.getByTestId("view").textContent).toBe("converter");
       });
     });
 

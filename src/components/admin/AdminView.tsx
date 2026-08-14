@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type AdminTab } from "@/lib/app-types";
@@ -19,22 +19,15 @@ import { AdminSettings } from "./AdminSettings";
 import { useApp } from "@/lib/app-context";
 
 export function AdminView() {
-  const { setCurrentView: navigate } = useApp();
+  const { setCurrentView: navigate, logout, currentUser } = useApp();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-  const [adminUser, setAdminUser] = useState<{ name: string | null; email: string } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.user) setAdminUser(data.user);
-      })
-      .catch(() => {});
-  }, []);
+  const adminUser = currentUser
+    ? { name: currentUser.name ?? null, email: currentUser.email }
+    : null;
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/";
+    await logout();
+    window.location.assign("/");
   };
 
   return (

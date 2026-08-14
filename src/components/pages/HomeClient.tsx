@@ -120,6 +120,16 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
     setCurrentView(defaultView || "converter");
   }, [defaultView, setCurrentView]);
 
+  useEffect(() => {
+    if (loading) return;
+    if (currentView === "admin" && currentUser?.role !== "admin") {
+      setCurrentView("converter");
+    }
+    if (currentView === "profile" && !currentUser) {
+      setCurrentView("converter");
+    }
+  }, [loading, currentUser, currentView, setCurrentView]);
+
   // Warm formats catalog after first paint (idle) — converter needs it on file pick
   useEffect(() => {
     const warm = () => {
@@ -458,12 +468,12 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               <BookmarksView />
             </Suspense>
           )}
-          {currentView === "profile" && (
+          {currentView === "profile" && currentUser && (
             <Suspense fallback={<ViewFallback />}>
               <ProfileView />
             </Suspense>
           )}
-          {currentView === "admin" && (
+          {currentView === "admin" && currentUser?.role === "admin" && (
             <Suspense fallback={<ViewFallback />}>
               <AdminView />
             </Suspense>
