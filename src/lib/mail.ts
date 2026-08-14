@@ -9,6 +9,7 @@ export async function sendMail(input: {
   subject: string;
   text: string;
   html?: string;
+  replyTo?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey =
     process.env.MAILGUN_API_KEY?.trim() ||
@@ -34,6 +35,7 @@ export async function sendMail(input: {
   body.set("subject", input.subject);
   body.set("text", input.text);
   if (input.html) body.set("html", input.html);
+  if (input.replyTo) body.set("h:Reply-To", input.replyTo);
 
   const endpoint =
     process.env.MAILGUN_API_BASE?.trim() ||

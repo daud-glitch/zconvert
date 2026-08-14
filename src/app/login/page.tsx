@@ -201,9 +201,17 @@ function LoginForm() {
                 </div>
 
                 <div>
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Password
+                    </Label>
+                    <Link
+                      href="/forgot-password"
+                      className="text-xs text-emerald-600 hover:underline font-medium shrink-0"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <div className="relative mt-1.5">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
@@ -262,23 +270,15 @@ function LoginForm() {
                   )}
                 </Button>
 
-                <div className="text-center space-y-1">
+                <p className="text-center text-xs text-muted-foreground">
+                  No account?{" "}
                   <Link
-                    href="/forgot-password"
-                    className="text-xs text-muted-foreground hover:text-emerald-600 block"
+                    href="/signup"
+                    className="text-emerald-600 hover:underline font-medium"
                   >
-                    Forgot password?
+                    Sign up
                   </Link>
-                  <p className="text-xs text-muted-foreground">
-                    No account?{" "}
-                    <Link
-                      href="/signup"
-                      className="text-emerald-600 hover:underline font-medium"
-                    >
-                      Sign up
-                    </Link>
-                  </p>
-                </div>
+                </p>
               </form>
               </>
             ) : (

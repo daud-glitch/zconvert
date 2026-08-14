@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -250,7 +251,18 @@ export function AuthDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    {mode === "login" ? (
+                      <Link
+                        href="/forgot-password"
+                        onClick={handleClose}
+                        className="text-xs text-emerald-600 hover:underline font-medium shrink-0"
+                      >
+                        Forgot password?
+                      </Link>
+                    ) : null}
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input

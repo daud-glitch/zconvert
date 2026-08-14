@@ -247,15 +247,26 @@ function SignupForm() {
               </Button>
             </form>
 
-            <p className="text-center text-xs text-muted-foreground">
-              Already have an account?{" "}
-              <Link
-                href="/login"
-                className="text-emerald-600 hover:underline font-medium"
-              >
-                Sign in
-              </Link>
-            </p>
+            <div className="text-center space-y-1 text-xs text-muted-foreground">
+              <p>
+                Already have an account?{" "}
+                <Link
+                  href="/login"
+                  className="text-emerald-600 hover:underline font-medium"
+                >
+                  Sign in
+                </Link>
+              </p>
+              <p>
+                Forgot your password?{" "}
+                <Link
+                  href="/forgot-password"
+                  className="text-emerald-600 hover:underline font-medium"
+                >
+                  Reset it
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
       </div>

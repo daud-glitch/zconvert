@@ -93,7 +93,13 @@ export default function ContactPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Contact</h1>
             <p className="text-sm text-muted-foreground">
-              Report a broken conversion or reach support@convertek.tech
+              Report a broken conversion or email{" "}
+              <a
+                href="mailto:support@convertek.tech"
+                className="text-emerald-600 hover:underline"
+              >
+                support@convertek.tech
+              </a>
             </p>
           </div>
         </div>
@@ -192,6 +198,17 @@ export default function ContactPage() {
             <Send className="mr-2 h-4 w-4" />
             {loading ? "Sending…" : "Send message"}
           </Button>
+
+          <p className="text-center text-xs text-muted-foreground">
+            Messages are delivered to{" "}
+            <a
+              href="mailto:support@convertek.tech"
+              className="text-emerald-600 hover:underline"
+            >
+              support@convertek.tech
+            </a>
+            . We usually reply within 1–2 business days.
+          </p>
         </form>
       </div>
     </div>

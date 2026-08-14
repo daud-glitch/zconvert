@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       html: `<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap">${text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")}</pre>`,
+      replyTo: name ? `${name} <${email}>` : email,
     });
 
     if (!sent.ok) {
