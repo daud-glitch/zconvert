@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getOptionalDb } from "@/lib/db";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { publicSiteUrl, sendMail } from "@/lib/mail";
+import { DEFAULT_MAIL_FROM, publicSiteUrl, sendMail } from "@/lib/mail";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const GENERIC =
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
 
     const resetUrl = `${publicSiteUrl()}/reset-password?token=${rawToken}`;
     const sent = await sendMail({
+      from: DEFAULT_MAIL_FROM,
       to: user.email,
       subject: "Reset your Convertek password",
       text: [

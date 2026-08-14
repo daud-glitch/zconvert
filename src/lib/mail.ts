@@ -4,12 +4,16 @@
  */
 import { resolveSiteUrl } from "@/lib/seo";
 
+/** Verified sender for password reset, contact relay, and other system mail. */
+export const DEFAULT_MAIL_FROM = "Convertek <noreply@convertek.tech>";
+
 export async function sendMail(input: {
   to: string;
   subject: string;
   text: string;
   html?: string;
   replyTo?: string;
+  from?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey =
     process.env.MAILGUN_API_KEY?.trim() ||
@@ -18,11 +22,10 @@ export async function sendMail(input: {
     process.env.MAILGUN_DOMAIN?.trim() ||
     process.env.MAILGUN_DOMAIN_NAME?.trim();
   const from =
+    input.from?.trim() ||
     process.env.MAILGUN_FROM?.trim() ||
     process.env.MAIL_FROM?.trim() ||
-    (domain
-      ? `Convertek <noreply@${domain}>`
-      : "Convertek <noreply@convertek.tech>");
+    DEFAULT_MAIL_FROM;
 
   if (!apiKey || !domain) {
     console.error("[mail] MAILGUN_API_KEY / MAILGUN_DOMAIN not configured");
