@@ -94,6 +94,9 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_VIDEO_ENABLED: vercelDeploy ? "0" : "1",
     NEXT_PUBLIC_MEDIA_ENABLED: vercelDeploy ? "0" : "1",
     NEXT_PUBLIC_CONVERT_API_URL: process.env.NEXT_PUBLIC_CONVERT_API_URL || "",
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY:
+      process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "",
+    NEXT_PUBLIC_GOOGLE_AUTH: process.env.NEXT_PUBLIC_GOOGLE_AUTH || "0",
   },
   typescript: {
     // Fail the build on type errors — do not ship with ignoreBuildErrors.

@@ -268,15 +268,13 @@ export function AuthDialog({
               </>
             )}
 
-            {isOpen ? (
-              <TurnstileField
-                ref={turnstile.ref}
-                onToken={turnstile.onToken}
-                onExpire={turnstile.onExpire}
-                active={isOpen}
-                className="flex justify-center min-h-[65px]"
-              />
-            ) : null}
+            <TurnstileField
+              ref={turnstile.ref}
+              onToken={turnstile.onToken}
+              onExpire={turnstile.onExpire}
+              active={isOpen}
+              className="flex justify-center min-h-[65px]"
+            />
 
             <Button
               type="submit"

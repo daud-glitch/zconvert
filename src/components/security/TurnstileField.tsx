@@ -6,6 +6,7 @@ import {
   useId,
   useImperativeHandle,
   useRef,
+  useState,
   forwardRef,
 } from "react";
 
@@ -93,7 +94,9 @@ function loadTurnstileScript(): Promise<void> {
       return;
     }
 
+    const prevOnLoad = window.onTurnstileApiLoad;
     window.onTurnstileApiLoad = () => {
+      prevOnLoad?.();
       waitForTurnstileApi().then(resolve).catch(reject);
     };
 
@@ -117,15 +120,23 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
     ref,
   ) {
     const siteKey = getTurnstileSiteKey();
-    const hostRef = useRef<HTMLDivElement>(null);
+    const hostRef = useRef<HTMLDivElement | null>(null);
     const widgetIdRef = useRef<string | null>(null);
     const tokenRef = useRef("");
     const reactId = useId().replace(/:/g, "");
+    const [hostEl, setHostEl] = useState<HTMLDivElement | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [mountKey, setMountKey] = useState(0);
 
     const onTokenRef = useRef(onToken);
     const onExpireRef = useRef(onExpire);
     onTokenRef.current = onToken;
     onExpireRef.current = onExpire;
+
+    const hostCallbackRef = useCallback((node: HTMLDivElement | null) => {
+      hostRef.current = node;
+      setHostEl(node);
+    }, []);
 
     const reset = useCallback(() => {
       tokenRef.current = "";
@@ -134,7 +145,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
         try {
           window.turnstile.reset(widgetIdRef.current);
         } catch {
-          // ignore
+          setMountKey((k) => k + 1);
         }
       }
     }, []);
@@ -157,7 +168,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
     );
 
     useEffect(() => {
-      if (!siteKey || !active || !hostRef.current) {
+      if (!siteKey || !active || !hostEl) {
         if (widgetIdRef.current && window.turnstile) {
           try {
             window.turnstile.remove(widgetIdRef.current);
@@ -171,11 +182,15 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
       }
 
       let cancelled = false;
+      setLoadError(null);
 
       const mount = async () => {
         try {
           await loadTurnstileScript();
         } catch {
+          if (!cancelled) {
+            setLoadError("Could not load security check. Refresh and try again.");
+          }
           return;
         }
         if (cancelled || !hostRef.current || !window.turnstile) return;
@@ -190,26 +205,32 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
         }
 
         hostRef.current.innerHTML = "";
-        widgetIdRef.current = window.turnstile.render(hostRef.current, {
-          sitekey: siteKey,
-          appearance: "always",
-          theme: "auto",
-          "response-field": false,
-          callback: (token: string) => {
-            tokenRef.current = token;
-            onTokenRef.current(token);
-          },
-          "expired-callback": () => {
-            tokenRef.current = "";
-            onTokenRef.current("");
-            onExpireRef.current?.();
-          },
-          "error-callback": () => {
-            tokenRef.current = "";
-            onTokenRef.current("");
-            onExpireRef.current?.();
-          },
-        });
+        try {
+          widgetIdRef.current = window.turnstile.render(hostRef.current, {
+            sitekey: siteKey,
+            appearance: "always",
+            theme: "auto",
+            "response-field": false,
+            callback: (token: string) => {
+              tokenRef.current = token;
+              onTokenRef.current(token);
+            },
+            "expired-callback": () => {
+              tokenRef.current = "";
+              onTokenRef.current("");
+              onExpireRef.current?.();
+            },
+            "error-callback": () => {
+              tokenRef.current = "";
+              onTokenRef.current("");
+              onExpireRef.current?.();
+            },
+          });
+        } catch {
+          if (!cancelled) {
+            setLoadError("Security check failed to start. Try again.");
+          }
+        }
       };
 
       void mount();
@@ -225,13 +246,34 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
           widgetIdRef.current = null;
         }
       };
-    }, [siteKey, reactId, active]);
+    }, [siteKey, active, hostEl, mountKey]);
 
-    if (!siteKey || !active) return null;
+    if (!siteKey) return null;
+
+    if (!active) return null;
 
     return (
       <div className={className} data-testid="turnstile">
-        <div ref={hostRef} id={`cf-turnstile-${reactId}`} className="min-h-[65px]" />
+        <div
+          ref={hostCallbackRef}
+          id={`cf-turnstile-${reactId}`}
+          className="min-h-[65px] flex items-center justify-center"
+        />
+        {loadError ? (
+          <div className="mt-2 space-y-2 text-center">
+            <p className="text-xs text-red-600">{loadError}</p>
+            <button
+              type="button"
+              className="text-xs text-emerald-600 hover:underline"
+              onClick={() => {
+                setLoadError(null);
+                setMountKey((k) => k + 1);
+              }}
+            >
+              Retry security check
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   },

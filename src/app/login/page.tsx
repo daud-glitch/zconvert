@@ -241,7 +241,6 @@ function LoginForm() {
                   ref={turnstile.ref}
                   onToken={turnstile.onToken}
                   onExpire={turnstile.onExpire}
-                  active={!requires2FA}
                   className="flex justify-center"
                 />
 
@@ -328,7 +327,6 @@ function LoginForm() {
                   ref={turnstile.ref}
                   onToken={turnstile.onToken}
                   onExpire={turnstile.onExpire}
-                  active={requires2FA}
                   className="flex justify-center"
                 />
 
