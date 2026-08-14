@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Dialog,
@@ -18,11 +18,8 @@ import {
   GoogleAuthButton,
   isGoogleAuthEnabled,
 } from "@/components/auth/GoogleAuthButton";
-import {
-  TurnstileField,
-  type TurnstileHandle,
-  isTurnstileEnabled,
-} from "@/components/security/TurnstileField";
+import { TurnstileField } from "@/components/security/TurnstileField";
+import { useTurnstileForm } from "@/components/security/useTurnstileForm";
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -43,11 +40,9 @@ export function AuthDialog({
   const [requires2FA, setRequires2FA] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstile = useTurnstileForm();
   const { login, refreshUser } = useApp();
   const googleOn = isGoogleAuthEnabled();
-  const turnstileOn = isTurnstileEnabled();
 
   useEffect(() => {
     if (isOpen) {
@@ -55,9 +50,9 @@ export function AuthDialog({
       setRequires2FA(false);
       setTotpToken("");
       setError(null);
-      setTurnstileToken("");
-      turnstileRef.current?.reset();
+      turnstile.reset();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when dialog opens
   }, [isOpen, initialMode]);
 
   const resetForm = () => {
@@ -67,8 +62,7 @@ export function AuthDialog({
     setTotpToken("");
     setRequires2FA(false);
     setError(null);
-    setTurnstileToken("");
-    turnstileRef.current?.reset();
+    turnstile.reset();
   };
 
   const handleClose = () => {
@@ -81,10 +75,9 @@ export function AuthDialog({
     setError(null);
     setIsLoading(true);
 
-    const captcha =
-      turnstileToken || turnstileRef.current?.getToken() || undefined;
-    if (turnstileOn && !captcha) {
-      setError("Please complete the security check.");
+    const captcha = turnstile.requireToken();
+    if (!captcha.ok) {
+      setError(captcha.error);
       setIsLoading(false);
       return;
     }
@@ -95,20 +88,18 @@ export function AuthDialog({
           email,
           password,
           requires2FA ? totpToken : undefined,
-          captcha,
+          captcha.token,
         );
         if (result.requiresTwoFactor) {
           setRequires2FA(true);
-          turnstileRef.current?.reset();
-          setTurnstileToken("");
+          turnstile.reset();
           return;
         }
         if (result.success) {
           handleClose();
         } else {
           setError(result.error || "Login failed");
-          turnstileRef.current?.reset();
-          setTurnstileToken("");
+          turnstile.reset();
         }
       } else {
         const res = await fetch("/api/auth/signup", {
@@ -118,7 +109,7 @@ export function AuthDialog({
             email,
             password,
             name,
-            ...(captcha ? { turnstileToken: captcha } : {}),
+            ...(captcha.token ? { turnstileToken: captcha.token } : {}),
           }),
         });
         const data = await res.json();
@@ -129,14 +120,12 @@ export function AuthDialog({
           setError(
             typeof data.error === "string" ? data.error : "Signup failed",
           );
-          turnstileRef.current?.reset();
-          setTurnstileToken("");
+          turnstile.reset();
         }
       }
     } catch {
       setError("An error occurred. Please try again.");
-      turnstileRef.current?.reset();
-      setTurnstileToken("");
+      turnstile.reset();
     } finally {
       setIsLoading(false);
     }
@@ -279,16 +268,24 @@ export function AuthDialog({
               </>
             )}
 
-            <TurnstileField
-              ref={turnstileRef}
-              onToken={setTurnstileToken}
-              className="flex justify-center min-h-[0]"
-            />
+            {isOpen ? (
+              <TurnstileField
+                ref={turnstile.ref}
+                onToken={turnstile.onToken}
+                onExpire={turnstile.onExpire}
+                active={isOpen}
+                className="flex justify-center min-h-[65px]"
+              />
+            ) : null}
 
             <Button
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={isLoading || (requires2FA && totpToken.length < 6)}
+              disabled={
+                isLoading ||
+                !turnstile.canSubmit ||
+                (requires2FA && totpToken.length < 6)
+              }
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -312,8 +309,7 @@ export function AuthDialog({
                       onClick={() => {
                         setMode("signup");
                         setError(null);
-                        turnstileRef.current?.reset();
-                        setTurnstileToken("");
+                        turnstile.reset();
                       }}
                       className="text-emerald-600 hover:underline font-medium"
                     >
@@ -328,8 +324,7 @@ export function AuthDialog({
                       onClick={() => {
                         setMode("login");
                         setError(null);
-                        turnstileRef.current?.reset();
-                        setTurnstileToken("");
+                        turnstile.reset();
                       }}
                       className="text-emerald-600 hover:underline font-medium"
                     >
@@ -348,8 +343,7 @@ export function AuthDialog({
                   setRequires2FA(false);
                   setTotpToken("");
                   setError(null);
-                  turnstileRef.current?.reset();
-                  setTurnstileToken("");
+                  turnstile.reset();
                 }}
               >
                 Back to password

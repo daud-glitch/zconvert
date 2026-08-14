@@ -48,25 +48,55 @@ type Props = {
   onToken: (token: string) => void;
   onExpire?: () => void;
   className?: string;
+  /** When false, widget is removed (use in dialogs until open). */
+  active?: boolean;
 };
+
+function waitForTurnstileApi(timeoutMs = 20_000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+
+    const tryReady = () => {
+      if (window.turnstile?.ready) {
+        window.turnstile.ready(() => resolve());
+        return true;
+      }
+      if (window.turnstile) {
+        resolve();
+        return true;
+      }
+      return false;
+    };
+
+    if (tryReady()) return;
+
+    const tick = () => {
+      if (tryReady()) return;
+      if (Date.now() > deadline) {
+        reject(new Error("Turnstile load timeout"));
+        return;
+      }
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
+}
 
 function loadTurnstileScript(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
-  if (window.turnstile) return Promise.resolve();
+  if (window.turnstile) return waitForTurnstileApi();
 
   return new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID);
     if (existing) {
-      const prev = window.onTurnstileApiLoad;
-      window.onTurnstileApiLoad = () => {
-        prev?.();
-        resolve();
-      };
-      if (window.turnstile) resolve();
+      waitForTurnstileApi().then(resolve).catch(reject);
       return;
     }
 
-    window.onTurnstileApiLoad = () => resolve();
+    window.onTurnstileApiLoad = () => {
+      waitForTurnstileApi().then(resolve).catch(reject);
+    };
+
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.src = SCRIPT_SRC;
@@ -82,7 +112,10 @@ function loadTurnstileScript(): Promise<void> {
  * NEXT_PUBLIC_TURNSTILE_SITE_KEY is set.
  */
 export const TurnstileField = forwardRef<TurnstileHandle, Props>(
-  function TurnstileField({ onToken, onExpire, className }, ref) {
+  function TurnstileField(
+    { onToken, onExpire, className, active = true },
+    ref,
+  ) {
     const siteKey = getTurnstileSiteKey();
     const hostRef = useRef<HTMLDivElement>(null);
     const widgetIdRef = useRef<string | null>(null);
@@ -109,14 +142,34 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
     useImperativeHandle(
       ref,
       () => ({
-        getToken: () => tokenRef.current || window.turnstile?.getResponse(widgetIdRef.current || undefined) || "",
+        getToken: () => {
+          if (tokenRef.current) return tokenRef.current;
+          if (!widgetIdRef.current || !window.turnstile) return "";
+          try {
+            return window.turnstile.getResponse(widgetIdRef.current) || "";
+          } catch {
+            return "";
+          }
+        },
         reset,
       }),
       [reset],
     );
 
     useEffect(() => {
-      if (!siteKey || !hostRef.current) return;
+      if (!siteKey || !active || !hostRef.current) {
+        if (widgetIdRef.current && window.turnstile) {
+          try {
+            window.turnstile.remove(widgetIdRef.current);
+          } catch {
+            // ignore
+          }
+          widgetIdRef.current = null;
+        }
+        tokenRef.current = "";
+        return;
+      }
+
       let cancelled = false;
 
       const mount = async () => {
@@ -139,8 +192,6 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
         hostRef.current.innerHTML = "";
         widgetIdRef.current = window.turnstile.render(hostRef.current, {
           sitekey: siteKey,
-          // Always show Managed widget so users see the Cloudflare check
-          // (interaction-only stays invisible for most real users).
           appearance: "always",
           theme: "auto",
           "response-field": false,
@@ -156,6 +207,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
           "error-callback": () => {
             tokenRef.current = "";
             onTokenRef.current("");
+            onExpireRef.current?.();
           },
         });
       };
@@ -173,17 +225,13 @@ export const TurnstileField = forwardRef<TurnstileHandle, Props>(
           widgetIdRef.current = null;
         }
       };
-    }, [siteKey, reactId]);
+    }, [siteKey, reactId, active]);
 
-    if (!siteKey) return null;
+    if (!siteKey || !active) return null;
 
     return (
-      <div
-        className={className}
-        data-testid="turnstile"
-        aria-hidden="true"
-      >
-        <div ref={hostRef} id={`cf-turnstile-${reactId}`} />
+      <div className={className} data-testid="turnstile">
+        <div ref={hostRef} id={`cf-turnstile-${reactId}`} className="min-h-[65px]" />
       </div>
     );
   },
