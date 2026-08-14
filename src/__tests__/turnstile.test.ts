@@ -4,6 +4,11 @@ import {
   verifyTurnstileToken,
 } from "@/lib/turnstile";
 
+vi.mock("@/lib/turnstile-config", () => ({
+  TURNSTILE_TEMPORARILY_DISABLED: false,
+  isTurnstileBypassed: () => false,
+}));
+
 describe("turnstile", () => {
   const prev = process.env.TURNSTILE_SECRET_KEY;
 

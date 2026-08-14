@@ -4,10 +4,13 @@
  * Production: set both TURNSTILE_SECRET_KEY and NEXT_PUBLIC_TURNSTILE_SITE_KEY.
  */
 
+import { isTurnstileBypassed } from "@/lib/turnstile-config";
+
 const SITEVERIFY =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export function isTurnstileRequired(): boolean {
+  if (isTurnstileBypassed()) return false;
   return Boolean(process.env.TURNSTILE_SECRET_KEY?.trim());
 }
 
@@ -15,6 +18,8 @@ export async function verifyTurnstileToken(
   token: unknown,
   ip?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isTurnstileBypassed()) return { ok: true };
+
   const secret = process.env.TURNSTILE_SECRET_KEY?.trim();
   if (!secret) return { ok: true };
 

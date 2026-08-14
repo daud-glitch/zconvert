@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Lock, Mail, User, UserPlus } from "lucide-react";
@@ -10,8 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
-import { TurnstileField } from "@/components/security/TurnstileField";
-import { useTurnstileForm } from "@/components/security/useTurnstileForm";
+import {
+  TurnstileField,
+  type TurnstileHandle,
+  isTurnstileEnabled,
+} from "@/components/security/TurnstileField";
 
 function SignupForm() {
   const router = useRouter();
@@ -24,7 +27,9 @@ function SignupForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const turnstile = useTurnstileForm();
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const turnstileOn = isTurnstileEnabled();
 
   useEffect(() => {
     try {
@@ -57,9 +62,10 @@ function SignupForm() {
     setError("");
     setLoading(true);
 
-    const captcha = turnstile.requireToken();
-    if (!captcha.ok) {
-      setError(captcha.error);
+    const captcha =
+      turnstileToken || turnstileRef.current?.getToken() || undefined;
+    if (turnstileOn && !captcha) {
+      setError("Please complete the security check.");
       setLoading(false);
       return;
     }
@@ -72,7 +78,7 @@ function SignupForm() {
           name: name.trim(),
           email: email.trim(),
           password,
-          ...(captcha.token ? { turnstileToken: captcha.token } : {}),
+          ...(captcha ? { turnstileToken: captcha } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -82,7 +88,8 @@ function SignupForm() {
             ? data.error
             : `Signup failed (Status ${res.status})`,
         );
-        turnstile.reset();
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         setLoading(false);
         return;
       }
@@ -91,7 +98,8 @@ function SignupForm() {
       setError(
         `Network error: ${err instanceof Error ? err.message : "Could not reach server"}`,
       );
-      turnstile.reset();
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setLoading(false);
     }
   };
@@ -215,16 +223,15 @@ function SignupForm() {
               )}
 
               <TurnstileField
-                ref={turnstile.ref}
-                onToken={turnstile.onToken}
-                onExpire={turnstile.onExpire}
+                ref={turnstileRef}
+                onToken={setTurnstileToken}
                 className="flex justify-center"
               />
 
               <Button
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
-                disabled={loading || !turnstile.canSubmit}
+                disabled={loading}
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

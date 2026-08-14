@@ -17,6 +17,7 @@ import {
   SITE_URL,
   TWITTER_DESCRIPTION,
 } from "@/lib/seo";
+import { isTurnstileBypassed } from "@/lib/turnstile-config";
 
 /** One UI font only — lighter first load (no separate mono Google font). */
 const geistSans = Geist({
@@ -177,7 +178,7 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
           }}
         />
-        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? (
+        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !isTurnstileBypassed() ? (
           <Script
             id="cf-turnstile-script"
             src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
