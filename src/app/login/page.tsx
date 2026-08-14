@@ -21,8 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import {
+  CaptchaContinueHint,
   TurnstileField,
   type TurnstileHandle,
+  isCaptchaBlocking,
   isTurnstileEnabled,
 } from "@/components/security/TurnstileField";
 
@@ -42,6 +44,7 @@ function LoginForm() {
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileRef = useRef<TurnstileHandle>(null);
   const turnstileOn = isTurnstileEnabled();
+  const actionsLocked = isCaptchaBlocking(turnstileOn, turnstileToken);
 
   // Sync dark mode with main app preference
   useEffect(() => {
@@ -163,9 +166,20 @@ function LoginForm() {
           <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
             {!requires2FA ? (
               <>
+                {turnstileOn ? (
+                  <>
+                    <TurnstileField
+                      ref={turnstileRef}
+                      onToken={setTurnstileToken}
+                      className="flex justify-center"
+                    />
+                    <CaptchaContinueHint locked={actionsLocked} />
+                  </>
+                ) : null}
+
                 <GoogleAuthButton
                   label="Continue with Google"
-                  disabled={loading}
+                  disabled={loading || actionsLocked}
                   withDivider={false}
                 />
 
@@ -246,16 +260,10 @@ function LoginForm() {
                   </div>
                 )}
 
-                <TurnstileField
-                  ref={turnstileRef}
-                  onToken={setTurnstileToken}
-                  className="flex justify-center"
-                />
-
                 <Button
                   type="submit"
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
-                  disabled={loading}
+                  disabled={loading || actionsLocked}
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">
@@ -331,16 +339,21 @@ function LoginForm() {
                   </div>
                 )}
 
-                <TurnstileField
-                  ref={turnstileRef}
-                  onToken={setTurnstileToken}
-                  className="flex justify-center"
-                />
+                {turnstileOn ? (
+                  <>
+                    <TurnstileField
+                      ref={turnstileRef}
+                      onToken={setTurnstileToken}
+                      className="flex justify-center"
+                    />
+                    <CaptchaContinueHint locked={actionsLocked} />
+                  </>
+                ) : null}
 
                 <Button
                   type="submit"
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
-                  disabled={loading || totpToken.length !== 6}
+                  disabled={loading || actionsLocked || totpToken.length !== 6}
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">

@@ -39,6 +39,20 @@ export function isTurnstileEnabled(): boolean {
   return Boolean(getTurnstileSiteKey());
 }
 
+/** True when auth actions must wait for a solved Turnstile widget. */
+export function isCaptchaBlocking(turnstileOn: boolean, token: string): boolean {
+  return turnstileOn && !token.trim();
+}
+
+export function CaptchaContinueHint({ locked }: { locked: boolean }) {
+  if (!locked) return null;
+  return (
+    <p className="text-center text-xs text-muted-foreground">
+      Complete the security check to continue
+    </p>
+  );
+}
+
 export type TurnstileHandle = {
   /** Current token (may be empty until solved). */
   getToken: () => string;

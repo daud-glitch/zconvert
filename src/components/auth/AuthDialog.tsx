@@ -19,8 +19,10 @@ import {
   isGoogleAuthEnabled,
 } from "@/components/auth/GoogleAuthButton";
 import {
+  CaptchaContinueHint,
   TurnstileField,
   type TurnstileHandle,
+  isCaptchaBlocking,
   isTurnstileEnabled,
 } from "@/components/security/TurnstileField";
 
@@ -48,6 +50,7 @@ export function AuthDialog({
   const { login, refreshUser } = useApp();
   const googleOn = isGoogleAuthEnabled();
   const turnstileOn = isTurnstileEnabled();
+  const actionsLocked = isCaptchaBlocking(turnstileOn, turnstileToken);
 
   useEffect(() => {
     if (isOpen) {
@@ -169,6 +172,17 @@ export function AuthDialog({
             </div>
           )}
 
+          {turnstileOn ? (
+            <>
+              <TurnstileField
+                ref={turnstileRef}
+                onToken={setTurnstileToken}
+                className="flex justify-center min-h-[0]"
+              />
+              <CaptchaContinueHint locked={actionsLocked} />
+            </>
+          ) : null}
+
           {!requires2FA && googleOn && (
             <GoogleAuthButton
               label={
@@ -176,7 +190,7 @@ export function AuthDialog({
                   ? "Sign up with Google"
                   : "Continue with Google"
               }
-              disabled={isLoading}
+              disabled={isLoading || actionsLocked}
               withDivider={false}
             />
           )}
@@ -279,16 +293,14 @@ export function AuthDialog({
               </>
             )}
 
-            <TurnstileField
-              ref={turnstileRef}
-              onToken={setTurnstileToken}
-              className="flex justify-center min-h-[0]"
-            />
-
             <Button
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={isLoading || (requires2FA && totpToken.length < 6)}
+              disabled={
+                isLoading ||
+                actionsLocked ||
+                (requires2FA && totpToken.length < 6)
+              }
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />

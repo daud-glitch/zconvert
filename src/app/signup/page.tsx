@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import {
+  CaptchaContinueHint,
   TurnstileField,
   type TurnstileHandle,
+  isCaptchaBlocking,
   isTurnstileEnabled,
 } from "@/components/security/TurnstileField";
 
@@ -30,6 +32,7 @@ function SignupForm() {
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileRef = useRef<TurnstileHandle>(null);
   const turnstileOn = isTurnstileEnabled();
+  const actionsLocked = isCaptchaBlocking(turnstileOn, turnstileToken);
 
   useEffect(() => {
     try {
@@ -139,9 +142,20 @@ function SignupForm() {
           </div>
 
           <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
+            {turnstileOn ? (
+              <>
+                <TurnstileField
+                  ref={turnstileRef}
+                  onToken={setTurnstileToken}
+                  className="flex justify-center"
+                />
+                <CaptchaContinueHint locked={actionsLocked} />
+              </>
+            ) : null}
+
             <GoogleAuthButton
               label="Sign up with Google"
-              disabled={loading}
+              disabled={loading || actionsLocked}
               withDivider={false}
             />
 
@@ -222,16 +236,10 @@ function SignupForm() {
                 </div>
               )}
 
-              <TurnstileField
-                ref={turnstileRef}
-                onToken={setTurnstileToken}
-                className="flex justify-center"
-              />
-
               <Button
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
-                disabled={loading}
+                disabled={loading || actionsLocked}
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

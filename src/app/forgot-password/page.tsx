@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  CaptchaContinueHint,
   TurnstileField,
   type TurnstileHandle,
+  isCaptchaBlocking,
   isTurnstileEnabled,
 } from "@/components/security/TurnstileField";
 
@@ -20,6 +22,7 @@ export default function ForgotPasswordPage() {
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileRef = useRef<TurnstileHandle>(null);
   const turnstileOn = isTurnstileEnabled();
+  const actionsLocked = isCaptchaBlocking(turnstileOn, turnstileToken);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,10 +117,11 @@ export default function ForgotPasswordPage() {
                 onToken={setTurnstileToken}
                 className="flex justify-center"
               />
+              <CaptchaContinueHint locked={actionsLocked} />
               <Button
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-600"
-                disabled={loading}
+                disabled={loading || actionsLocked}
               >
                 {loading ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />

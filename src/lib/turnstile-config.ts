@@ -1,8 +1,8 @@
 /**
- * TEMPORARY — set to false to re-enable Cloudflare Turnstile.
+ * Kill switch for Cloudflare Turnstile.
  * Also skippable via TURNSTILE_DISABLED=1 / NEXT_PUBLIC_TURNSTILE_DISABLED=1.
  */
-export const TURNSTILE_TEMPORARILY_DISABLED = true;
+export const TURNSTILE_TEMPORARILY_DISABLED = false;
 
 export function isTurnstileBypassed(): boolean {
   if (TURNSTILE_TEMPORARILY_DISABLED) return true;
