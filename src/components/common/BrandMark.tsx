@@ -2,8 +2,10 @@
  * Convertek brand mark — optimized WebP + PNG fallback (public/logo-mark.*).
  * Display size is small (≤56px); assets are ~160px for retina, not full 1K masters.
  */
-const LOGO_WEBP = "/logo-mark.webp?v=4";
-const LOGO_PNG = "/logo-mark-fallback.png?v=4";
+import { BRAND_ASSET_VERSION } from "@/lib/seo";
+
+const LOGO_WEBP = `/logo-mark.webp?v=${BRAND_ASSET_VERSION}`;
+const LOGO_PNG = `/logo-mark-fallback.png?v=${BRAND_ASSET_VERSION}`;
 
 export function BrandMark({
   className = "h-8 w-8 sm:h-10 sm:w-10",

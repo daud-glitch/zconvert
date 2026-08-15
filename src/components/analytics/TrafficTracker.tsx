@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isLikelyCrawler } from "@/lib/crawler";
 
 /**
  * Lightweight first-party page-view beacon for admin traffic sources.
@@ -9,9 +10,7 @@ import { useEffect } from "react";
 export function TrafficTracker() {
   useEffect(() => {
     try {
-      // Do not beacon Googlebot / other crawlers (skews admin analytics).
-      const ua = navigator.userAgent || "";
-      if (/bot|crawler|spider|slurp|bingpreview/i.test(ua)) return;
+      if (isLikelyCrawler()) return;
 
       const path = window.location.pathname || "/";
       // Skip admin UI itself

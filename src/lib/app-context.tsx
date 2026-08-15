@@ -11,6 +11,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { isLikelyCrawler } from "@/lib/crawler";
 
 export type AppUser = {
   id: string;
@@ -170,6 +171,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
+    if (isLikelyCrawler()) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/auth/me");
       const payload = await readJson(res);

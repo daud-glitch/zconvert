@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isLikelyCrawler } from "@/lib/crawler";
 
 export type CmsAd = {
   id: string;
@@ -66,6 +67,13 @@ export function useCmsBundle() {
 
   useEffect(() => {
     let cancelled = false;
+    if (isLikelyCrawler()) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const cached = readStored();
     if (cached) {
       setData(cached);
