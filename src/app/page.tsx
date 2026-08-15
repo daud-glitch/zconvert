@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import HomeClient from "@/components/pages/HomeClient";
+import HomeFaqJsonLd from "@/components/seo/HomeFaqJsonLd";
 import {
   BRAND_TAGLINE,
   BRAND_TAGLINE_ACTION,
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
   OG_DESCRIPTION,
+  OG_IMAGE_PATH,
   SITE_NAME,
   SITE_URL,
 } from "@/lib/seo";
@@ -24,7 +26,7 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     images: [
       {
-        url: "/og-image.png",
+        url: OG_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: `${SITE_NAME} — ${BRAND_TAGLINE} ${BRAND_TAGLINE_ACTION}`,
@@ -35,10 +37,15 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: DEFAULT_TITLE,
     description: OG_DESCRIPTION,
-    images: ["/og-image.png"],
+    images: [OG_IMAGE_PATH],
   },
 };
 
 export default function Page() {
-  return <HomeClient defaultView="converter" />;
+  return (
+    <>
+      <HomeFaqJsonLd />
+      <HomeClient defaultView="converter" />
+    </>
+  );
 }

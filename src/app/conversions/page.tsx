@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import ConversionsClient from "@/components/pages/ConversionsClient";
-import { SITE_NAME, SITE_URL } from "@/lib/seo";
+import { OG_IMAGE_PATH, SITE_NAME, SITE_URL } from "@/lib/seo";
 
 const title = "Supported File Formats — 100+ Conversions";
 const description =
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     images: [
       {
-        url: "/og-image.png",
+        url: OG_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: `${SITE_NAME} supported formats`,
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${title} | ${SITE_NAME}`,
     description,
-    images: ["/og-image.png"],
+    images: [OG_IMAGE_PATH],
   },
 };
 

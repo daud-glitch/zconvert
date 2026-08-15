@@ -7,17 +7,18 @@ import JsonLd from "@/components/json-ld";
 import { AppProvider } from "@/lib/app-context";
 import { TrafficTracker } from "@/components/analytics/TrafficTracker";
 import {
+  BRAND_ASSET_VERSION,
   BRAND_TAGLINE,
   BRAND_TAGLINE_ACTION,
   DEFAULT_DESCRIPTION,
   DEFAULT_KEYWORDS,
   DEFAULT_TITLE,
   OG_DESCRIPTION,
+  OG_IMAGE_PATH,
   SITE_NAME,
   SITE_URL,
   TWITTER_DESCRIPTION,
 } from "@/lib/seo";
-import { isTurnstileBypassed } from "@/lib/turnstile-config";
 
 /** One UI font only — lighter first load (no separate mono Google font). */
 const geistSans = Geist({
@@ -74,7 +75,7 @@ export const metadata: Metadata = {
     description: OG_DESCRIPTION,
     images: [
       {
-        url: "/og-image.png",
+        url: OG_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: `${SITE_NAME} — ${BRAND_TAGLINE} ${BRAND_TAGLINE_ACTION}`,
@@ -86,7 +87,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: DEFAULT_TITLE,
     description: TWITTER_DESCRIPTION,
-    images: ["/og-image.png"],
+    images: [OG_IMAGE_PATH],
   },
   robots: {
     index: true,
@@ -130,15 +131,37 @@ export const metadata: Metadata = {
     : {}),
   icons: {
     icon: [
-      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon-64.png", sizes: "64x64", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
+      {
+        url: `/favicon-32.png?v=${BRAND_ASSET_VERSION}`,
+        sizes: "32x32",
+        type: "image/png",
+      },
+      {
+        url: `/favicon-64.png?v=${BRAND_ASSET_VERSION}`,
+        sizes: "64x64",
+        type: "image/png",
+      },
+      {
+        url: `/icon-192.png?v=${BRAND_ASSET_VERSION}`,
+        sizes: "192x192",
+        type: "image/png",
+      },
+      { url: `/favicon.ico?v=${BRAND_ASSET_VERSION}`, sizes: "any" },
+      {
+        url: `/favicon.svg?v=${BRAND_ASSET_VERSION}`,
+        type: "image/svg+xml",
+      },
     ],
-    shortcut: ["/favicon-32.png", "/favicon.ico"],
+    shortcut: [
+      `/favicon-32.png?v=${BRAND_ASSET_VERSION}`,
+      `/favicon.ico?v=${BRAND_ASSET_VERSION}`,
+    ],
     apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      {
+        url: `/apple-touch-icon.png?v=${BRAND_ASSET_VERSION}`,
+        sizes: "180x180",
+        type: "image/png",
+      },
     ],
   },
   appleWebApp: {
@@ -148,7 +171,7 @@ export const metadata: Metadata = {
   },
   other: {
     "msapplication-TileColor": "#10b981",
-    "msapplication-TileImage": "/icon-192.png",
+    "msapplication-TileImage": `/icon-192.png?v=${BRAND_ASSET_VERSION}`,
   },
 };
 
@@ -162,7 +185,7 @@ export default function RootLayout({
       <head>
         <link
           rel="preload"
-          href="/logo-mark.webp?v=4"
+          href={`/logo-mark.webp?v=${BRAND_ASSET_VERSION}`}
           as="image"
           type="image/webp"
         />
@@ -178,13 +201,6 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
           }}
         />
-        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !isTurnstileBypassed() ? (
-          <Script
-            id="cf-turnstile-script"
-            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-            strategy="lazyOnload"
-          />
-        ) : null}
         <JsonLd />
         <AppProvider>
           {children}

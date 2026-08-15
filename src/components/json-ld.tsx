@@ -2,12 +2,16 @@ import {
   BRAND_TAGLINE,
   BRAND_TAGLINE_ACTION,
   DEFAULT_DESCRIPTION,
+  OG_IMAGE_ABS,
   SITE_EMAIL,
   SITE_NAME,
   SITE_URL,
 } from "@/lib/seo";
 
-/** Site-wide JSON-LD graph (Organization + WebSite + WebApplication + FAQ). */
+/**
+ * Site-wide JSON-LD (Organization + WebSite + WebApplication).
+ * FAQPage lives only on the homepage — see HomeFaqJsonLd — so schema matches visible content.
+ */
 export default function JsonLd() {
   const graph = {
     "@context": "https://schema.org",
@@ -21,8 +25,8 @@ export default function JsonLd() {
         logo: {
           "@type": "ImageObject",
           url: `${SITE_URL}/logo-mark.png`,
-          width: 512,
-          height: 512,
+          width: 384,
+          height: 384,
         },
         sameAs: [],
         contactPoint: {
@@ -73,50 +77,12 @@ export default function JsonLd() {
           "No watermarks on converted files",
           "Temporary server processing — no permanent file library",
         ],
-        screenshot: `${SITE_URL}/og-image.png`,
+        screenshot: OG_IMAGE_ABS,
         softwareVersion: "1.0",
         inLanguage: "en-US",
         isAccessibleForFree: true,
         keywords:
           "file converter, image converter, PDF converter, free online converter, batch convert, Convertek",
-      },
-      {
-        "@type": "FAQPage",
-        "@id": `${SITE_URL}/#faq`,
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: "Is Convertek free to use?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Yes. Convertek is free to use with fair upload limits (typically 30 MB per non-video file and 100 MB for video). Converted files have no watermarks.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "Can I convert mixed file types in one batch?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Yes. Drop different types (for example PNG, PDF, and MP3) into one queue and choose a separate output format for each file.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "Do you keep my uploaded files?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Files are processed temporarily on the server. Converted downloads stay in your browser storage. We do not keep a permanent personal cloud library of your files.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "What formats does Convertek support?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Convertek supports 100+ formats across images, documents, data, audio, video, archives, fonts, subtitles, presentations, and ebooks. Browse the full list at /conversions.",
-            },
-          },
-        ],
       },
     ],
   };

@@ -40,6 +40,7 @@ import {
   adsByLocation,
 } from "@/hooks/use-cms";
 import Link from "next/link";
+import { HomeFaqSection } from "@/components/seo/HomeFaqSection";
 
 /** Lazy page chunks — only the active view’s JS loads. */
 function ViewFallback() {
@@ -498,6 +499,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
           </div>
         )}
       </main>
+
+      {currentView === "converter" ? <HomeFaqSection /> : null}
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer className="border-t border-border/40 bg-muted/30 py-12">

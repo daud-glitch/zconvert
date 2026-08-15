@@ -9,6 +9,10 @@ import { useEffect } from "react";
 export function TrafficTracker() {
   useEffect(() => {
     try {
+      // Do not beacon Googlebot / other crawlers (skews admin analytics).
+      const ua = navigator.userAgent || "";
+      if (/bot|crawler|spider|slurp|bingpreview/i.test(ua)) return;
+
       const path = window.location.pathname || "/";
       // Skip admin UI itself
       if (

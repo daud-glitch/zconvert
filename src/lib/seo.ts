@@ -70,6 +70,15 @@ export const SITE_NAME = "Convertek";
 export const SITE_DOMAIN = "www.convertek.tech";
 export const SITE_EMAIL = "support@convertek.tech";
 
+/**
+ * Bump when replacing favicon / OG binaries so Google & CDNs fetch a new URL
+ * instead of keeping a stale cached asset at the same path.
+ */
+export const BRAND_ASSET_VERSION = "20260816";
+
+export const OG_IMAGE_PATH = `/og-image.png?v=${BRAND_ASSET_VERSION}`;
+export const OG_IMAGE_ABS = `${SITE_URL}${OG_IMAGE_PATH}`;
+
 /** Primary brand line (nav / product mark / headline) */
 export const BRAND_TAGLINE = "Any file. Any format.";
 

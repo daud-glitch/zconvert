@@ -5,6 +5,7 @@ import { FormatJsonLd } from "@/components/format-json-ld";
 import {
   formatPageDescription,
   formatPageTitle,
+  OG_IMAGE_PATH,
   SITE_NAME,
   absoluteUrl,
 } from "@/lib/seo";
@@ -64,7 +65,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: SITE_NAME,
       images: [
         {
-          url: "/og-image.png",
+          url: OG_IMAGE_PATH,
           width: 1200,
           height: 630,
           alt: `Convert ${upper} files online free with ${SITE_NAME}`,
@@ -75,7 +76,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       title: `${title} | ${SITE_NAME}`,
       description,
-      images: ["/og-image.png"],
+      images: [OG_IMAGE_PATH],
     },
     robots: {
       index: true,

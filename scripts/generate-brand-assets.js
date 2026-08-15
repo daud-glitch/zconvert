@@ -135,52 +135,16 @@ function svgWrapper(pngBase64, size = 64, label = "Convertek") {
 `;
 }
 
-async function buildOg(logoBuf) {
-  const W = 1200;
-  const H = 630;
-  const iconSize = 320;
-
-  const icon = await makeTransparentMark(logoBuf, iconSize).then((s) =>
-    s.png().toBuffer(),
-  );
-
-  // Deep emerald atmospheric background + soft gradient orb
-  const bg = Buffer.from(`
-    <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#042f1f"/>
-          <stop offset="45%" stop-color="#065f46"/>
-          <stop offset="100%" stop-color="#022c22"/>
-        </linearGradient>
-        <radialGradient id="orb" cx="72%" cy="42%" r="45%">
-          <stop offset="0%" stop-color="#34d399" stop-opacity="0.35"/>
-          <stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
-        </radialGradient>
-        <radialGradient id="soft" cx="20%" cy="70%" r="40%">
-          <stop offset="0%" stop-color="#10b981" stop-opacity="0.2"/>
-          <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-      <rect width="${W}" height="${H}" fill="url(#g)"/>
-      <rect width="${W}" height="${H}" fill="url(#orb)"/>
-      <rect width="${W}" height="${H}" fill="url(#soft)"/>
-      <text x="88" y="250" font-family="Segoe UI, system-ui, sans-serif" font-size="78" font-weight="700" fill="#ecfdf5">Convertek</text>
-      <text x="88" y="320" font-family="Segoe UI, system-ui, sans-serif" font-size="32" font-weight="600" fill="#6ee7b7">Any file. Any format.</text>
-      <text x="88" y="368" font-family="Segoe UI, system-ui, sans-serif" font-size="26" font-weight="500" fill="#a7f3d0">Drop it. Convert it. Download it.</text>
-      <text x="88" y="520" font-family="Segoe UI, system-ui, sans-serif" font-size="22" font-weight="500" fill="#86efac">www.convertek.tech</text>
-    </svg>
-  `);
-
-  return sharp(bg)
-    .composite([
-      {
-        input: icon,
-        left: Math.round(W - iconSize - 96),
-        top: Math.round((H - iconSize) / 2),
-      },
-    ])
-    .png({ quality: 95, compressionLevel: 8 })
+async function buildOg() {
+  // Rasterize the designed OG SVG (public/og-image.svg) — social platforms need PNG.
+  const ogSvgPath = path.join(ROOT, "public", "og-image.svg");
+  if (!fs.existsSync(ogSvgPath)) {
+    throw new Error(`OG SVG missing: ${ogSvgPath}`);
+  }
+  const svg = await fs.promises.readFile(ogSvgPath);
+  return sharp(svg, { density: 144 })
+    .resize(1200, 630, { fit: "fill" })
+    .png({ compressionLevel: 8, effort: 10 })
     .toFile(OUT.og);
 }
 
@@ -261,8 +225,8 @@ async function main() {
   await fs.promises.writeFile(OUT.logoSvg, svgWrapper(b64, 64));
   console.log("wrote favicon.svg / icon.svg / logo.svg");
 
-  await buildOg(raw);
-  console.log("wrote og-image.png");
+  await buildOg();
+  console.log("wrote og-image.png from og-image.svg");
 
   // Desktop assets
   if (fs.existsSync(path.dirname(OUT.desktopPng))) {

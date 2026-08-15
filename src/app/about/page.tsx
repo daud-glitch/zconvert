@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
+import { OG_IMAGE_PATH } from "@/lib/seo";
 
 const SITE = "https://www.convertek.tech";
 const CONTACT = "support@convertek.tech";
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
       "Learn how Convertek converts files online: mixed batches, per-file formats, fair limits, and no watermarks.",
     url: `${SITE}/about`,
     type: "website",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: OG_IMAGE_PATH, width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",

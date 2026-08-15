@@ -1,34 +1,44 @@
 /**
- * Mailgun send helper (Heroku Mailgun addon).
- * Env: MAILGUN_API_KEY, MAILGUN_DOMAIN, optional MAILGUN_FROM / MAIL_FROM
+ * Outbound mail via Titan Email SMTP.
+ * Env: SMTP_USER, SMTP_PASS (mailbox login). Optional SMTP_HOST / SMTP_PORT.
  */
+import nodemailer from "nodemailer";
 import { resolveSiteUrl } from "@/lib/seo";
 
-/** Verified sender for password reset, contact relay, and other system mail. */
-export const DEFAULT_MAIL_FROM = "Convertek <noreply@convertek.tech>";
+/** Public website mailbox — used as SMTP login + From for system mail. */
+export const DEFAULT_CONTACT_EMAIL = "contact@convertek.tech";
 
-/** Inbound address for contact form and user support messages. */
+/** Inbox for contact-form messages and user support. */
 export const DEFAULT_SUPPORT_EMAIL = "support@convertek.tech";
 
-function resolveMailgunDomain(): string | undefined {
+export const DEFAULT_MAIL_FROM = `Convertek <${DEFAULT_CONTACT_EMAIL}>`;
+
+function smtpUser(): string | undefined {
   return (
-    process.env.MAILGUN_SENDING_DOMAIN?.trim() ||
-    process.env.MAILGUN_DOMAIN?.trim() ||
-    process.env.MAILGUN_DOMAIN_NAME?.trim()
+    process.env.SMTP_USER?.trim() ||
+    process.env.SMTP_USERNAME?.trim() ||
+    process.env.MAIL_USER?.trim()
   );
 }
 
-function resolveMailgunEndpoint(domain: string): string {
-  const custom = process.env.MAILGUN_API_BASE?.trim();
-  if (custom) return custom;
+function smtpPass(): string | undefined {
+  return (
+    process.env.SMTP_PASS?.trim() ||
+    process.env.SMTP_PASSWORD?.trim() ||
+    process.env.MAIL_PASS?.trim()
+  );
+}
 
-  const host =
-    process.env.MAILGUN_API_HOST?.trim() ||
-    (process.env.MAILGUN_REGION?.trim().toLowerCase() === "eu"
-      ? "api.eu.mailgun.net"
-      : "api.mailgun.net");
+function smtpPort(): number {
+  const raw = Number(process.env.SMTP_PORT?.trim() || "465");
+  return Number.isFinite(raw) && raw > 0 ? raw : 465;
+}
 
-  return `https://${host}/v3/${domain}/messages`;
+function smtpSecure(port: number): boolean {
+  const flag = process.env.SMTP_SECURE?.trim().toLowerCase();
+  if (flag === "1" || flag === "true") return true;
+  if (flag === "0" || flag === "false") return false;
+  return port === 465;
 }
 
 export async function sendMail(input: {
@@ -39,46 +49,37 @@ export async function sendMail(input: {
   replyTo?: string;
   from?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const apiKey =
-    process.env.MAILGUN_API_KEY?.trim() ||
-    process.env.MAILGUN_APIKEY?.trim();
-  const domain = resolveMailgunDomain();
+  const user = smtpUser();
+  const pass = smtpPass();
+  const host = process.env.SMTP_HOST?.trim() || "smtp.titan.email";
+  const port = smtpPort();
   const from =
     input.from?.trim() ||
-    process.env.MAILGUN_FROM?.trim() ||
     process.env.MAIL_FROM?.trim() ||
-    DEFAULT_MAIL_FROM;
+    process.env.SMTP_FROM?.trim() ||
+    (user ? `Convertek <${user}>` : DEFAULT_MAIL_FROM);
 
-  if (!apiKey || !domain) {
-    console.error("[mail] MAILGUN_API_KEY / MAILGUN_DOMAIN not configured");
+  if (!user || !pass) {
+    console.error("[mail] SMTP_USER / SMTP_PASS not configured");
     return { ok: false, error: "Email service is not configured" };
   }
 
-  const body = new URLSearchParams();
-  body.set("from", from);
-  body.set("to", input.to);
-  body.set("subject", input.subject);
-  body.set("text", input.text);
-  if (input.html) body.set("html", input.html);
-  if (input.replyTo) body.set("h:Reply-To", input.replyTo);
-
-  const endpoint = resolveMailgunEndpoint(domain);
-
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization:
-          "Basic " + Buffer.from(`api:${apiKey}`).toString("base64"),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: smtpSecure(port),
+      auth: { user, pass },
     });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error("[mail] Mailgun error", res.status, detail.slice(0, 300));
-      return { ok: false, error: "Failed to send email" };
-    }
+
+    await transporter.sendMail({
+      from,
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      replyTo: input.replyTo,
+    });
     return { ok: true };
   } catch (err) {
     console.error("[mail] send failed", err);

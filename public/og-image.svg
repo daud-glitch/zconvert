@@ -1,82 +1,249 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none" role="img" aria-label="Convertek — Universal File Converter">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none" role="img" aria-label="Convertek — Any file. Any format.">
   <defs>
-    <linearGradient id="og-bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#f0fdf4"/>
-      <stop offset="0.42" stop-color="#ecfdf5"/>
-      <stop offset="1" stop-color="#d1fae5"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#021a14"/>
+      <stop offset="0.38" stop-color="#043528"/>
+      <stop offset="0.72" stop-color="#065f46"/>
+      <stop offset="1" stop-color="#022c22"/>
     </linearGradient>
-    <linearGradient id="og-mark" x1="80" y1="150" x2="300" y2="420" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#34d399"/>
-      <stop offset="0.5" stop-color="#10b981"/>
-      <stop offset="1" stop-color="#047857"/>
+    <radialGradient id="orbR" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 220) rotate(12) scale(420 340)">
+      <stop stop-color="#34d399" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#10b981" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="orbL" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(180 520) scale(380 260)">
+      <stop stop-color="#059669" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#059669" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="orbTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(520 40) scale(280 180)">
+      <stop stop-color="#6ee7b7" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#6ee7b7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tileFace" x1="760" y1="120" x2="1100" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6ee7b7"/>
+      <stop offset="0.28" stop-color="#34d399"/>
+      <stop offset="0.58" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#065f46"/>
     </linearGradient>
-    <linearGradient id="og-shine" x1="110" y1="160" x2="280" y2="400" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#fff" stop-opacity="0.35"/>
+    <linearGradient id="tileSide" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#047857"/>
+      <stop offset="1" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="tileBottom" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop stop-color="#059669"/>
+      <stop offset="1" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="780" y1="140" x2="1060" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.35" stop-color="#fff" stop-opacity="0.12"/>
       <stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="og-card" x1="840" y1="120" x2="1120" y2="520" gradientUnits="userSpaceOnUse">
+    <linearGradient id="arrowMetal" x1="820" y1="230" x2="1040" y2="380" gradientUnits="userSpaceOnUse">
       <stop stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#f0fdf4"/>
+      <stop offset="0.4" stop-color="#ecfdf5"/>
+      <stop offset="0.75" stop-color="#a7f3d0"/>
+      <stop offset="1" stop-color="#d1fae5"/>
     </linearGradient>
-    <filter id="og-shadow" x="-10%" y="-10%" width="130%" height="140%">
-      <feDropShadow dx="0" dy="18" stdDeviation="28" flood-color="#064e3b" flood-opacity="0.12"/>
+    <linearGradient id="chipGlass" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="barGlow" x1="72" y1="0" x2="620" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d399" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#34d399" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="28" stdDeviation="24" flood-color="#01140f" flood-opacity="0.55"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#064e3b" flood-opacity="0.4"/>
     </filter>
+    <filter id="chipShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#01140f" flood-opacity="0.45"/>
+    </filter>
+    <filter id="textGlow" x="-10%" y="-40%" width="120%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#10b981" flood-opacity="0.25"/>
+    </filter>
+    <clipPath id="tileClip">
+      <rect x="778" y="145" width="300" height="300" rx="72"/>
+    </clipPath>
+    <pattern id="dotGrid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#6ee7b7" fill-opacity="0.12"/>
+    </pattern>
   </defs>
 
-  <rect width="1200" height="630" fill="url(#og-bg)"/>
+  <!-- Backdrop -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#orbR)"/>
+  <rect width="1200" height="630" fill="url(#orbL)"/>
+  <rect width="1200" height="630" fill="url(#orbTop)"/>
+  <rect width="1200" height="630" fill="url(#dotGrid)"/>
 
-  <!-- Atmosphere: soft orbs -->
-  <circle cx="1080" cy="80" r="160" fill="#6ee7b7" opacity="0.22"/>
-  <circle cx="100" cy="560" r="140" fill="#34d399" opacity="0.12"/>
-  <circle cx="700" cy="40" r="90" fill="#a7f3d0" opacity="0.35"/>
+  <!-- Soft diagonal light streak -->
+  <path d="M-40 420 L520 -40 L620 20 L60 480 Z" fill="#ecfdf5" fill-opacity="0.03"/>
+  <path d="M700 700 L1280 180 L1320 240 L760 740 Z" fill="#34d399" fill-opacity="0.04"/>
 
-  <!-- Soft dots grid (tech lab) -->
-  <g fill="#059669" opacity="0.1">
-    <circle cx="920" cy="160" r="3"/><circle cx="960" cy="200" r="2"/><circle cx="1000" cy="170" r="3"/>
-    <circle cx="1040" cy="230" r="2"/><circle cx="980" cy="280" r="3"/><circle cx="1100" cy="260" r="2"/>
-    <circle cx="880" cy="320" r="2"/><circle cx="1060" cy="340" r="3"/>
+  <!-- Left brand copy -->
+  <g filter="url(#textGlow)">
+    <text x="72" y="168" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="4" fill="#6ee7b7">FREE ONLINE FILE CONVERTER</text>
   </g>
+  <text x="72" y="268" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="86" font-weight="800" letter-spacing="-2.5" fill="#ecfdf5">Convertek</text>
+  <text x="72" y="328" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="34" font-weight="650" fill="#6ee7b7">Any file. Any format.</text>
+  <text x="72" y="378" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="24" font-weight="500" fill="#a7f3d0">Drop it. Convert it. Download it.</text>
 
-  <!-- Left brand mark -->
-  <g filter="url(#og-shadow)">
-    <rect x="88" y="190" width="200" height="200" rx="48" fill="url(#og-mark)"/>
-    <rect x="88" y="190" width="200" height="200" rx="48" fill="url(#og-shine)"/>
-    <circle cx="188" cy="290" r="56" stroke="#ecfdf5" stroke-opacity="0.28" stroke-width="3.5" fill="none"/>
-    <g stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <path d="M140 272h88"/>
-      <path d="M199 248 228 272l-29 24"/>
-      <path d="M236 308H148"/>
-      <path d="M177 332 148 308l29-24"/>
+  <!-- Accent underline -->
+  <rect x="72" y="400" width="220" height="3" rx="2" fill="url(#barGlow)"/>
+
+  <!-- Feature pills -->
+  <g font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="15" font-weight="650">
+    <g filter="url(#chipShadow)">
+      <rect x="72" y="430" width="148" height="38" rx="19" fill="#022c22" fill-opacity="0.65" stroke="#34d399" stroke-opacity="0.35"/>
+      <circle cx="94" cy="449" r="5" fill="#34d399"/>
+      <text x="110" y="455" fill="#ecfdf5">No watermarks</text>
     </g>
-    <circle cx="138" cy="272" r="7" fill="#ecfdf5"/>
-    <circle cx="238" cy="308" r="7" fill="#ecfdf5"/>
+    <g filter="url(#chipShadow)">
+      <rect x="236" y="430" width="142" height="38" rx="19" fill="#022c22" fill-opacity="0.65" stroke="#34d399" stroke-opacity="0.35"/>
+      <circle cx="258" cy="449" r="5" fill="#6ee7b7"/>
+      <text x="274" y="455" fill="#ecfdf5">Mixed batches</text>
+    </g>
+    <g filter="url(#chipShadow)">
+      <rect x="394" y="430" width="128" height="38" rx="19" fill="#022c22" fill-opacity="0.65" stroke="#34d399" stroke-opacity="0.35"/>
+      <circle cx="416" cy="449" r="5" fill="#a7f3d0"/>
+      <text x="432" y="455" fill="#ecfdf5">Fair limits</text>
+    </g>
   </g>
 
-  <!-- Wordmark + copy -->
-  <text x="330" y="255" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="72" font-weight="800" fill="#064e3b" letter-spacing="-1.5">Convertek</text>
-  <text x="330" y="320" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="32" font-weight="600" fill="#047857">Universal File Converter</text>
-  <text x="330" y="375" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="24" font-weight="500" fill="#065f46">Convert any file · Fair limits · No watermarks</text>
-  <text x="330" y="430" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#10b981">www.convertek.tech</text>
-
-  <!-- Right feature card (product vibe) -->
-  <g filter="url(#og-shadow)">
-    <rect x="860" y="150" width="260" height="320" rx="28" fill="url(#og-card)" stroke="#a7f3d0" stroke-width="2"/>
-    <text x="990" y="210" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#047857">BATCH READY</text>
-    <!-- mini format chips -->
-    <rect x="900" y="240" width="72" height="36" rx="10" fill="#d1fae5"/>
-    <text x="936" y="264" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">PNG</text>
-    <rect x="988" y="240" width="72" height="36" rx="10" fill="#d1fae5"/>
-    <text x="1024" y="264" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">PDF</text>
-    <rect x="900" y="294" width="72" height="36" rx="10" fill="#d1fae5"/>
-    <text x="936" y="318" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">MP4</text>
-    <rect x="988" y="294" width="72" height="36" rx="10" fill="#d1fae5"/>
-    <text x="1024" y="318" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">DOCX</text>
-    <!-- arrow pill -->
-    <rect x="930" y="360" width="120" height="44" rx="22" fill="#10b981"/>
-    <text x="990" y="388" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#fff">Convert →</text>
-    <text x="990" y="430" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#6b7280">Mixed types · Per file</text>
+  <!-- Format strip -->
+  <g font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="13" font-weight="700">
+    <!-- PNG -->
+    <g filter="url(#chipShadow)">
+      <rect x="72" y="500" width="64" height="34" rx="10" fill="#0f766e"/>
+      <rect x="72" y="500" width="64" height="34" rx="10" fill="url(#chipGlass)"/>
+      <text x="104" y="522" text-anchor="middle" fill="#ecfdf5">PNG</text>
+    </g>
+    <!-- PDF -->
+    <g filter="url(#chipShadow)">
+      <rect x="146" y="500" width="64" height="34" rx="10" fill="#b91c1c"/>
+      <rect x="146" y="500" width="64" height="34" rx="10" fill="url(#chipGlass)"/>
+      <text x="178" y="522" text-anchor="middle" fill="#fff">PDF</text>
+    </g>
+    <!-- MP4 -->
+    <g filter="url(#chipShadow)">
+      <rect x="220" y="500" width="64" height="34" rx="10" fill="#1d4ed8"/>
+      <rect x="220" y="500" width="64" height="34" rx="10" fill="url(#chipGlass)"/>
+      <text x="252" y="522" text-anchor="middle" fill="#fff">MP4</text>
+    </g>
+    <!-- DOCX -->
+    <g filter="url(#chipShadow)">
+      <rect x="294" y="500" width="72" height="34" rx="10" fill="#1e40af"/>
+      <rect x="294" y="500" width="72" height="34" rx="10" fill="url(#chipGlass)"/>
+      <text x="330" y="522" text-anchor="middle" fill="#fff">DOCX</text>
+    </g>
+    <!-- MP3 -->
+    <g filter="url(#chipShadow)">
+      <rect x="376" y="500" width="64" height="34" rx="10" fill="#7c3aed"/>
+      <rect x="376" y="500" width="64" height="34" rx="10" fill="url(#chipGlass)"/>
+      <text x="408" y="522" text-anchor="middle" fill="#fff">MP3</text>
+    </g>
+    <!-- ZIP -->
+    <g filter="url(#chipShadow)">
+      <rect x="450" y="500" width="64" height="34" rx="10" fill="#a16207"/>
+      <rect x="450" y="500" width="64" height="34" rx="10" fill="url(#chipGlass)"/>
+      <text x="482" y="522" text-anchor="middle" fill="#fff">ZIP</text>
+    </g>
+    <!-- arrow + more -->
+    <text x="532" y="522" fill="#86efac" font-weight="600" font-size="14">+ 40 formats</text>
   </g>
 
-  <!-- Footer strip -->
-  <text x="88" y="560" font-family="ui-sans-serif, system-ui, Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="500" fill="#6b7280">Images · Video · Documents · Audio · Archives · Data</text>
+  <!-- Domain -->
+  <text x="72" y="582" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#86efac">www.convertek.tech</text>
+
+  <!-- Right: 3D glass convert mark -->
+  <g filter="url(#softShadow)">
+    <!-- floor glow -->
+    <ellipse cx="940" cy="500" rx="170" ry="28" fill="#34d399" fill-opacity="0.28"/>
+    <!-- side extrude -->
+    <path d="M1054 168 L1110 200 L1110 448 L1054 416 Z" fill="url(#tileSide)"/>
+    <!-- bottom extrude -->
+    <path d="M802 445 L858 486 L1110 448 L1054 416 Z" fill="url(#tileBottom)"/>
+    <!-- front face -->
+    <rect x="778" y="145" width="300" height="300" rx="72" fill="url(#tileFace)"/>
+  </g>
+
+  <!-- rim + gloss -->
+  <rect x="778" y="145" width="300" height="300" rx="72" stroke="#ecfdf5" stroke-opacity="0.35" stroke-width="3" fill="none"/>
+  <rect x="786" y="153" width="284" height="284" rx="66" stroke="#064e3b" stroke-opacity="0.2" stroke-width="2" fill="none"/>
+  <g clip-path="url(#tileClip)">
+    <rect x="778" y="145" width="300" height="300" fill="url(#gloss)"/>
+    <path d="M778 165 Q860 250 930 230 T1078 310 L1078 145 L778 145 Z" fill="#fff" fill-opacity="0.1"/>
+  </g>
+
+  <!-- orbit rings -->
+  <ellipse cx="928" cy="295" rx="98" ry="92" stroke="#ecfdf5" stroke-opacity="0.2" stroke-width="2.5" fill="none"/>
+  <ellipse cx="930" cy="298" rx="98" ry="92" stroke="#064e3b" stroke-opacity="0.18" stroke-width="2" fill="none"/>
+
+  <!-- dual convert arrows (glass) -->
+  <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <g stroke="#064e3b" stroke-opacity="0.28" stroke-width="20" transform="translate(0 3)">
+      <path d="M846 268 H988"/>
+      <path d="M954 230 L996 268 L954 306"/>
+      <path d="M1010 324 H868"/>
+      <path d="M902 362 L860 324 L902 286"/>
+    </g>
+    <g stroke="url(#arrowMetal)" stroke-width="16">
+      <path d="M846 268 H988"/>
+      <path d="M954 230 L996 268 L954 306"/>
+      <path d="M1010 324 H868"/>
+      <path d="M902 362 L860 324 L902 286"/>
+    </g>
+    <g stroke="#ffffff" stroke-opacity="0.55" stroke-width="4">
+      <path d="M850 262 H984"/>
+      <path d="M958 236 L992 266"/>
+      <path d="M1006 318 H872"/>
+      <path d="M898 354 L864 324"/>
+    </g>
+  </g>
+  <circle cx="842" cy="268" r="11" fill="#ecfdf5"/>
+  <circle cx="842" cy="264" r="4.5" fill="#fff" fill-opacity="0.75"/>
+  <circle cx="1014" cy="324" r="11" fill="#ecfdf5"/>
+  <circle cx="1014" cy="320" r="4.5" fill="#fff" fill-opacity="0.75"/>
+
+  <!-- Orbiting format badges around the mark -->
+  <g font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="11" font-weight="800" filter="url(#chipShadow)">
+    <g transform="translate(720 200)">
+      <rect width="52" height="28" rx="8" fill="#dc2626"/>
+      <text x="26" y="19" text-anchor="middle" fill="#fff">PDF</text>
+    </g>
+    <g transform="translate(1088 250)">
+      <rect width="52" height="28" rx="8" fill="#2563eb"/>
+      <text x="26" y="19" text-anchor="middle" fill="#fff">JPG</text>
+    </g>
+    <g transform="translate(1080 380)">
+      <rect width="56" height="28" rx="8" fill="#7c3aed"/>
+      <text x="28" y="19" text-anchor="middle" fill="#fff">MP3</text>
+    </g>
+    <g transform="translate(730 390)">
+      <rect width="56" height="28" rx="8" fill="#ca8a04"/>
+      <text x="28" y="19" text-anchor="middle" fill="#fff">ZIP</text>
+    </g>
+    <g transform="translate(900 108)">
+      <rect width="56" height="28" rx="8" fill="#0891b2"/>
+      <text x="28" y="19" text-anchor="middle" fill="#fff">MP4</text>
+    </g>
+  </g>
+
+  <!-- Mini conversion flow (source → convert → out) -->
+  <g opacity="0.9">
+    <rect x="780" y="470" width="300" height="52" rx="16" fill="#022c22" fill-opacity="0.55" stroke="#34d399" stroke-opacity="0.25"/>
+    <circle cx="812" cy="496" r="10" fill="#34d399" fill-opacity="0.25" stroke="#6ee7b7" stroke-width="1.5"/>
+    <path d="M808 496 h8 M812 492 v8" stroke="#ecfdf5" stroke-width="1.6" stroke-linecap="round"/>
+    <text x="832" y="501" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#a7f3d0">Drop</text>
+    <path d="M880 496 H918" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 4"/>
+    <path d="M912 490 L920 496 L912 502" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="948" cy="496" r="10" fill="#10b981" fill-opacity="0.35" stroke="#6ee7b7" stroke-width="1.5"/>
+    <path d="M943 496 h10 M948 491 v10" stroke="#ecfdf5" stroke-width="1.5" stroke-linecap="round" transform="rotate(45 948 496)"/>
+    <text x="968" y="501" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#a7f3d0">Convert</text>
+    <path d="M1030 496 H1058" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 4"/>
+    <path d="M1052 490 L1060 496 L1052 502" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="1070" y="501" font-family="Segoe UI, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#ecfdf5">Done</text>
+  </g>
 </svg>
