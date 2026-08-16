@@ -330,8 +330,8 @@ export const navItems: NavItem[] = [
     icon: ArrowRightLeft,
   },
   {
-    id: "conversions",
-    label: "Conversions",
+    id: "formats",
+    label: "Formats",
     icon: LayoutGrid,
     href: "/conversions",
   },
