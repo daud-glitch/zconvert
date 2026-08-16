@@ -1,6 +1,6 @@
-const { getAllConversionPairSlugs } = require('../src/lib/conversion-pairs.ts');
-const { formats } = require('../src/lib/formats.ts');
-const { SITE_URL } = require('../src/lib/seo.ts');
+const { getAllConversionPairSlugs } = require('../src/lib/conversion-pairs');
+const { formats } = require('../src/lib/formats');
+const { SITE_URL } = require('../src/lib/seo');
 const https = require('https');
 
 const INDEXNOW_KEY = process.env.INDEXNOW_KEY || ""; // Environment variable for security
