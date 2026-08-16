@@ -4,6 +4,19 @@ import type { Metadata } from "next";
 import { getOptionalDb } from "@/lib/db";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 import { ArrowLeft } from "lucide-react";
+import {
+  parseConversionSlug,
+  getConversionPairSlugs,
+} from "@/lib/conversion-pairs";
+import {
+  conversionPairTitle,
+  conversionPairDescription,
+  absoluteUrl,
+  OG_IMAGE_PATH,
+  SITE_NAME,
+} from "@/lib/seo";
+import ConversionPairClient from "@/components/pages/ConversionPairClient";
+import ConversionPairJsonLd from "@/components/seo/ConversionPairJsonLd";
 
 const RESERVED = new Set([
   "api",
@@ -43,6 +56,71 @@ async function loadPage(slug: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+
+  // Conversion pair metadata
+  const pair = parseConversionSlug(slug);
+  if (pair) {
+    const title = conversionPairTitle(pair.from.ext, pair.to.ext);
+    const description = conversionPairDescription(
+      pair.from.ext,
+      pair.from.name,
+      pair.to.ext,
+      pair.to.name,
+    );
+    const fromUpper = pair.from.ext.toUpperCase();
+    const toUpper = pair.to.ext.toUpperCase();
+    const path = `/${slug}`;
+    return {
+      title,
+      description,
+      keywords: [
+        `${fromUpper} to ${toUpper}`,
+        `convert ${fromUpper} to ${toUpper}`,
+        `${fromUpper} to ${toUpper} converter`,
+        `free ${fromUpper} to ${toUpper} converter`,
+        `online ${fromUpper} to ${toUpper} converter`,
+        `convert ${pair.from.ext} to ${pair.to.ext} free`,
+        `${pair.from.name} to ${pair.to.name} converter`,
+        "file converter",
+        "free online converter",
+        SITE_NAME,
+      ],
+      alternates: { canonical: path },
+      openGraph: {
+        title,
+        description,
+        url: absoluteUrl(path),
+        type: "website",
+        siteName: SITE_NAME,
+        images: [
+          {
+            url: OG_IMAGE_PATH,
+            width: 1200,
+            height: 630,
+            alt: `Convert ${fromUpper} to ${toUpper} online free with ${SITE_NAME}`,
+          },
+        ],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: [OG_IMAGE_PATH],
+      },
+      robots: {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          "max-image-preview": "large",
+          "max-snippet": -1,
+        },
+      },
+    };
+  }
+
+  // CMS page metadata
   const page = await loadPage(slug);
   if (!page) {
     return {
@@ -68,6 +146,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CmsPage({ params }: Props) {
   const { slug } = await params;
+
+  // Conversion pair route
+  const pair = parseConversionSlug(slug);
+  if (pair) {
+    return (
+      <>
+        <ConversionPairJsonLd
+          fromExt={pair.from.ext}
+          fromName={pair.from.name}
+          toExt={pair.to.ext}
+          toName={pair.to.name}
+          slug={slug}
+        />
+        <ConversionPairClient pair={pair} />
+      </>
+    );
+  }
+
+  // CMS page route
   const page = await loadPage(slug);
   if (!page) notFound();
 
@@ -105,4 +202,8 @@ export default async function CmsPage({ params }: Props) {
       </div>
     </div>
   );
+}
+
+export function generateStaticParams() {
+  return getConversionPairSlugs().map((slug) => ({ slug }));
 }

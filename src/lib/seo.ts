@@ -168,3 +168,16 @@ export function formatPageDescription(
   const short = description.replace(/\s+/g, " ").trim().slice(0, 110);
   return `Free online ${upper} (${name}) converter. ${short}${short.length >= 110 ? "…" : ""} Convert ${upper} to ${top}${targets.length > 6 ? " & more" : ""}. No watermarks.`;
 }
+
+export function conversionPairTitle(fromExt: string, toExt: string): string {
+  return `Convert ${fromExt.toUpperCase()} to ${toExt.toUpperCase()} Online Free — ${SITE_NAME}`;
+}
+
+export function conversionPairDescription(
+  fromExt: string,
+  fromName: string,
+  toExt: string,
+  toName: string,
+): string {
+  return `Free online ${fromExt.toUpperCase()} to ${toExt.toUpperCase()} converter. Convert ${fromName} files to ${toName} instantly — no watermarks, no sign-up. Fast, private, browser-based.`;
+}

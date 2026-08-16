@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { formats } from "@/lib/formats";
 import { CANONICAL_SITE_URL, resolveSiteUrl } from "@/lib/seo";
+import { getConversionPairSlugs } from "@/lib/conversion-pairs";
 
 /**
  * XML sitemap for Google Search Console & Bing Webmaster Tools.
@@ -65,5 +66,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.85,
   }));
 
-  return [...staticRoutes, ...formatRoutes];
+  // Conversion pair landing pages: /{from}-to-{to}
+  const pairRoutes: MetadataRoute.Sitemap = getConversionPairSlugs().map((slug) => ({
+    url: `${base}/${slug}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.9,
+  }));
+
+  return [...staticRoutes, ...pairRoutes, ...formatRoutes];
 }
