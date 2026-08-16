@@ -212,29 +212,58 @@ export default function ConversionsClient() {
         </div>
 
         {/* Heading */}
-        <div className="mb-8">
+        <div className="mb-10">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3">
-            Supported{" "}
+            All{" "}
             <span className="text-emerald-600 dark:text-emerald-400">
-              File Formats
+              Conversions
             </span>
           </h1>
-          <p className="text-lg text-muted-foreground">
-            Free online conversion — {formats.length} input formats &middot;{" "}
-            {totalConversions}+ conversion pairs &middot; {categories.length}{" "}
-            categories
+          <p className="text-lg text-muted-foreground max-w-3xl">
+            Free online conversion hub. Convert between {formats.length} input formats and explore {totalConversions}+ conversion pairs across {categories.length} categories. No watermarks.
           </p>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-lg mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search formats by name, extension or description…"
-            className="pl-10"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        {/* Popular Conversion Pairs (Moved to top for high intent) */}
+        <section className="mb-12">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-bold tracking-tight">Popular Conversions</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {TOP_PAIRS.slice(0, 40).map((pair) => (
+              <Link
+                key={`${pair.from}-${pair.to}`}
+                href={`/${pair.from}-to-${pair.to}`}
+                className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-3 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors group"
+              >
+                <span className="font-mono text-xs uppercase text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                  {pair.from}
+                </span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="font-mono text-xs uppercase text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                  {pair.to}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <Separator className="mb-12" />
+
+        {/* Formats Registry Header */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold tracking-tight">Format Directory</h2>
+          
+          {/* Search */}
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search formats..."
+              className="pl-10"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Category filter */}
@@ -394,33 +423,6 @@ export default function ConversionsClient() {
           );
         })}
       </main>
-
-      {/* Popular Conversion Pairs */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold tracking-tight">Popular Conversion Pairs</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Most searched format conversions — click to convert directly.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {TOP_PAIRS.map((pair) => (
-            <Link
-              key={`${pair.from}-${pair.to}`}
-              href={`/${pair.from}-to-${pair.to}`}
-              className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-3 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors group"
-            >
-              <span className="font-mono text-xs uppercase text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                {pair.from}
-              </span>
-              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-              <span className="font-mono text-xs uppercase text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                {pair.to}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
 
       {/* Footer */}
       <footer className="border-t py-8 mt-4">
