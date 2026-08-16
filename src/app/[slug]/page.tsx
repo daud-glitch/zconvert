@@ -6,7 +6,7 @@ import { sanitizeHtml } from "@/lib/sanitize-html";
 import { ArrowLeft } from "lucide-react";
 import {
   parseConversionSlug,
-  getConversionPairSlugs,
+  getAllConversionPairSlugs,
 } from "@/lib/conversion-pairs";
 import {
   conversionPairTitle,
@@ -205,5 +205,5 @@ export default async function CmsPage({ params }: Props) {
 }
 
 export function generateStaticParams() {
-  return getConversionPairSlugs().map((slug) => ({ slug }));
+  return getAllConversionPairSlugs().map((slug) => ({ slug }));
 }
