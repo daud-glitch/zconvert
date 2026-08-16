@@ -172,6 +172,7 @@ export const metadata: Metadata = {
   other: {
     "msapplication-TileColor": "#10b981",
     "msapplication-TileImage": `/icon-192.png?v=${BRAND_ASSET_VERSION}`,
+    "google-adsense-account": "ca-pub-1501827698606542",
   },
 };
 
@@ -200,6 +201,13 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
           }}
+        />
+        <Script
+          id="google-adsense"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1501827698606542"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
         />
         <JsonLd />
         <AppProvider>
