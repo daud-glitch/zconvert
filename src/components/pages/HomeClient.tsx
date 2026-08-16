@@ -229,7 +229,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
       }
       if (e.key === "d" && !e.ctrlKey && !e.metaKey) toggleTheme();
       if (e.key === "1") setCurrentView("converter");
-      if (e.key === "2") setCurrentView("formats");
+      if (e.key === "2") window.location.href = "/conversions";
       if (e.key === "3") setCurrentView("history");
       if (e.key === "4") setCurrentView("bookmarks");
     };
