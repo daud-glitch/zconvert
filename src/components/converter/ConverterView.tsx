@@ -285,9 +285,19 @@ export function ConverterView() {
   useEffect(() => {
     if (!formatsData?.grouped) return;
     const map: Record<string, string[]> = {};
+    const enabledExts = new Set<string>();
+    
+    // First collect all enabled extensions from the source formats
     for (const group of Object.values(formatsData.grouped)) {
       for (const fmt of group.formats) {
-        map[fmt.ext] = fmt.targetFormats;
+        enabledExts.add(fmt.ext);
+      }
+    }
+
+    for (const group of Object.values(formatsData.grouped)) {
+      for (const fmt of group.formats) {
+        // Ensure target formats are also in the enabled extensions set
+        map[fmt.ext] = (fmt.targetFormats || []).filter(t => enabledExts.has(t));
       }
     }
     setTargetFormatsMap(map);

@@ -74,6 +74,12 @@ export async function GET(request: NextRequest) {
           },
           orderBy: { order: "asc" },
         });
+
+        const enabledExts = new Set<string>();
+        dbCategories.forEach(cat => {
+          cat.formats.forEach(f => enabledExts.add(f.ext));
+        });
+
         version = await getFormatsCatalogVersion(prisma);
       } catch (err) {
         console.warn(
@@ -102,9 +108,20 @@ export async function GET(request: NextRequest) {
     const categoryCounts: Record<string, number> = {};
 
     if (dbCategories.length > 0) {
+      const prisma = getOptionalDb();
+      // If we have prisma, we can trust enabledExts if we populated it.
+      // But we need to make sure enabledExts is available in the loop.
+      const enabledExts = new Set<string>();
+      dbCategories.forEach(cat => {
+        cat.formats.forEach(f => enabledExts.add(f.ext));
+      });
+
       dbCategories.forEach((cat) => {
         const mapped = cat.formats.map((f) => {
-          const targets = parseStoredJsonArray(f.targetFormats);
+          let targets = parseStoredJsonArray(f.targetFormats);
+          // Filter targets to only include enabled formats
+          targets = targets.filter(t => enabledExts.has(t));
+          
           totalConversions += targets.length;
           return {
             ext: f.ext,
