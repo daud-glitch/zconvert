@@ -280,7 +280,6 @@ async function getFfmpegCommand(): Promise<Ffmpeg.FfmpegCommand> {
   const ffmpegMod = await import("fluent-ffmpeg");
   const ffmpeg = ffmpegMod.default;
   const bin = resolveFfmpegBinaryPath();
-  console.log("[ffmpeg] using binary:", bin);
   ffmpeg.setFfmpegPath(bin);
   return ffmpeg as unknown as Ffmpeg.FfmpegCommand;
 }
@@ -426,7 +425,6 @@ async function convertWithFfmpegFiles(
 
       command
         .output(outPath)
-        .on("start", (cmd) => console.log("[ffmpeg]", cmd))
         .on("error", (err: Error & { message?: string }) => {
           finish(() => {
             const raw = err?.message || String(err);
@@ -3146,7 +3144,6 @@ async function convertAudio(
   let lastError: Error | null = null;
   for (const strategy of strategies) {
     try {
-      console.log(`[ffmpeg] audio try ${strategy.label} (${src}→${dest})`);
       return await convertWithFfmpegFiles(
         input,
         src,
@@ -3183,9 +3180,6 @@ async function convertVideo(
     let lastError: Error | null = null;
     for (const strategy of strategies) {
       try {
-        console.log(
-          `[ffmpeg] video→audio try ${strategy.label} (${src}→${dest})`,
-        );
         return await convertWithFfmpegFiles(
           input,
           src,

@@ -31,9 +31,6 @@ async function main() {
 
   const limits = convertSlotLimits();
   const maxInflight = limits.maxLight + limits.maxVideo;
-  console.log(
-    `[worker] Convert worker started (parallel ≤${maxInflight}: light=${limits.maxLight} video=${limits.maxVideo})`,
-  );
 
   let idleTicks = 0;
   const inflight = new Set<Promise<void>>();
@@ -41,9 +38,6 @@ async function main() {
   const processJob = async (
     job: NonNullable<Awaited<ReturnType<typeof claimNextConvertJob>>>,
   ) => {
-    console.log(
-      `[worker] claimed ${job.id} ${job.sourceExt}→${job.targetExt} video=${job.isVideo} size=${job.inputData.length}`,
-    );
     const start = Date.now();
     try {
       const outBuf = await withConvertSlot(
@@ -89,9 +83,6 @@ async function main() {
       });
 
       await completeConvertJob(job.id, outBuf, conversionId);
-      console.log(
-        `[worker] done ${job.id} in ${Date.now() - start}ms size=${outBuf.length}`,
-      );
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Worker conversion failed";

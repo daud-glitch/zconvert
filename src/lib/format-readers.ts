@@ -35,11 +35,9 @@ export async function readParquetRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
   const { parquetReadObjects } = await import("hyparquet");
-  const file = input.buffer.slice(
-    input.byteOffset,
-    input.byteOffset + input.byteLength,
-  );
-  const rows = await parquetReadObjects({ file: file as ArrayBuffer });
+  const rows = await parquetReadObjects({
+    file: new Uint8Array(input).buffer as ArrayBuffer,
+  });
   return rows as Record<string, unknown>[];
 }
 
@@ -139,9 +137,7 @@ export async function readFeatherRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
   const arrow = await import("apache-arrow");
-  const table = arrow.tableFromIPC(
-    new Uint8Array(input.buffer, input.byteOffset, input.byteLength),
-  );
+  const table = arrow.tableFromIPC(new Uint8Array(input));
   const records: Record<string, unknown>[] = [];
   for (let i = 0; i < table.numRows; i++) {
     const rec: Record<string, unknown> = {};
@@ -164,12 +160,27 @@ export async function readDtaRecords(
   if (typeof DTA.set_utils === "function") {
     DTA.set_utils(XLSX.utils);
   }
-  const wb = DTA.parse(
-    new Uint8Array(input.buffer, input.byteOffset, input.byteLength),
-  ) as { Sheets: Record<string, XLSX.WorkSheet>; SheetNames: string[] };
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  if (!sheet) return [];
-  return XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
+
+  // Create a clean, non-offset copy of the underlying ArrayBuffer
+  const ab = new ArrayBuffer(input.length);
+  const view = new Uint8Array(ab);
+  for (let i = 0; i < input.length; ++i) {
+    view[i] = input[i];
+  }
+
+  try {
+    const wb = DTA.parse(view) as {
+      Sheets: Record<string, XLSX.WorkSheet>;
+      SheetNames: string[];
+    };
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) return [];
+    return XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
+  } catch (err) {
+    throw new Error(
+      `DTA Parse Error: ${err instanceof Error ? err.message : "The file structure is invalid or unsupported."}`,
+    );
+  }
 }
 
 export async function readBinaryDataRecords(

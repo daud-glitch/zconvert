@@ -1,5 +1,6 @@
 import { getOptionalDb } from "@/lib/db";
 import { hashIp } from "@/lib/format-catalog";
+import { isAdminUser } from "@/lib/auth";
 import {
   resolveTrafficSource,
   sanitizePath,
@@ -37,6 +38,11 @@ async function isAnalyticsEnabled(): Promise<boolean> {
 
 /** Persist anonymized page view + bump DailyStats.pageViews. */
 export async function logPageView(input: PageViewInput): Promise<boolean> {
+  if (input.userId && await isAdminUser(input.userId)) {
+    // Skip logging for admin users
+    return false;
+  }
+
   if (!(await isAnalyticsEnabled())) return false;
   const prisma = getOptionalDb();
   if (!prisma) return false;

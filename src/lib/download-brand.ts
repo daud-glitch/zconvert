@@ -1,14 +1,15 @@
 /** Brand prefix for converted downloads (server + client safe). */
 export const DOWNLOAD_BRAND_PREFIX = "convertek.tech";
 
+const _sanitize = (s: string) =>
+  s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "");
+
 export function brandedDownloadFilename(
   baseName: string,
   ext: string,
 ): string {
-  const sanitize = (s: string) =>
-    s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 120) || "file";
-  const base = sanitize(baseName.replace(/\.[^/.]+$/, ""));
   const cleanExt = (ext || "bin").replace(/^\./, "").toLowerCase();
+  const base = _sanitize(baseName.replace(/\.[^/.]+$/, "")).slice(0, 120) || "file";
   const raw = `${base}.${cleanExt}`;
   const lower = raw.toLowerCase();
   if (
@@ -24,11 +25,7 @@ export function brandedDownloadFilename(
 
 /** Build a branded ZIP filename: convertek.tech-{name}.zip */
 export function bulkZipDownloadFilename(fileNames: string[]): string {
-  const sanitize = (s: string) =>
-    s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "files";
-  const firstBase = sanitize(
-    (fileNames[0] || "files").replace(/\.[^/.]+$/, ""),
-  );
+  const firstBase = _sanitize((fileNames[0] || "files").replace(/\.[^/.]+$/, "")).slice(0, 80) || "files";
   if (fileNames.length <= 1) {
     return `${DOWNLOAD_BRAND_PREFIX}-${firstBase}.zip`;
   }

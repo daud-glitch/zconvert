@@ -134,4 +134,16 @@ export async function requireAuth(
   return { authorized: true, user };
 }
 
+export async function isAdminUser(userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return false;
+  const prisma = getOptionalDb();
+  if (!prisma) return false;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    return user?.role === "admin";
+  } catch {
+    return false;
+  }
+}
+
 export { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
