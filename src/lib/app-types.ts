@@ -166,4 +166,5 @@ export type AdminTab =
   | "links"
   | "pages"
   | "ads"
-  | "settings";
+  | "settings"
+  | "database";
