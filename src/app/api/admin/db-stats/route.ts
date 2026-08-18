@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const userCount = await prisma.user.count();
-    const conversionCount = await prisma.conversionLog.count();
+    const conversionCount = await prisma.conversion.count();
     const recentUsers = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       take: 5, // Last 5 users
