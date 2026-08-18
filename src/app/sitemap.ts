@@ -1,13 +1,13 @@
 import { MetadataRoute } from 'next';
-import { getAllConversionPairs } from "@/lib/conversion-pairs";
+import { getAllConversionPairSlugs } from "@/lib/conversion-pairs";
 import { CANONICAL_SITE_URL } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const conversionPairs = await getAllConversionPairs();
+  const slugs = getAllConversionPairSlugs();
   const lastModified = new Date();
 
-  const sitemapFields: MetadataRoute.Sitemap = conversionPairs.map((pair) => ({
-    url: `${CANONICAL_SITE_URL}/conversions/${pair.from}-${pair.to}`,
+  const sitemapFields: MetadataRoute.Sitemap = slugs.map((slug) => ({
+    url: `${CANONICAL_SITE_URL}/conversions/${slug}`,
     lastModified,
     changeFrequency: "daily",
     priority: 0.7,
