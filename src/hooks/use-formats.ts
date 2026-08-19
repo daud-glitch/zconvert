@@ -114,6 +114,7 @@ export function useFormats(options: { pollMs?: number; enabled?: boolean } = {})
       versionRef.current = cached.version;
       setData(cached);
       setLoading(false);
+      // Always background-refresh to ensure stale cache (like disabled formats) is updated
       void load({ silent: true });
     } else {
       void load();
@@ -152,7 +153,7 @@ export function useFormats(options: { pollMs?: number; enabled?: boolean } = {})
       } catch {
         /* ignore */
       }
-      void load({ silent: true });
+      void load({ silent: false }); // Force UI update on invalidation
     };
 
     let bc: BroadcastChannel | null = null;
