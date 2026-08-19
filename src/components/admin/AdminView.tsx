@@ -16,7 +16,7 @@ import { AdminLinks } from "./AdminLinks";
 import { AdminPages } from "./AdminPages";
 import { AdminAds } from "./AdminAds";
 import { AdminSettings } from "./AdminSettings";
-import { AdminDatabase } from "./AdminDatabase";
+// import { AdminDatabase } from "./AdminDatabase";
 import { useApp } from "@/lib/app-context";
 
 export function AdminView() {
@@ -105,7 +105,7 @@ export function AdminView() {
           {activeTab === "links" && <AdminLinks />}
           {activeTab === "pages" && <AdminPages />}
           {activeTab === "ads" && <AdminAds />}
-          {activeTab === "database" && <AdminDatabase />}
+          // {activeTab === "database" && <AdminDatabase />}
           {activeTab === "settings" && <AdminSettings />}
         </div>
       </div>
