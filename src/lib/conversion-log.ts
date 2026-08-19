@@ -1,6 +1,5 @@
 import { getOptionalDb } from "@/lib/db";
 import { anonymizeFileName, hashIp } from "@/lib/format-catalog";
-import { isAdminUser } from "@/lib/auth";
 
 export type ConversionLogStatus = "done" | "error";
 
@@ -30,11 +29,6 @@ function utcDay(d = new Date()): Date {
 export async function logConversion(
   input: ConversionLogInput,
 ): Promise<string | null> {
-  if (input.userId && await isAdminUser(input.userId)) {
-    // Skip logging for admin users
-    return null;
-  }
-
   const prisma = getOptionalDb();
   if (!prisma) return null;
 
