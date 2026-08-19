@@ -1322,8 +1322,18 @@ export function ConverterView() {
   })();
 
   const groupedTargetFormats = (formatList: string[]) => {
+    if (!data?.grouped) return [];
+
+    // Flatten all enabled formats from the data
+    const enabledFormats = new Set<string>();
+    Object.values(data.grouped).forEach((group) => {
+      group.formats.forEach((f) => enabledFormats.add(f.ext));
+    });
+
     const groups: Record<string, string[]> = {};
     for (const fmt of formatList) {
+      if (!enabledFormats.has(fmt)) continue;
+
       const cat = getCategoryFromExt(fmt) || "other";
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(fmt);
@@ -1331,7 +1341,6 @@ export function ConverterView() {
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   };
 
-  const applyUniversalFormat = (format: string) => {
     setFiles((prev) =>
       prev.map((f) => {
         if (f.status !== "pending") return f;
