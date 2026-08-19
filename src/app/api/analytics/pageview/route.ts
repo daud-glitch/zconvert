@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { logPageView } from "@/lib/pageview-log";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,11 @@ function clientIp(request: NextRequest): string {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (user && user.role === "admin") {
+    return NextResponse.json({ ok: false, reason: "admin" });
+  }
+
   const ip = clientIp(request);
   const rl = checkRateLimit(`pageview:${ip}`, 60, 60_000);
   if (!rl.allowed) {
