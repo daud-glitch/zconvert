@@ -1,5 +1,6 @@
-const express = require("express");
+const http = require("http");
 const next = require("next");
+const { parse } = require("url");
 
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
@@ -13,7 +14,7 @@ function normalizeHost(raw) {
 }
 
 function forwardedProto(req) {
-  const raw = req.headers["x-forwarded-proto"] || req.protocol || "";
+  const raw = req.headers["x-forwarded-proto"] || "http";
   return String(raw).split(",")[0].trim().toLowerCase();
 }
 
@@ -34,39 +35,33 @@ function shouldForceCanonicalHost(host) {
 }
 
 app.prepare().then(() => {
-  const server = express();
-  // Honor X-Forwarded-* from Heroku / reverse proxies
-  server.set("trust proxy", 1);
+  const server = http.createServer((req, res) => {
+    const path = req.url || "/";
 
-  // Single-hop 301 → https://www.convertek.tech (Google Search Console)
-  server.use((req, res, next) => {
-    if (dev) return next();
+    if (!dev && path !== "/api" && !path.startsWith("/api/")) {
+      const host = normalizeHost(
+        req.headers["x-forwarded-host"] || req.headers.host,
+      );
+      const proto = forwardedProto(req);
+      const needsHost = shouldForceCanonicalHost(host);
+      const needsHttps = proto === "http";
 
-    const path = req.originalUrl || req.url || "/";
-    // Never redirect API traffic (chunk uploads / CORS)
-    if (path === "/api" || path.startsWith("/api/")) return next();
+      if (
+        (needsHost || needsHttps) &&
+        !(proto === "https" && host === CANONICAL_HOST)
+      ) {
+        res.writeHead(301, {
+          Location: `https://${CANONICAL_HOST}${path}`,
+          "Cache-Control": "public, max-age=0, must-revalidate",
+        });
+        res.end();
+        return;
+      }
+    }
 
-    const host = normalizeHost(
-      req.headers["x-forwarded-host"] || req.headers.host,
-    );
-    const proto = forwardedProto(req);
-    const needsHost = shouldForceCanonicalHost(host);
-    const needsHttps = proto === "http";
-
-    if (!needsHost && !needsHttps) return next();
-
-    const location = `https://${CANONICAL_HOST}${path}`;
-    // Avoid self-redirect loops
-    if (proto === "https" && host === CANONICAL_HOST) return next();
-
-    res.writeHead(301, {
-      Location: location,
-      "Cache-Control": "public, max-age=0, must-revalidate",
-    });
-    res.end();
+    const parsedUrl = parse(req.url, true);
+    handle(req, res, parsedUrl);
   });
-
-  server.all("*", (req, res) => handle(req, res));
 
   const port = process.env.PORT || 3000;
   server.listen(port, (err) => {
