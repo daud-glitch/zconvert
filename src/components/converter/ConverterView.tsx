@@ -1341,6 +1341,7 @@ export function ConverterView() {
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   };
 
+  const applyUniversalFormat = (format: string) => {
     setFiles((prev) =>
       prev.map((f) => {
         if (f.status !== "pending") return f;
