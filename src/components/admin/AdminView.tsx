@@ -105,7 +105,6 @@ export function AdminView() {
           {activeTab === "links" && <AdminLinks />}
           {activeTab === "pages" && <AdminPages />}
           {activeTab === "ads" && <AdminAds />}
-          // {activeTab === "database" && <AdminDatabase />}
           {activeTab === "settings" && <AdminSettings />}
         </div>
       </div>
