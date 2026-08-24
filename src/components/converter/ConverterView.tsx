@@ -1322,11 +1322,11 @@ export function ConverterView() {
   })();
 
   const groupedTargetFormats = (formatList: string[]) => {
-    if (!data?.grouped) return [];
+    if (!formatsData?.grouped) return [];
 
     // Flatten all enabled formats from the data
     const enabledFormats = new Set<string>();
-    Object.values(data.grouped).forEach((group) => {
+    Object.values(formatsData.grouped).forEach((group) => {
       group.formats.forEach((f) => enabledFormats.add(f.ext));
     });
 
