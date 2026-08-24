@@ -34,6 +34,7 @@ function createMockRequest(
   pathname: string,
   sessionCookie?: string,
   host = "localhost:3000",
+  extraHeaders: Record<string, string | null> = {},
 ): {
   nextUrl: URL;
   cookies: { get: (name: string) => { value: string } | undefined };
@@ -46,8 +47,11 @@ function createMockRequest(
     method: "GET",
     headers: {
       get: (name: string) => {
-        if (name.toLowerCase() === "host") return host;
-        if (name.toLowerCase() === "x-forwarded-host") return null;
+        const key = name.toLowerCase();
+        if (key in extraHeaders) return extraHeaders[key];
+        if (key === "host") return host;
+        if (key === "x-forwarded-host") return null;
+        if (key === "x-forwarded-proto") return extraHeaders["x-forwarded-proto"] ?? null;
         return null;
       },
     },
@@ -84,7 +88,7 @@ describe("middleware", () => {
       expect(url.pathname).toBe("/");
       expect(
         (NextResponse.redirect as ReturnType<typeof vi.fn>).mock.calls[0][1],
-      ).toBe(308);
+      ).toBe(301);
     });
 
     it("redirects legacy cloudconveter hosts to www.convertek.tech", () => {
@@ -101,10 +105,26 @@ describe("middleware", () => {
     });
 
     it("does not redirect www host", () => {
-      const req = createMockRequest("/", undefined, "www.convertek.tech");
+      const req = createMockRequest("/", undefined, "www.convertek.tech", {
+        "x-forwarded-proto": "https",
+      });
       middleware(req as never);
       expect(NextResponse.redirect).not.toHaveBeenCalled();
       expect(NextResponse.next).toHaveBeenCalled();
+    });
+
+    it("upgrades HTTP www to HTTPS www with 301", () => {
+      const req = createMockRequest("/", undefined, "www.convertek.tech", {
+        "x-forwarded-proto": "http",
+      });
+      middleware(req as never);
+      expect(NextResponse.redirect).toHaveBeenCalled();
+      const url = (NextResponse.redirect as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as URL;
+      expect(url.href).toBe("https://www.convertek.tech/");
+      expect(
+        (NextResponse.redirect as ReturnType<typeof vi.fn>).mock.calls[0][1],
+      ).toBe(301);
     });
 
     it("does not redirect apex API or OPTIONS (upload safety)", () => {

@@ -4,6 +4,29 @@ import type { NextRequest } from "next/server";
 /** Public site lives only on this host (users should never stay on apex). */
 export const CANONICAL_HOST = "www.convertek.tech";
 
+/** Google-friendly permanent redirect (301). Avoid Next 308 + Refresh headers. */
+export function permanentCanonicalRedirect(pathAndQuery: string): NextResponse {
+  const location = `https://${CANONICAL_HOST}${pathAndQuery || "/"}`;
+  try {
+    // Prefer a bare 301 Location response — NextResponse.redirect() uses 308 + Refresh,
+    // which Search Console often reports as a "Redirect error" for apex URLs.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctor = NextResponse as any;
+    if (typeof Ctor === "function") {
+      return new Ctor(null, {
+        status: 301,
+        headers: {
+          Location: location,
+          "Cache-Control": "public, max-age=0, must-revalidate",
+        },
+      }) as NextResponse;
+    }
+  } catch {
+    // fall through for unit-test mocks
+  }
+  return NextResponse.redirect(new URL(location), 301);
+}
+
 const localDevHosts = new Set([
   "localhost",
   "127.0.0.1",
@@ -16,26 +39,38 @@ const localDevHosts = new Set([
  * True when request host is not the sole public hostname.
  * Keeps local dev + Heroku *.herokuapp.com (pre-custom-domain / health checks).
  */
-function shouldForceCanonicalHost(host: string): boolean {
+export function shouldForceCanonicalHost(host: string): boolean {
   if (!host || host === CANONICAL_HOST) return false;
   const h = host.split(":")[0].trim().toLowerCase();
   if (h === CANONICAL_HOST) return false;
   if (localDevHosts.has(h)) return false;
   if (h.endsWith(".local") || h.endsWith(".localhost")) return false;
+  // Keep Heroku app hostname reachable for platform health checks.
+  if (h.endsWith(".herokuapp.com")) return false;
 
   // Any convertek / legacy cloud domain → force www.convertek.tech
   if (h === "convertek.tech" || h.endsWith(".convertek.tech")) return true;
   if (h === "cloudconveter.tech" || h.endsWith(".cloudconveter.tech")) return true;
   if (h === "cloudconverter.tech" || h.endsWith(".cloudconverter.tech")) return true;
 
-  if (
-    process.env.FORCE_CANONICAL_HOST === "1" &&
-    !h.endsWith(".herokuapp.com")
-  ) {
+  if (process.env.FORCE_CANONICAL_HOST === "1") {
     return true;
   }
 
   return false;
+}
+
+function isLocalDevHost(host: string): boolean {
+  const h = host.split(":")[0].trim().toLowerCase();
+  return localDevHosts.has(h) || h.endsWith(".local") || h.endsWith(".localhost");
+}
+
+function forwardedProto(request: NextRequest): string {
+  // Only trust the proxy header. nextUrl.protocol is often "http" even on
+  // TLS (Heroku / local), which would 301-loop or break unit tests.
+  const raw = request.headers.get("x-forwarded-proto");
+  if (!raw) return "";
+  return raw.split(",")[0]?.trim().toLowerCase() || "";
 }
 
 const publicRoutes = [
@@ -140,22 +175,25 @@ export function middleware(request: NextRequest) {
   const host = normalizeHost(rawHost);
 
   /**
-   * Host canonicalization is for page navigations only.
+   * Host + HTTPS canonicalization for page navigations only.
    * Never redirect /api or OPTIONS — browsers drop/broken-follow upload bodies
-   * after 308 and CORS preflight fails (upload stuck on "Uploading").
+   * after redirects and CORS preflight fails (upload stuck on "Uploading").
+   * Use a single 301 hop to https://www.convertek.tech (Google Search Console).
    */
   const isApi = pathname.startsWith("/api/") || pathname === "/api";
+  const proto = forwardedProto(request);
+  const needsHttps =
+    proto === "http" && !isLocalDevHost(host) && !host.endsWith(".herokuapp.com");
+  const needsHost = shouldForceCanonicalHost(host);
+
   if (
     !isApi &&
     method !== "OPTIONS" &&
     (method === "GET" || method === "HEAD") &&
-    shouldForceCanonicalHost(host)
+    (needsHost || needsHttps)
   ) {
     const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-    return NextResponse.redirect(
-      new URL(`https://${CANONICAL_HOST}${path}`),
-      308,
-    );
+    return permanentCanonicalRedirect(path);
   }
 
   if (method === "OPTIONS" && pathname.startsWith("/api/convert")) {
@@ -199,6 +237,12 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|map)$).*)",
+    /*
+     * Run on pages AND ads.txt / robots.txt so apex → www is a clean 301
+     * (Next.js config redirects emit 308 + Refresh which GSC flags).
+     * Skip Next internals and common static image assets only.
+     */
+    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|map)$).*)",
+    "/",
   ],
 };

@@ -27,6 +27,12 @@ export async function GET() {
       priority: 0.5,
     },
     {
+      loc: `${CANONICAL_SITE_URL}/changelog`,
+      lastmod: new Date().toISOString(),
+      changefreq: "weekly",
+      priority: 0.5,
+    },
+    {
       loc: `${CANONICAL_SITE_URL}/contact`,
       lastmod: new Date().toISOString(),
       changefreq: "monthly",

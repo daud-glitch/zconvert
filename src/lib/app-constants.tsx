@@ -18,6 +18,7 @@ import {
   Settings,
   Info,
   Mail,
+  ScrollText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -344,6 +345,12 @@ export const navItems: NavItem[] = [
     id: "bookmarks",
     label: "Bookmarks",
     icon: Folder,
+  },
+  {
+    id: "changelog",
+    label: "Changelog",
+    icon: ScrollText,
+    href: "/changelog",
   },
   {
     id: "about",

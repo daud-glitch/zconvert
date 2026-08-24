@@ -351,50 +351,42 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * Permanent host redirects for HTML only.
-   * Exclude /api/* so chunk uploads and convert POSTs are not 308'd
-   * (breaks staging and leaves the UI stuck on "Uploading").
+   * Host canonicalization backup (middleware is primary).
+   * Use 301 — Next `permanent: true` emits 308 + Refresh, which Google
+   * Search Console reports as "Redirect error" on convertek.tech.
+   * Exclude /api/* so chunk uploads are not redirected.
    */
   async redirects() {
-    return [
-      {
-        source: "/:path((?!api/).*)",
-        has: [{ type: "host", value: "convertek.tech" }],
-        destination: "https://www.convertek.tech/:path*",
-        permanent: true,
-      },
-      {
-        source: "/:path((?!api/).*)",
-        has: [{ type: "host", value: "cloudconveter.tech" }],
-        destination: "https://www.convertek.tech/:path*",
-        permanent: true,
-      },
-      {
-        source: "/:path((?!api/).*)",
-        has: [{ type: "host", value: "www.cloudconveter.tech" }],
-        destination: "https://www.convertek.tech/:path*",
-        permanent: true,
-      },
-      // Root path on apex (path* may not match empty)
-      {
-        source: "/",
-        has: [{ type: "host", value: "convertek.tech" }],
-        destination: "https://www.convertek.tech/",
-        permanent: true,
-      },
-      {
-        source: "/",
-        has: [{ type: "host", value: "cloudconveter.tech" }],
-        destination: "https://www.convertek.tech/",
-        permanent: true,
-      },
-      {
-        source: "/",
-        has: [{ type: "host", value: "www.cloudconveter.tech" }],
-        destination: "https://www.convertek.tech/",
-        permanent: true,
-      },
+    const toWww = (
+      source: string,
+      host: string,
+    ): {
+      source: string;
+      has: { type: "host"; value: string }[];
+      destination: string;
+      statusCode: 301;
+    } => ({
+      source,
+      has: [{ type: "host", value: host }],
+      destination:
+        source === "/"
+          ? "https://www.convertek.tech/"
+          : "https://www.convertek.tech/:path*",
+      statusCode: 301,
+    });
+
+    const hosts = [
+      "convertek.tech",
+      "cloudconveter.tech",
+      "www.cloudconveter.tech",
+      "cloudconverter.tech",
+      "www.cloudconverter.tech",
     ];
+
+    return hosts.flatMap((host) => [
+      toWww("/:path((?!api/).*)", host),
+      toWww("/", host),
+    ]);
   },
 };
 

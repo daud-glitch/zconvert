@@ -592,6 +592,12 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   Bookmarks
                 </button>
                 <Link
+                  href="/changelog"
+                  className="text-left hover:text-emerald-500 transition-colors"
+                >
+                  Changelog
+                </Link>
+                <Link
                   href="/about"
                   className="text-left hover:text-emerald-500 transition-colors"
                 >

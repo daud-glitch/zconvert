@@ -33,6 +33,7 @@ const RESERVED = new Set([
   "terms",
   "contact",
   "about",
+  "changelog",
   "forgot-password",
   "reset-password",
   "favicon.ico",

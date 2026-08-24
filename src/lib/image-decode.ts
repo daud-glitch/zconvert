@@ -673,14 +673,8 @@ function decodeDds(input: Buffer): {
   const width = input.readUInt32LE(16);
   const fourCC = input.toString("ascii", 84, 88).replace(/\0/g, "");
   const rgba = Buffer.alloc(width * height * 4);
-  if (fourCC === "DXT1") {
-    let pos = 128;
-    for (let by = 0; by < Math.ceil(height / 4); by++) {
-      for (let bx = 0; bx < Math.ceil(width / 4); bx++) {
-        decodeDxt1Block(rgba, width, height, bx * 4, by * 4, input.subarray(pos, pos + 8));
-        pos += 8;
-      }
-    }
+  if (fourCC === "DXT1" || fourCC === "DXT3" || fourCC === "DXT5") {
+    decodeDxtSurface(rgba, width, height, input.subarray(128), fourCC);
   } else if (input.readUInt32LE(80) & 0x40) {
     const bpp = input.readUInt32LE(88);
     let pos = 128;
@@ -707,6 +701,33 @@ function decodeDds(input: Buffer): {
   return { data: rgba, width, height, channels: 4 };
 }
 
+function decodeDxtSurface(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  data: Buffer,
+  fourCC: string,
+) {
+  const blockBytes = fourCC === "DXT1" ? 8 : 16;
+  let pos = 0;
+  for (let by = 0; by < Math.ceil(height / 4); by++) {
+    for (let bx = 0; bx < Math.ceil(width / 4); bx++) {
+      const block = data.subarray(pos, pos + blockBytes);
+      if (block.length < blockBytes) {
+        throw new Error(`Truncated ${fourCC} texture data`);
+      }
+      if (fourCC === "DXT1") {
+        decodeDxt1Block(rgba, width, height, bx * 4, by * 4, block);
+      } else if (fourCC === "DXT3") {
+        decodeDxt3Block(rgba, width, height, bx * 4, by * 4, block);
+      } else {
+        decodeDxt5Block(rgba, width, height, bx * 4, by * 4, block);
+      }
+      pos += blockBytes;
+    }
+  }
+}
+
 function decodeDxt1Block(
   rgba: Buffer,
   width: number,
@@ -715,23 +736,99 @@ function decodeDxt1Block(
   by: number,
   block: Buffer,
 ) {
+  writeDxtColorBlock(rgba, width, height, bx, by, block, true);
+}
+
+function decodeDxt3Block(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  bx: number,
+  by: number,
+  block: Buffer,
+) {
+  writeDxtColorBlock(rgba, width, height, bx, by, block.subarray(8, 16), false);
+  for (let y = 0; y < 4; y++) {
+    const row = block.readUInt16LE(y * 2);
+    for (let x = 0; x < 4; x++) {
+      const px = bx + x;
+      const py = by + y;
+      if (px >= width || py >= height) continue;
+      const a = (row >> (x * 4)) & 0xf;
+      rgba[(py * width + px) * 4 + 3] = a * 17;
+    }
+  }
+}
+
+function decodeDxt5Block(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  bx: number,
+  by: number,
+  block: Buffer,
+) {
+  writeDxtColorBlock(rgba, width, height, bx, by, block.subarray(8, 16), false);
+  const a0 = block[0];
+  const a1 = block[1];
+  const alphas = [a0, a1];
+  if (a0 > a1) {
+    for (let i = 1; i <= 6; i++) {
+      alphas.push(Math.round((a0 * (7 - i) + a1 * i) / 7));
+    }
+  } else {
+    for (let i = 1; i <= 4; i++) {
+      alphas.push(Math.round((a0 * (5 - i) + a1 * i) / 5));
+    }
+    alphas.push(0, 255);
+  }
+  let bits = 0n;
+  for (let i = 0; i < 6; i++) bits |= BigInt(block[2 + i]) << BigInt(8 * i);
+  for (let i = 0; i < 16; i++) {
+    const px = bx + (i % 4);
+    const py = by + Math.floor(i / 4);
+    if (px >= width || py >= height) continue;
+    const idx = Number((bits >> BigInt(i * 3)) & 7n);
+    rgba[(py * width + px) * 4 + 3] = alphas[idx] ?? 255;
+  }
+}
+
+function writeDxtColorBlock(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  bx: number,
+  by: number,
+  block: Buffer,
+  punchThroughAlpha: boolean,
+) {
   const c0 = block.readUInt16LE(0);
   const c1 = block.readUInt16LE(2);
   const bits = block.readUInt32LE(4);
-  const pal = [expand565(c0), expand565(c1)];
-  pal.push(
-    [
-      Math.round((pal[0][0] * 2 + pal[1][0]) / 3),
-      Math.round((pal[0][1] * 2 + pal[1][1]) / 3),
-      Math.round((pal[0][2] * 2 + pal[1][2]) / 3),
-    ],
-    [
-      Math.round((pal[0][0] + pal[1][0] * 2) / 3),
-      Math.round((pal[0][1] + pal[1][1] * 2) / 3),
-      Math.round((pal[0][2] + pal[1][2] * 2) / 3),
-    ],
-  );
-  if (c0 <= c1) pal.push([0, 0, 0]);
+  const pal: [number, number, number][] = [expand565(c0), expand565(c1)];
+  if (!punchThroughAlpha || c0 > c1) {
+    pal.push(
+      [
+        Math.round((pal[0][0] * 2 + pal[1][0]) / 3),
+        Math.round((pal[0][1] * 2 + pal[1][1]) / 3),
+        Math.round((pal[0][2] * 2 + pal[1][2]) / 3),
+      ],
+      [
+        Math.round((pal[0][0] + pal[1][0] * 2) / 3),
+        Math.round((pal[0][1] + pal[1][1] * 2) / 3),
+        Math.round((pal[0][2] + pal[1][2] * 2) / 3),
+      ],
+    );
+  } else {
+    pal.push(
+      [
+        Math.round((pal[0][0] + pal[1][0]) / 2),
+        Math.round((pal[0][1] + pal[1][1]) / 2),
+        Math.round((pal[0][2] + pal[1][2]) / 2),
+      ],
+      [0, 0, 0],
+    );
+  }
   for (let y = 0; y < 4; y++) {
     for (let x = 0; x < 4; x++) {
       const px = bx + x;
@@ -743,7 +840,8 @@ function decodeDxt1Block(
       rgba[o] = c[0];
       rgba[o + 1] = c[1];
       rgba[o + 2] = c[2];
-      rgba[o + 3] = idx === 3 && c0 <= c1 ? 0 : 255;
+      rgba[o + 3] =
+        punchThroughAlpha && c0 <= c1 && idx === 3 ? 0 : 255;
     }
   }
 }
@@ -755,36 +853,202 @@ function expand565(c: number): [number, number, number] {
   return [r, g, b];
 }
 
-// ─── BLP ─────────────────────────────────────────────────────────────────────
+// ─── BLP (Blizzard texture: BLP1 JPEG/palette, BLP2 palette/DXT/BGRA) ─────────
 
 async function decodeBlp(input: Buffer): Promise<Buffer> {
+  if (input.length < 36) throw new Error("Invalid BLP file");
   const magic = input.toString("ascii", 0, 4);
-  if (magic === "BLP1") {
-    const type = input.readUInt32LE(4);
-    if (type === 0) {
-      const offset = input.readUInt32LE(28);
-      return sharp(input.subarray(offset)).png().toBuffer();
-    }
-    throw new Error("BLP1 palette/DXT not supported");
+  if (magic === "BLP1") return decodeBlp1(input);
+  if (magic === "BLP2") return decodeBlp2(input);
+  throw new Error("Invalid BLP file");
+}
+
+async function decodeBlp1(input: Buffer): Promise<Buffer> {
+  const compression = input.readUInt32LE(4);
+  const alphaDepth = input.readUInt32LE(8);
+  const width = input.readUInt32LE(12);
+  const height = input.readUInt32LE(16);
+  const mipOffset = input.readUInt32LE(0x1c);
+  const mipSize = input.readUInt32LE(0x5c);
+  assertBlpDimensions(width, height);
+  if (compression === 0) {
+    return decodeBlpJpeg(input, 0x9c, mipOffset, mipSize);
   }
-  if (magic !== "BLP2") throw new Error("Invalid BLP file");
-  const width = input.readUInt32LE(16);
-  const height = input.readUInt32LE(20);
-  const compression = input.readUInt32LE(28);
-  const offset = input.readUInt32LE(36);
   if (compression === 1) {
-    const dds = Buffer.alloc(128 + Math.ceil(width / 4) * Math.ceil(height / 4) * 8);
-    dds.write("DDS ", 0);
-    dds.writeUInt32LE(124, 4);
-    dds.writeUInt32LE(0xa1007, 8);
-    dds.writeUInt32LE(height, 12);
-    dds.writeUInt32LE(width, 16);
-    dds.writeUInt32LE(0x1000, 20);
-    dds.write("DXT1", 84);
-    input.copy(dds, 128, offset);
-    return rgbaToPng(decodeDds(dds));
+    return rgbaToPng(
+      decodeBlpPalette(input, width, height, mipOffset, mipSize, 0x9c, alphaDepth),
+    );
   }
-  throw new Error(`BLP2 compression ${compression} not supported`);
+  throw new Error(`BLP1 compression ${compression} not supported`);
+}
+
+async function decodeBlp2(input: Buffer): Promise<Buffer> {
+  const type = input.readUInt32LE(4);
+  const encoding = input[8];
+  const alphaDepth = input[9];
+  const alphaEncoding = input[10];
+  const width = input.readUInt32LE(12);
+  const height = input.readUInt32LE(16);
+  const mipOffset = input.readUInt32LE(0x14);
+  const mipSize = input.readUInt32LE(0x54);
+  assertBlpDimensions(width, height);
+  if (type === 0) {
+    return decodeBlpJpeg(input, 0x94, mipOffset, mipSize);
+  }
+  if (encoding === 1) {
+    return rgbaToPng(
+      decodeBlpPalette(input, width, height, mipOffset, mipSize, 0x94, alphaDepth),
+    );
+  }
+  if (encoding === 2) {
+    const fourCC =
+      alphaEncoding === 1 ? "DXT3" : alphaEncoding === 7 ? "DXT5" : "DXT1";
+    return rgbaToPng(wrapDxtAsRgba(input, width, height, mipOffset, fourCC));
+  }
+  if (encoding === 3 || encoding === 4) {
+    return rgbaToPng(
+      decodeBlpBgra(input, width, height, mipOffset, mipSize),
+    );
+  }
+  throw new Error(`BLP2 encoding ${encoding} not supported`);
+}
+
+function assertBlpDimensions(width: number, height: number) {
+  if (width < 1 || height < 1 || width > 16384 || height > 16384) {
+    throw new Error("Invalid BLP dimensions");
+  }
+}
+
+async function decodeBlpJpeg(
+  input: Buffer,
+  headerTableEnd: number,
+  mipOffset: number,
+  mipSize: number,
+): Promise<Buffer> {
+  const mip = sliceBlpMip(input, mipOffset, mipSize);
+  if (mip.length >= 2 && mip[0] === 0xff && mip[1] === 0xd8) {
+    return sharp(mip).png().toBuffer();
+  }
+  if (headerTableEnd + 4 <= input.length) {
+    const headerSize = input.readUInt32LE(headerTableEnd);
+    const headerStart = headerTableEnd + 4;
+    if (headerSize > 0 && headerSize < input.length && headerStart + headerSize <= input.length) {
+      const jpeg = Buffer.concat([
+        input.subarray(headerStart, headerStart + headerSize),
+        mip,
+      ]);
+      return sharp(jpeg).png().toBuffer();
+    }
+  }
+  return sharp(mip).png().toBuffer();
+}
+
+function decodeBlpPalette(
+  input: Buffer,
+  width: number,
+  height: number,
+  mipOffset: number,
+  mipSize: number,
+  paletteOffset: number,
+  alphaDepth: number,
+): { data: Buffer; width: number; height: number; channels: 4 } {
+  if (paletteOffset + 1024 > input.length) {
+    throw new Error("BLP palette is truncated");
+  }
+  const count = width * height;
+  const mip = sliceBlpMip(input, mipOffset, mipSize || count);
+  if (mip.length < count) throw new Error("BLP pixel data is truncated");
+  const rgba = Buffer.alloc(count * 4);
+  for (let i = 0; i < count; i++) {
+    const pal = paletteOffset + mip[i] * 4;
+    const o = i * 4;
+    rgba[o] = input[pal + 2];
+    rgba[o + 1] = input[pal + 1];
+    rgba[o + 2] = input[pal];
+    rgba[o + 3] = input[pal + 3] || 255;
+  }
+  applyBlpAlphaPlane(rgba, mip.subarray(count), alphaDepth, count);
+  return { data: rgba, width, height, channels: 4 };
+}
+
+function applyBlpAlphaPlane(
+  rgba: Buffer,
+  alphaData: Buffer,
+  alphaDepth: number,
+  count: number,
+) {
+  if (alphaDepth === 8 && alphaData.length >= count) {
+    for (let i = 0; i < count; i++) rgba[i * 4 + 3] = alphaData[i];
+    return;
+  }
+  if (alphaDepth === 4 && alphaData.length >= Math.ceil(count / 2)) {
+    for (let i = 0; i < count; i++) {
+      const nibble = (alphaData[Math.floor(i / 2)] >> ((i & 1) * 4)) & 0xf;
+      rgba[i * 4 + 3] = nibble * 17;
+    }
+    return;
+  }
+  if (alphaDepth === 1 && alphaData.length >= Math.ceil(count / 8)) {
+    for (let i = 0; i < count; i++) {
+      const bit = (alphaData[Math.floor(i / 8)] >> (i & 7)) & 1;
+      rgba[i * 4 + 3] = bit ? 255 : 0;
+    }
+  }
+}
+
+function decodeBlpBgra(
+  input: Buffer,
+  width: number,
+  height: number,
+  mipOffset: number,
+  mipSize: number,
+): { data: Buffer; width: number; height: number; channels: 4 } {
+  const count = width * height;
+  const mip = sliceBlpMip(input, mipOffset, mipSize || count * 4);
+  if (mip.length < count * 4) throw new Error("BLP pixel data is truncated");
+  const rgba = Buffer.alloc(count * 4);
+  for (let i = 0; i < count; i++) {
+    const s = i * 4;
+    const o = i * 4;
+    rgba[o] = mip[s + 2];
+    rgba[o + 1] = mip[s + 1];
+    rgba[o + 2] = mip[s];
+    rgba[o + 3] = mip[s + 3];
+  }
+  return { data: rgba, width, height, channels: 4 };
+}
+
+function wrapDxtAsRgba(
+  input: Buffer,
+  width: number,
+  height: number,
+  mipOffset: number,
+  fourCC: string,
+): { data: Buffer; width: number; height: number; channels: 4 } {
+  const blocks = Math.ceil(width / 4) * Math.ceil(height / 4);
+  const blockBytes = fourCC === "DXT1" ? 8 : 16;
+  const needed = blocks * blockBytes;
+  const mip = sliceBlpMip(input, mipOffset, needed);
+  const dds = Buffer.alloc(128 + needed);
+  dds.write("DDS ", 0);
+  dds.writeUInt32LE(124, 4);
+  dds.writeUInt32LE(0xa1007, 8);
+  dds.writeUInt32LE(height, 12);
+  dds.writeUInt32LE(width, 16);
+  dds.writeUInt32LE(needed, 20);
+  dds.writeUInt32LE(32, 76);
+  dds.writeUInt32LE(4, 80);
+  dds.write(fourCC, 84);
+  mip.copy(dds, 128, 0, needed);
+  return decodeDds(dds);
+}
+
+function sliceBlpMip(input: Buffer, offset: number, size: number): Buffer {
+  if (offset < 0 || offset >= input.length) {
+    throw new Error("BLP mipmap offset is invalid");
+  }
+  const end = size > 0 ? Math.min(offset + size, input.length) : input.length;
+  return input.subarray(offset, end);
 }
 
 // ─── FLI / FLC (first frame, 8-bit delta) ────────────────────────────────────
