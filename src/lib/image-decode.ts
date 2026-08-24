@@ -782,13 +782,13 @@ function decodeDxt5Block(
     }
     alphas.push(0, 255);
   }
-  let bits = 0n;
+  let bits = BigInt(0);
   for (let i = 0; i < 6; i++) bits |= BigInt(block[2 + i]) << BigInt(8 * i);
   for (let i = 0; i < 16; i++) {
     const px = bx + (i % 4);
     const py = by + Math.floor(i / 4);
     if (px >= width || py >= height) continue;
-    const idx = Number((bits >> BigInt(i * 3)) & 7n);
+    const idx = Number((bits >> BigInt(i * 3)) & BigInt(7));
     rgba[(py * width + px) * 4 + 3] = alphas[idx] ?? 255;
   }
 }
