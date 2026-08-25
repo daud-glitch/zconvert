@@ -3247,23 +3247,44 @@ async function convertDrawio(
       `DrawIO output .${outputExt.toUpperCase()} is not supported. Supported: png, pdf, html, txt, md, svg`,
     );
   }
-  const { text, png } = await extractDrawioContent(input);
+  const { text, png, svg } = await extractDrawioContent(input);
+
   if ((dest === "png" || dest === "jpg" || dest === "jpeg") && png) {
     return convertImage(png, "png", dest === "jpeg" ? "jpg" : dest, quality);
   }
+
   if (dest === "svg") {
+    if (svg) return Buffer.from(svg, "utf-8");
     const labels = text
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
     const lines = labels
-      .map((l, i) => `<text x="20" y="${24 + i * 22}" font-size="14">${l.replace(/</g, "&lt;")}</text>`)
+      .map(
+        (l, i) =>
+          `<text x="20" y="${24 + i * 22}" font-size="14">${l.replace(/</g, "&lt;")}</text>`,
+      )
       .join("");
     return Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${Math.max(200, labels.length * 24)}">${lines}</svg>`,
       "utf-8",
     );
   }
+
+  if (dest === "png" || dest === "jpg" || dest === "jpeg") {
+    if (!svg) {
+      throw new Error(
+        "Could not render this DrawIO diagram to an image. Try SVG, PDF, HTML, or TXT.",
+      );
+    }
+    const raster = await sharp(Buffer.from(svg, "utf-8"), {
+      density: 150,
+      failOn: "none",
+    });
+    if (dest === "png") return raster.png().toBuffer();
+    return raster.jpeg({ quality }).toBuffer();
+  }
+
   return convertDocument(Buffer.from(text, "utf-8"), "md", dest);
 }
 

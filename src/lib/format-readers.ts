@@ -5,7 +5,7 @@ import fs from "fs/promises";
 import { createRequire } from "module";
 import os from "os";
 import path from "path";
-import { gunzipSync } from "zlib";
+import { gunzipSync, inflateRawSync } from "zlib";
 import { XMLParser } from "fast-xml-parser";
 import * as tar from "tar-stream";
 import { extractRarWithToolchain } from "@/lib/external-toolchain";
@@ -290,50 +290,335 @@ function decodeDrawioXml(input: Buffer): string {
   return input.toString("utf-8");
 }
 
+/** Draw.io stores diagram bodies as base64 + raw-deflate + URI-encoded XML. */
+function decompressDrawioPayload(data: string): string {
+  const trimmed = data.trim();
+  if (!trimmed || trimmed.startsWith("<")) return trimmed;
+  try {
+    const inflated = inflateRawSync(Buffer.from(trimmed, "base64"));
+    return decodeURIComponent(inflated.toString("utf8"));
+  } catch {
+    try {
+      return Buffer.from(trimmed, "base64").toString("utf-8");
+    } catch {
+      return trimmed;
+    }
+  }
+}
+
+function unescapeXmlAttr(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function stripHtml(value: string): string {
+  return unescapeXmlAttr(value)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeSvgText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function styleMap(style: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of style.split(";")) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    if (eq === -1) {
+      out[part] = "1";
+      continue;
+    }
+    out[part.slice(0, eq)] = part.slice(eq + 1);
+  }
+  return out;
+}
+
+type DrawioVertex = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+  style: Record<string, string>;
+};
+
+type DrawioEdge = {
+  source?: string;
+  target?: string;
+  label: string;
+  style: Record<string, string>;
+  points: { x: number; y: number }[];
+};
+
+function expandDrawioXml(xml: string): string {
+  // Expand compressed <diagram>...</diagram> payloads in place.
+  return xml.replace(
+    /<diagram\b([^>]*)>([\s\S]*?)<\/diagram>/gi,
+    (full, attrs: string, body: string) => {
+      const inner = body.trim();
+      if (!inner || inner.startsWith("<")) return full;
+      const decoded = decompressDrawioPayload(inner);
+      if (!decoded.startsWith("<")) return full;
+      return `<diagram${attrs}>${decoded}</diagram>`;
+    },
+  );
+}
+
+function asArray<T>(value: T | T[] | undefined | null): T[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function collectMxCells(node: unknown, out: Record<string, unknown>[]): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) collectMxCells(item, out);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  if (obj.mxCell) {
+    for (const cell of asArray(obj.mxCell)) {
+      if (cell && typeof cell === "object") {
+        out.push(cell as Record<string, unknown>);
+        collectMxCells(cell, out);
+      }
+    }
+  }
+  for (const [key, val] of Object.entries(obj)) {
+    if (key === "mxCell" || key.startsWith("@_")) continue;
+    collectMxCells(val, out);
+  }
+}
+
+function parseDrawioModel(xml: string): {
+  vertices: DrawioVertex[];
+  edges: DrawioEdge[];
+  labels: string[];
+} {
+  const expanded = expandDrawioXml(xml);
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    allowBooleanAttributes: true,
+  });
+  let parsed: unknown;
+  try {
+    parsed = parser.parse(expanded);
+  } catch {
+    return { vertices: [], edges: [], labels: [] };
+  }
+
+  const cells: Record<string, unknown>[] = [];
+  collectMxCells(parsed, cells);
+
+  const vertices: DrawioVertex[] = [];
+  const edges: DrawioEdge[] = [];
+  const labels: string[] = [];
+
+  for (const cell of cells) {
+    const id = String(cell["@_id"] ?? "");
+    const label = stripHtml(String(cell["@_value"] ?? ""));
+    if (label && !label.startsWith("data:")) labels.push(label);
+    const style = styleMap(String(cell["@_style"] ?? ""));
+    const geoNode = cell.mxGeometry as Record<string, unknown> | undefined;
+    const x = Number(geoNode?.["@_x"] ?? 0) || 0;
+    const y = Number(geoNode?.["@_y"] ?? 0) || 0;
+    const w = Number(geoNode?.["@_width"] ?? 80) || 80;
+    const h = Number(geoNode?.["@_height"] ?? 40) || 40;
+    const points: { x: number; y: number }[] = [];
+    for (const p of asArray(
+      geoNode?.mxPoint as Record<string, unknown> | undefined,
+    )) {
+      points.push({
+        x: Number(p?.["@_x"] ?? 0) || 0,
+        y: Number(p?.["@_y"] ?? 0) || 0,
+      });
+    }
+
+    const isVertex =
+      cell["@_vertex"] === "1" ||
+      cell["@_vertex"] === true ||
+      cell["@_vertex"] === 1;
+    const isEdge =
+      cell["@_edge"] === "1" ||
+      cell["@_edge"] === true ||
+      cell["@_edge"] === 1;
+
+    if (isVertex && id) {
+      vertices.push({
+        id,
+        x,
+        y,
+        w: Math.max(w, 1),
+        h: Math.max(h, 1),
+        label,
+        style,
+      });
+    } else if (isEdge) {
+      edges.push({
+        source:
+          cell["@_source"] != null ? String(cell["@_source"]) : undefined,
+        target:
+          cell["@_target"] != null ? String(cell["@_target"]) : undefined,
+        label,
+        style,
+        points,
+      });
+    }
+  }
+
+  return { vertices, edges, labels };
+}
+
+function renderDrawioSvg(xml: string): string {
+  const { vertices, edges, labels } = parseDrawioModel(xml);
+  if (vertices.length === 0) {
+    const lines = labels.length ? labels : ["DrawIO diagram"];
+    const height = Math.max(200, 40 + lines.length * 24);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${height}" viewBox="0 0 800 ${height}">
+${lines
+  .map(
+    (l, i) =>
+      `<text x="24" y="${36 + i * 24}" font-family="Arial,sans-serif" font-size="14" fill="#111">${escapeSvgText(l)}</text>`,
+  )
+  .join("\n")}
+</svg>`;
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const v of vertices) {
+    minX = Math.min(minX, v.x);
+    minY = Math.min(minY, v.y);
+    maxX = Math.max(maxX, v.x + v.w);
+    maxY = Math.max(maxY, v.y + v.h);
+  }
+  for (const e of edges) {
+    for (const p of e.points) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+  }
+  const pad = 40;
+  const ox = Number.isFinite(minX) ? minX - pad : 0;
+  const oy = Number.isFinite(minY) ? minY - pad : 0;
+  const width = Math.max(200, Math.ceil((maxX - minX || 200) + pad * 2));
+  const height = Math.max(200, Math.ceil((maxY - minY || 120) + pad * 2));
+  const byId = new Map(vertices.map((v) => [v.id, v]));
+
+  const edgeSvg = edges
+    .map((e) => {
+      const src = e.source ? byId.get(e.source) : undefined;
+      const tgt = e.target ? byId.get(e.target) : undefined;
+      const pts: { x: number; y: number }[] = [];
+      if (src) pts.push({ x: src.x + src.w / 2, y: src.y + src.h / 2 });
+      for (const p of e.points) pts.push(p);
+      if (tgt) pts.push({ x: tgt.x + tgt.w / 2, y: tgt.y + tgt.h / 2 });
+      if (pts.length < 2) return "";
+      const d = pts
+        .map((p, i) => `${i === 0 ? "M" : "L"}${p.x - ox},${p.y - oy}`)
+        .join(" ");
+      const stroke = e.style.strokeColor || "#666666";
+      return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="2" marker-end="url(#arrow)"/>`;
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  const vertexSvg = vertices
+    .map((v) => {
+      const x = v.x - ox;
+      const y = v.y - oy;
+      const fill = v.style.fillColor || "#ffffff";
+      const stroke = v.style.strokeColor || "#333333";
+      const rounded = v.style.rounded === "1" || v.style.shape === "ellipse";
+      const isEllipse =
+        v.style.shape === "ellipse" || v.style.shape === "oval";
+      const shape = isEllipse
+        ? `<ellipse cx="${x + v.w / 2}" cy="${y + v.h / 2}" rx="${v.w / 2}" ry="${v.h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`
+        : `<rect x="${x}" y="${y}" width="${v.w}" height="${v.h}" rx="${rounded ? 12 : 2}" ry="${rounded ? 12 : 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+      if (!v.label) return shape;
+      const lines = v.label.split(/\n+/).slice(0, 4);
+      const startY = y + v.h / 2 - ((lines.length - 1) * 14) / 2 + 4;
+      const text = lines
+        .map(
+          (line, i) =>
+            `<text x="${x + v.w / 2}" y="${startY + i * 14}" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" fill="#111">${escapeSvgText(line)}</text>`,
+        )
+        .join("");
+      return `${shape}${text}`;
+    })
+    .join("\n");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#666666"/>
+  </marker>
+</defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+${edgeSvg}
+${vertexSvg}
+</svg>`;
+}
+
 export async function extractDrawioContent(input: Buffer): Promise<{
   text: string;
   png?: Buffer;
+  svg?: string;
 }> {
-  const xml = decodeDrawioXml(input);
+  let xml = decodeDrawioXml(input);
   if (!xml.includes("<mxfile") && !xml.includes("<mxGraphModel")) {
     if (input[0] === 0x50 && input[1] === 0x4b) {
       const JSZip = (await import("jszip")).default;
       const zip = await JSZip.loadAsync(input);
       const diagram = Object.keys(zip.files).find((k) =>
-        k.endsWith(".xml"),
+        /\.(xml|drawio)$/i.test(k),
       );
       if (diagram) {
-        const inner = await zip.file(diagram)?.async("string");
-        if (inner) return extractDrawioContent(Buffer.from(inner, "utf-8"));
+        const inner = await zip.file(diagram)?.async("nodebuffer");
+        if (inner) return extractDrawioContent(inner);
       }
     }
     throw new Error("Unrecognized DrawIO file structure");
   }
-  const labels: string[] = [];
+
+  xml = expandDrawioXml(xml);
+  const { labels } = parseDrawioModel(xml);
+  const text = labels.join("\n") || "DrawIO diagram";
+  const result: { text: string; png?: Buffer; svg?: string } = { text };
+
   const imgMatch = xml.match(
     /image=data:image\/png;base64,([A-Za-z0-9+/=]+)/,
   );
-  const re = /value="([^"]*)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml)) !== null) {
-    const v = m[1]
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&")
-      .replace(/<[^>]+>/g, "")
-      .trim();
-    if (v && !v.startsWith("data:")) labels.push(v);
-  }
-  const text = labels.join("\n");
-  const result: { text: string; png?: Buffer } = {
-    text: text || "DrawIO diagram",
-  };
   if (imgMatch?.[1]) {
     try {
       result.png = Buffer.from(imgMatch[1], "base64");
     } catch {
       /* ignore bad base64 */
     }
+  }
+
+  try {
+    result.svg = renderDrawioSvg(xml);
+  } catch {
+    /* keep text fallback */
   }
   return result;
 }
