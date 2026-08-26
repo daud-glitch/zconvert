@@ -1408,7 +1408,7 @@ const allFormats: FormatInfo[] = [
     ext: "azw3",
     name: "AZW3",
     description:
-      "AZW3 (Kindle Format 8) is Amazon's modern ebook format. Conversion uses Calibre when available on the server.",
+      "AZW3 (Kindle Format 8) is Amazon's modern ebook format. Conversion uses Calibre when available, with a built-in KF8 text extractor as fallback.",
     category: "ebook",
     mimeTypes: ["application/vnd.amazon.ebook"],
     targetFormats: ebookNoSelf("azw3"),
@@ -1417,7 +1417,7 @@ const allFormats: FormatInfo[] = [
     ext: "mobi",
     name: "MOBI",
     description:
-      "MOBI is the classic Mobipocket/Kindle ebook format. Conversion uses Calibre when available on the server.",
+      "MOBI is the classic Mobipocket/Kindle ebook format. Conversion uses Calibre when available, with a built-in MOBI text extractor as fallback.",
     category: "ebook",
     mimeTypes: ["application/x-mobipocket-ebook"],
     targetFormats: ebookNoSelf("mobi"),

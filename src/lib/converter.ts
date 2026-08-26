@@ -29,6 +29,7 @@ import {
   extractDocText,
   extractDrawioContent,
   extractFb2Text,
+  extractKindleEbookText,
   extractMsgText,
   extractP7mContent,
   packTo7zip,
@@ -2424,9 +2425,23 @@ async function convertEbook(
     if (viaCalibre && viaCalibre.length > 0) {
       return viaCalibre;
     }
-    if (["azw3", "mobi", "lrf", "pdb", "snb"].includes(src)) {
-      throw new Error(calibreUnavailableMessage());
+  }
+
+  // AZW3 / MOBI: pure-JS text extract when Calibre is not installed.
+  if (src === "azw3" || src === "azw" || src === "mobi") {
+    try {
+      const kindleText = await extractKindleEbookText(input, src);
+      return convertDocument(Buffer.from(kindleText, "utf-8"), "md", dest);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Could not convert ${src.toUpperCase()} to ${dest.toUpperCase()}: ${detail}. ${calibreUnavailableMessage()}`,
+      );
     }
+  }
+
+  if (["lrf", "pdb", "snb"].includes(src)) {
+    throw new Error(calibreUnavailableMessage());
   }
 
   // Fallback: extract text from ZIP-based ebooks / FB2, then document writers.

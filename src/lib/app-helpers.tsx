@@ -44,6 +44,10 @@ export function isConversionSuccess(status: string): boolean {
   return status === "done" || status === "completed";
 }
 
+/** Shown next to failed conversions so users know they can check back later. */
+export const CONVERSION_FAILED_USER_NOTE =
+  "Error logged, tech team notified, will be fixed asap";
+
 // ─── Category Detection ───────────────────────────────────────────────────────
 
 export function getCategoryFromExt(ext: string): string {

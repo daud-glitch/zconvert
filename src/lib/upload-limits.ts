@@ -278,6 +278,22 @@ export function humanizeConversionError(message: string): string {
     return "The server disconnected during conversion. Retry once — large video may need lower quality or audio-only extract.";
   }
 
+  if (
+    lower.includes("unsupported compression codec") ||
+    lower.includes("failed to read parquet")
+  ) {
+    return "Could not read this Parquet file. Re-export it (CSV/JSON) or try again — GZIP/ZSTD/Brotli files are supported when the file is valid.";
+  }
+
+  if (
+    lower.includes("could not convert azw") ||
+    lower.includes("could not convert mobi") ||
+    (lower.includes("ebook conversion requires calibre") &&
+      (lower.includes("azw") || lower.includes("mobi")))
+  ) {
+    return "Could not convert this Kindle ebook. The file may be DRM-protected or corrupt. Try removing DRM first, or install Calibre on the server for best results.";
+  }
+
   if (lower.includes("rate limit") || lower.includes("too many")) {
     return "Too many conversions right now. Wait a minute and try again.";
   }

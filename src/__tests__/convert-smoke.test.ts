@@ -93,6 +93,51 @@ describe("conversion smoke", () => {
     expect(csv.toLowerCase()).toContain("karachi");
   });
 
+  it("converts Parquet → CSV / TXT / PDF", async () => {
+    const { parquetWriteBuffer } = await import("hyparquet-writer");
+    const parquet = Buffer.from(
+      parquetWriteBuffer({
+        columnData: [
+          { name: "id", data: [1, 2] },
+          { name: "city", data: ["Lahore", "Karachi"] },
+        ],
+      }),
+    );
+
+    const csv = (await convertFile(parquet, "parquet", "csv")).toString("utf-8");
+    expect(csv).toContain("city");
+    expect(csv).toContain("Lahore");
+
+    const txt = (await convertFile(parquet, "parquet", "txt")).toString("utf-8");
+    expect(txt).toContain("Karachi");
+
+    const pdf = await convertFile(parquet, "parquet", "pdf");
+    expect(pdf.subarray(0, 4).toString("utf-8")).toBe("%PDF");
+  }, 30_000);
+
+  it("converts MOBI / AZW3 → MD without Calibre", async () => {
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const mobiPath = path.join(
+      process.cwd(),
+      "src/__tests__/fixtures/sample.mobi",
+    );
+    const azw3Path = path.join(
+      process.cwd(),
+      "src/__tests__/fixtures/sample.azw3",
+    );
+    const mobi = await fs.readFile(mobiPath);
+    const azw3 = await fs.readFile(azw3Path);
+
+    const mobiMd = (await convertFile(mobi, "mobi", "md")).toString("utf-8");
+    expect(mobiMd.length).toBeGreaterThan(100);
+    expect(mobiMd).toMatch(/#\s+/);
+
+    const azw3Md = (await convertFile(azw3, "azw3", "md")).toString("utf-8");
+    expect(azw3Md.length).toBeGreaterThan(100);
+    expect(azw3Md).toMatch(/#\s+/);
+  }, 60_000);
+
   it("merges two PDFs with pdf-lib (split/merge building block)", async () => {
     const makeOnePage = async (label: string) => {
       const doc = await PDFDocument.create();

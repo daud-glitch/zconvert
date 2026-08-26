@@ -32,7 +32,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { type AdminStats, type FormatStatusData } from "@/lib/app-types";
-import { formatBytes, formatDate, getCategoryIcon, isConversionSuccess } from "@/lib/app-helpers";
+import {
+  formatBytes,
+  formatDate,
+  getCategoryIcon,
+  isConversionSuccess,
+  CONVERSION_FAILED_USER_NOTE,
+} from "@/lib/app-helpers";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { useApp } from "@/lib/app-context";
 
@@ -439,43 +445,49 @@ export function AdminOverview() {
         <CardContent className="pt-0">
           <div className="space-y-1 max-h-72 overflow-y-auto">
             {(stats?.recentConversions || []).length > 0 ? (
-              (stats?.recentConversions || []).map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/50"
-                >
+              (stats?.recentConversions || []).map((c) => {
+                const ok = isConversionSuccess(c.status);
+                return (
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 ${categoryColors[c.category] || "bg-gray-500"}`}
+                    key={c.id}
+                    className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/50"
                   >
-                    {getCategoryIcon(c.category, "w-3.5 h-3.5")}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">
-                      {c.fileName}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground font-mono uppercase">
-                      {c.originalExt} → {c.targetExt}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <Badge
-                      variant={
-                        isConversionSuccess(c.status) ? "default" : "destructive"
-                      }
-                      className={
-                        isConversionSuccess(c.status)
-                          ? "bg-emerald-500 text-[9px] px-1.5 py-0"
-                          : "text-[9px] px-1.5 py-0"
-                      }
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 ${categoryColors[c.category] || "bg-gray-500"}`}
                     >
-                      {isConversionSuccess(c.status) ? "✓" : "✗"}
-                    </Badge>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {formatDate(c.createdAt)}
+                      {getCategoryIcon(c.category, "w-3.5 h-3.5")}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate">
+                        {c.fileName}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-wide">
+                        {c.originalExt} → {c.targetExt}
+                      </div>
+                      {!ok ? (
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 leading-snug">
+                          {CONVERSION_FAILED_USER_NOTE}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="text-right shrink-0 flex flex-col items-end gap-0.5 pt-0.5">
+                      <Badge
+                        variant={ok ? "default" : "destructive"}
+                        className={
+                          ok
+                            ? "bg-emerald-500 text-[9px] px-1.5 py-0 h-5 min-w-5 justify-center"
+                            : "text-[9px] px-1.5 py-0 h-5 min-w-5 justify-center"
+                        }
+                      >
+                        {ok ? "✓" : "✗"}
+                      </Badge>
+                      <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {formatDate(c.createdAt)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
                 <History className="w-8 h-8 text-muted-foreground/40" />

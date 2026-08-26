@@ -23,6 +23,8 @@ const IMAGE_ROUTE_EXCLUDES = [
   "node_modules/7zip-min/**",
   "node_modules/hyparquet/**",
   "node_modules/hyparquet-writer/**",
+  "node_modules/hyparquet-compressors/**",
+  "node_modules/@lingo-reader/**",
   "node_modules/apache-arrow/**",
   "node_modules/sav-reader/**",
   "node_modules/dta/**",
@@ -49,6 +51,7 @@ const DATA_ROUTE_EXCLUDES = [
   "node_modules/mammoth/**",
   "node_modules/wawoff2/**",
   "node_modules/ffmpeg-static/**",
+  "node_modules/@lingo-reader/**",
 ];
 
 const ARCHIVE_ROUTE_EXCLUDES = [
@@ -64,6 +67,8 @@ const ARCHIVE_ROUTE_EXCLUDES = [
   "node_modules/pptxgenjs/**",
   "node_modules/hyparquet/**",
   "node_modules/hyparquet-writer/**",
+  "node_modules/hyparquet-compressors/**",
+  "node_modules/@lingo-reader/**",
   "node_modules/apache-arrow/**",
   "node_modules/wawoff2/**",
 ];
@@ -77,6 +82,8 @@ const DOCUMENT_ROUTE_EXCLUDES = [
   "node_modules/archiver/**",
   "node_modules/hyparquet/**",
   "node_modules/hyparquet-writer/**",
+  "node_modules/hyparquet-compressors/**",
+  "node_modules/@lingo-reader/**",
   "node_modules/apache-arrow/**",
   "node_modules/wawoff2/**",
   "node_modules/ffmpeg-static/**",
@@ -137,12 +144,20 @@ const nextConfig: NextConfig = {
     "/api/convert/data": [
       "./node_modules/sql.js/dist/**",
       "./node_modules/xlsx/**",
+      "./node_modules/hyparquet/**",
+      "./node_modules/hyparquet-writer/**",
+      "./node_modules/hyparquet-compressors/**",
       "./assets/fonts/**",
     ],
     "/api/convert/archive": ["./node_modules/7zip-bin/**"],
     "/api/convert/document": [
       "./node_modules/pdf-parse/**",
       "./node_modules/@napi-rs/canvas/**",
+      "./assets/fonts/**",
+    ],
+    "/api/convert/other": [
+      "./node_modules/@lingo-reader/mobi-parser/**",
+      "./node_modules/@lingo-reader/shared/**",
       "./assets/fonts/**",
     ],
     "/api/pdf-split": [
@@ -166,6 +181,9 @@ const nextConfig: NextConfig = {
     "jszip",
     "hyparquet",
     "hyparquet-writer",
+    "hyparquet-compressors",
+    "@lingo-reader/mobi-parser",
+    "@lingo-reader/shared",
     "sql.js",
     "7zip-min",
     "7zip-bin",

@@ -31,14 +31,32 @@ export function recordsToColumnData(
 }
 
 // ─── Parquet ───────────────────────────────────────────────────────────────
+/** Contiguous ArrayBuffer copy — pooled Node Buffer views break hyparquet. */
+function bufferToArrayBuffer(input: Buffer): ArrayBuffer {
+  const copy = new Uint8Array(input.byteLength);
+  copy.set(input);
+  return copy.buffer;
+}
+
 export async function readParquetRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
   const { parquetReadObjects } = await import("hyparquet");
-  const rows = await parquetReadObjects({
-    file: new Uint8Array(input).buffer as ArrayBuffer,
-  });
-  return rows as Record<string, unknown>[];
+  // Real-world Parquet often uses GZIP/ZSTD/BROTLI/LZ4 — hyparquet alone only
+  // handles uncompressed + Snappy.
+  const { compressors } = await import("hyparquet-compressors");
+  try {
+    const rows = await parquetReadObjects({
+      file: bufferToArrayBuffer(input),
+      compressors,
+    });
+    return rows as Record<string, unknown>[];
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to read Parquet file: ${detail}. Try re-exporting as CSV/JSON, or ensure the file is not corrupt.`,
+    );
+  }
 }
 
 export async function writeParquetBuffer(
@@ -236,6 +254,81 @@ export async function extractMsgText(input: Buffer): Promise<string> {
     data.body || "",
   ].filter((p, i, arr) => !(i === arr.length - 2 && p === ""));
   return parts.join("\n").trim() || "[Empty MSG]";
+}
+
+// ─── Kindle AZW3 / MOBI (no Calibre) ───────────────────────────────────────
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Extract plain text from AZW3 (KF8) / MOBI without Calibre.
+ * Used as a fallback when ebook-convert is not installed on the server.
+ */
+export async function extractKindleEbookText(
+  input: Buffer,
+  ext: string,
+): Promise<string> {
+  const src = ext.toLowerCase().replace(/^\./, "");
+  const { initKf8File, initMobiFile } = await import(
+    "@lingo-reader/mobi-parser"
+  );
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-kindle-"));
+  const u8 = new Uint8Array(input.byteLength);
+  u8.set(input);
+
+  try {
+    const book =
+      src === "azw3" || src === "azw"
+        ? await initKf8File(u8, tmp)
+        : await initMobiFile(u8, tmp);
+
+    try {
+      const meta = book.getMetadata();
+      const spine = book.getSpine();
+      const parts: string[] = [];
+      if (meta?.title) parts.push(`# ${meta.title}`);
+      if (meta?.author?.length) {
+        parts.push(`*${meta.author.join(", ")}*`);
+      }
+      for (const chapter of spine) {
+        const loaded = book.loadChapter(chapter.id);
+        const html =
+          loaded?.html ??
+          ("text" in chapter ? String((chapter as { text?: string }).text || "") : "");
+        const text = stripHtmlToText(html);
+        if (text) parts.push(text);
+      }
+      const out = parts.join("\n\n").trim();
+      if (!out) {
+        throw new Error("No readable text found in ebook");
+      }
+      return out;
+    } finally {
+      try {
+        book.destroy();
+      } catch {
+        /* ignore */
+      }
+    }
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 // ─── FB2 ───────────────────────────────────────────────────────────────────

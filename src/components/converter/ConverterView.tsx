@@ -52,6 +52,7 @@ import {
   getCategoryFromExt,
   getConvertApiPath,
   isConversionSuccess,
+  CONVERSION_FAILED_USER_NOTE,
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
@@ -1956,8 +1957,11 @@ export function ConverterView() {
                                 <span>{formatBytes(item.size)}</span>
                               )}
                               {item.status === "error" && (
-                                <span className="text-red-600 dark:text-red-400 font-medium break-words">
-                                  {item.error || "Failed"}
+                                <span className="text-red-600 dark:text-red-400 font-medium break-words flex flex-col gap-0.5 w-full max-w-md">
+                                  <span>{item.error || "Failed"}</span>
+                                  <span className="text-[11px] font-normal text-red-600/80 dark:text-red-400/90">
+                                    {CONVERSION_FAILED_USER_NOTE}
+                                  </span>
                                 </span>
                               )}
                               {item.status === "pending" && item.uploading && (
