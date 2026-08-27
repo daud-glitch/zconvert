@@ -110,6 +110,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true,
+  // Cap SSG workers so Heroku Postgres connection limits aren't exhausted mid-build.
+  experimental: {
+    staticGenerationMaxConcurrency: 2,
+  },
 
   outputFileTracingExcludes: {
     "*": [

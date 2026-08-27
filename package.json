@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && next build",
-    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && npx prisma generate && npx prisma db push && next build && npx tsx scripts/notify-indexnow.cjs",
+    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && npx prisma generate && npx prisma db push && PRISMA_CONNECTION_LIMIT=1 next build && npx tsx scripts/notify-indexnow.cjs",
     "start": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && next start",
     "lint": "eslint .",
     "test": "vitest run",

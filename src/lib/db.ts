@@ -8,7 +8,16 @@ function withConnectionLimit(databaseUrl: string): string {
   try {
     const u = new URL(databaseUrl);
     // Keep Heroku Postgres within free-tier connection room (web + worker).
-    const defaultLimit = process.env.DYNO?.startsWith("worker") ? "2" : "3";
+    // Static page workers each get their own Prisma client — use 1 during builds.
+    const isBuild =
+      process.env.NEXT_PHASE === "phase-production-build" ||
+      process.env.npm_lifecycle_event === "heroku-postbuild" ||
+      process.env.npm_lifecycle_event === "build";
+    const defaultLimit = isBuild
+      ? "1"
+      : process.env.DYNO?.startsWith("worker")
+        ? "2"
+        : "3";
     if (!u.searchParams.has("connection_limit")) {
       u.searchParams.set(
         "connection_limit",
