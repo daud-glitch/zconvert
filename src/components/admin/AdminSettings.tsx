@@ -16,6 +16,7 @@ import {
   BarChart3,
   Loader2,
   Check,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +58,19 @@ const CATEGORY_META: Record<
     icon: <BarChart3 className="w-4 h-4" />,
     color: "text-violet-500",
   },
+  donations: {
+    label: "Donations (/donate page)",
+    icon: <Heart className="w-4 h-4" />,
+    color: "text-rose-500",
+  },
+};
+
+const SETTING_LABELS: Record<string, string> = {
+  analytics_enabled: "Traffic analytics",
+  donate_kofi_url: "Ko-fi URL",
+  donate_paypal_url: "PayPal URL",
+  donate_buymeacoffee_url: "Buy Me a Coffee URL",
+  donate_contact_email: "Donation contact email",
 };
 
 function isTruthy(v: string) {
@@ -130,14 +144,14 @@ export function AdminSettings() {
     {},
   );
 
-  const categoryOrder = ["analytics", "general", "conversion"];
+  const categoryOrder = ["donations", "analytics", "general", "conversion"];
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Application Settings</h2>
         <p className="text-sm text-muted-foreground">
-          Configure conversions, branding, and traffic analytics
+          Configure conversions, branding, donations, and traffic analytics
         </p>
       </div>
 
@@ -179,6 +193,12 @@ export function AdminSettings() {
                         (referrer / UTM) appear under Admin → Analytics. IP is
                         stored as a hash only.
                       </CardDescription>
+                    ) : cat === "donations" ? (
+                      <CardDescription className="text-xs">
+                        Links appear on the public /donate page. Leave a URL
+                        empty to hide that button. Bank / IBAN details stay
+                        private — users email the contact address below.
+                      </CardDescription>
                     ) : null}
                   </CardHeader>
                   <CardContent className="pt-0 space-y-4">
@@ -195,9 +215,8 @@ export function AdminSettings() {
                           >
                             <div className="min-w-0">
                               <div className="text-sm font-medium flex items-center gap-2">
-                                {s.key === "analytics_enabled"
-                                  ? "Traffic analytics"
-                                  : s.key.replace(/_/g, " ")}
+                                {SETTING_LABELS[s.key] ||
+                                  s.key.replace(/_/g, " ")}
                                 {justSaved ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-500" />
                                 ) : null}
@@ -237,8 +256,9 @@ export function AdminSettings() {
                           className="p-3 rounded-xl border border-border bg-muted/20 space-y-2"
                         >
                           <div>
-                            <Label className="text-sm font-medium capitalize">
-                              {s.key.replace(/_/g, " ")}
+                            <Label className="text-sm font-medium">
+                              {SETTING_LABELS[s.key] ||
+                                s.key.replace(/_/g, " ")}
                             </Label>
                             {s.description ? (
                               <p className="text-xs text-muted-foreground mt-0.5">

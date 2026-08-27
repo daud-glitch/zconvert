@@ -16,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   sitemapFields.push(
     { url: `${CANONICAL_SITE_URL}/`, lastModified, changeFrequency: "daily", priority: 1.0 },
     { url: `${CANONICAL_SITE_URL}/about`, lastModified, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${CANONICAL_SITE_URL}/donate`, lastModified, changeFrequency: "monthly", priority: 0.4 },
     { url: `${CANONICAL_SITE_URL}/changelog`, lastModified, changeFrequency: "weekly", priority: 0.5 },
     { url: `${CANONICAL_SITE_URL}/contact`, lastModified, changeFrequency: "monthly", priority: 0.5 },
     { url: `${CANONICAL_SITE_URL}/privacy`, lastModified, changeFrequency: "monthly", priority: 0.5 },

@@ -286,7 +286,6 @@ export function AdminAds() {
                   <SelectContent>
                     <SelectItem value="banner">Image Banner</SelectItem>
                     <SelectItem value="code">HTML/JS Code</SelectItem>
-                    <SelectItem value="google">Google AdSense</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -206,7 +206,7 @@ model Ad {
   id        String  @id @default(cuid())
   title     String
   location  String // homepage_top, homepage_side, converter_top, converter_side, footer
-  type      String // banner, code, google
+  type      String // banner, code
   content   String?
   code      String?
   enabled   Boolean @default(true)

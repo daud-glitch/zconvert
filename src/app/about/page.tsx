@@ -85,7 +85,12 @@ export default function AboutPage() {
           Contact form
         </Link>{" "}
         or email{" "}
-        <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.
+        <a href={`mailto:${CONTACT}`}>{CONTACT}</a>. To help keep Convertek
+        ads-free, see{" "}
+        <Link href="/donate" className="text-emerald-600">
+          Donate
+        </Link>
+        .
       </p>
 
       <h2>Legal</h2>

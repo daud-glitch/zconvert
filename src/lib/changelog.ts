@@ -7,6 +7,14 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    date: "2026-08-26",
+    title: "Conversion fixes",
+    items: [
+      "Parquet files now convert reliably to CSV, TXT, PDF, and other data targets — GZIP, ZSTD, Brotli, and LZ4 compression are supported (previously many real-world Parquet uploads failed).",
+      "AZW3 and MOBI ebooks convert to Markdown and other text formats without requiring Calibre on the server — a built-in Kindle/KF8 reader extracts text when Calibre is unavailable.",
+    ],
+  },
+  {
     date: "2026-08-25",
     title: "Conversion fixes",
     items: [

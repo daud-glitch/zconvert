@@ -12,6 +12,10 @@ const SETTINGS_SCHEMA = {
   email_from_address: "string",
   brand_name: "string",
   primary_color: "string",
+  donate_kofi_url: "string",
+  donate_paypal_url: "string",
+  donate_buymeacoffee_url: "string",
+  donate_contact_email: "string",
 } as const;
 
 type SettingKey = keyof typeof SETTINGS_SCHEMA;
@@ -27,6 +31,14 @@ const SETTINGS_DESCRIPTIONS: Record<SettingKey, string> = {
   email_from_address: "Email address used for system notifications",
   brand_name: "Brand name displayed in the UI",
   primary_color: "Primary color in hex format (e.g. #3b82f6)",
+  donate_kofi_url:
+    "Full Ko-fi profile URL shown on /donate (leave empty to hide)",
+  donate_paypal_url:
+    "Full PayPal.me or PayPal donate URL shown on /donate (leave empty to hide)",
+  donate_buymeacoffee_url:
+    "Full Buy Me a Coffee URL shown on /donate (leave empty to hide)",
+  donate_contact_email:
+    "Email for bank-transfer / IBAN requests on the donate page",
 };
 
 const SETTINGS_CATEGORIES: Record<SettingKey, string> = {
@@ -38,6 +50,10 @@ const SETTINGS_CATEGORIES: Record<SettingKey, string> = {
   email_from_address: "general",
   brand_name: "general",
   primary_color: "general",
+  donate_kofi_url: "donations",
+  donate_paypal_url: "donations",
+  donate_buymeacoffee_url: "donations",
+  donate_contact_email: "donations",
 };
 
 const DEFAULT_VALUES: Record<SettingKey, string> = {
@@ -49,6 +65,10 @@ const DEFAULT_VALUES: Record<SettingKey, string> = {
   email_from_address: "contact@convertek.tech",
   brand_name: "Convertek",
   primary_color: "#10b981",
+  donate_kofi_url: "",
+  donate_paypal_url: "",
+  donate_buymeacoffee_url: "",
+  donate_contact_email: "contact@convertek.tech",
 };
 
 function parseBoolInput(value: unknown): boolean | null {

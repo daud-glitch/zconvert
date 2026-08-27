@@ -11,25 +11,17 @@ export function CmsAdSlot({
   ads: CmsAd[];
   className?: string;
 }) {
-  if (!ads.length) return null;
+  const visible = ads.filter((ad) => ad.type === "banner" || ad.type === "code");
+  if (!visible.length) return null;
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {ads.map((ad) => {
+      {visible.map((ad) => {
         if (ad.type === "code" && ad.code) {
           return (
             <div
               key={ad.id}
               className="cms-ad overflow-hidden"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(ad.code) }}
-            />
-          );
-        }
-        if (ad.type === "google" && ad.code) {
-          return (
-            <div
-              key={ad.id}
-              className="cms-ad overflow-hidden flex justify-center"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(ad.code) }}
             />
           );

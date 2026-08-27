@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       prisma.ad.findMany({
         where: {
           enabled: true,
+          type: { in: ["banner", "code"] },
           ...(location ? { location } : {}),
         },
         orderBy: { order: "asc" },

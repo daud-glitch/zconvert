@@ -19,6 +19,7 @@ import {
   Info,
   Mail,
   ScrollText,
+  Heart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -337,20 +338,14 @@ export const navItems: NavItem[] = [
     href: "/conversions",
   },
   {
-    id: "history",
-    label: "History",
-    icon: BarChart3,
-  },
-  {
     id: "bookmarks",
     label: "Bookmarks",
     icon: Folder,
   },
   {
-    id: "changelog",
-    label: "Changelog",
-    icon: ScrollText,
-    href: "/changelog",
+    id: "history",
+    label: "History",
+    icon: BarChart3,
   },
   {
     id: "about",
@@ -364,8 +359,21 @@ export const navItems: NavItem[] = [
     icon: Mail,
     href: "/contact",
   },
+  {
+    id: "donate",
+    label: "Donate",
+    icon: Heart,
+    href: "/donate",
+  },
 ];
 
+/** Shown after theme toggle / profile (not in the main nav list). */
+export const changelogNavItem: NavItem = {
+  id: "changelog",
+  label: "Changelog",
+  icon: ScrollText,
+  href: "/changelog",
+};
 // ─── Admin Nav Items ──────────────────────────────────────────────────────────
 
 import { type AdminTab } from "@/lib/app-types";

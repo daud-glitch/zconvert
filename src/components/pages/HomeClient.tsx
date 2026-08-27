@@ -19,6 +19,7 @@ import {
   Shield,
   Zap,
   Loader2,
+  ScrollText,
 } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTaglines, BrandTitle } from "@/components/common/BrandTitle";
@@ -32,7 +33,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { type ViewType } from "@/lib/formats";
-import { navItems } from "@/lib/app-constants";
+import { navItems, changelogNavItem } from "@/lib/app-constants";
 import { useApp } from "@/lib/app-context";
 import {
   useCmsBundle,
@@ -230,8 +231,8 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
       if (e.key === "d" && !e.ctrlKey && !e.metaKey) toggleTheme();
       if (e.key === "1") setCurrentView("converter");
       if (e.key === "2") window.location.href = "/conversions";
-      if (e.key === "3") setCurrentView("history");
-      if (e.key === "4") setCurrentView("bookmarks");
+      if (e.key === "3") setCurrentView("bookmarks");
+      if (e.key === "4") setCurrentView("history");
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -267,13 +268,18 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                const isDonate = item.id === "donate";
                 if (item.href) {
                   return (
                     <Button
                       key={item.id}
-                      variant="ghost"
+                      variant={isDonate ? "default" : "ghost"}
                       size="sm"
-                      className="gap-2 h-9 px-4 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                      className={
+                        isDonate
+                          ? "gap-2 h-9 px-4 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-sm shadow-rose-500/25"
+                          : "gap-2 h-9 px-4 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }
                       asChild
                     >
                       <Link href={item.href}>
@@ -387,6 +393,18 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                 </div>
               )}
 
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden md:inline-flex gap-2 h-9 px-3 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                asChild
+              >
+                <Link href={changelogNavItem.href!}>
+                  <ScrollText className="w-4 h-4" />
+                  {changelogNavItem.label}
+                </Link>
+              </Button>
+
               {/* Mobile Menu Trigger */}
               <Button
                 variant="ghost"
@@ -410,12 +428,17 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
             <div className="px-4 pt-2 pb-6 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                const isDonate = item.id === "donate";
                 if (item.href) {
                   return (
                     <Button
                       key={item.id}
-                      variant="ghost"
-                      className="w-full justify-start gap-3 h-12 rounded-xl text-muted-foreground"
+                      variant={isDonate ? "default" : "ghost"}
+                      className={
+                        isDonate
+                          ? "w-full justify-start gap-3 h-12 rounded-xl bg-rose-500 hover:bg-rose-600 text-white"
+                          : "w-full justify-start gap-3 h-12 rounded-xl text-muted-foreground"
+                      }
                       asChild
                     >
                       <Link href={item.href} onClick={() => setMobileNavOpen(false)}>
@@ -442,6 +465,19 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   </Button>
                 );
               })}
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3 h-12 rounded-xl text-muted-foreground"
+                asChild
+              >
+                <Link
+                  href={changelogNavItem.href!}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  <ScrollText className="w-5 h-5" />
+                  {changelogNavItem.label}
+                </Link>
+              </Button>
             </div>
           </div>
         )}
@@ -602,6 +638,12 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   className="text-left hover:text-emerald-500 transition-colors"
                 >
                   About
+                </Link>
+                <Link
+                  href="/donate"
+                  className="text-left font-semibold text-rose-600 hover:text-rose-500 transition-colors"
+                >
+                  Donate
                 </Link>
                 <Link
                   href="/contact"

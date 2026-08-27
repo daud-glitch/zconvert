@@ -67,7 +67,7 @@ export function resolveTrafficSource(input: {
       return "Internal";
     }
 
-    if (hostMatches(host, ["google.com", "google.co", "googlesyndication.com"])) {
+    if (hostMatches(host, ["google.com", "google.co"])) {
       return "Google";
     }
     if (hostMatches(host, ["bing.com", "bing.net"])) return "Bing";

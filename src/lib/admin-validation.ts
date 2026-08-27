@@ -39,7 +39,7 @@ export const adminPageSchema = z.object({
 });
 
 export const VALID_AD_LOCATIONS = ["homepage_top", "homepage_side", "converter_top", "converter_side", "footer"] as const;
-export const VALID_AD_TYPES = ["banner", "code", "google"] as const;
+export const VALID_AD_TYPES = ["banner", "code"] as const;
 
 export const adminAdSchema = z.object({
   title: z.string().min(1, "Title is required"),
