@@ -116,7 +116,6 @@ const imgOutputSupported = [
   "png",
   "svg",
   "tiff",
-  "tif",
   "webp",
 ] as const;
 
@@ -178,7 +177,6 @@ const pdfOutputTargets = [
   "gif",
   "bmp",
   "tiff",
-  "tif",
 ] as const;
 
 const docNoSelf = (self: string, extras?: string[]) => {
@@ -208,7 +206,6 @@ const dataOutputSupported = [
   "xlsx",
   "xml",
   "yaml",
-  "yml",
   "parquet",
 ] as const;
 
