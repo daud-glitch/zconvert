@@ -20,6 +20,7 @@ import {
   Mail,
   ScrollText,
   Heart,
+  LifeBuoy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -388,6 +389,7 @@ export const adminNavItems: { id: AdminTab; label: string; icon: React.ReactNode
   { id: "links", label: "Links", icon: <LinkIcon className="w-4 h-4" /> },
   { id: "pages", label: "Pages", icon: <FileText className="w-4 h-4" /> },
   { id: "ads", label: "Ad Management", icon: <Megaphone className="w-4 h-4" /> },
+  { id: "support", label: "Support", icon: <LifeBuoy className="w-4 h-4" /> },
   // { id: "database", label: "Database", icon: <LayoutDashboard className="w-4 h-4" /> },
   { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
 ];

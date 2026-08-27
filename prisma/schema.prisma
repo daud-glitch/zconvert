@@ -268,6 +268,26 @@ model DailyStats {
   @@unique([date])
 }
 
+// ─── Contact / Support inbox ──────────────────────────────────────────────────
+
+model ContactMessage {
+  id        String    @id @default(cuid())
+  name      String?
+  email     String
+  kind      String    @default("general") // general | broken-convert | privacy | billing
+  sourceExt String?
+  targetExt String?
+  message   String
+  ipAddress String?
+  status    String    @default("new") // new | read | resolved
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([kind])
+  @@index([createdAt])
+}
+
 // ─── Convert job queue (web ↔ worker dyno via Postgres) ───────────────────────
 
 /**
