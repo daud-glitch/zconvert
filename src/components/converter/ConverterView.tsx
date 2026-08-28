@@ -1545,118 +1545,17 @@ export function ConverterView() {
         onUploadClick={() => fileInputRef.current?.click()}
       />
 
+      <PopularPairsSection
+        activePair={activePreferredPair}
+        onSelectPair={handlePopularPairSelect}
+      />
+
       {/* ─── Upload Zone ─── */}
       <Card
         ref={uploadCardRef}
         className="card-elevated overflow-hidden border-border/60 shadow-md -mt-2 sm:-mt-4"
       >
         <CardContent className="p-0">
-          <div className="border-b border-border/60 bg-muted/20 px-4 py-3 sm:px-6 sm:py-4">
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {[
-                {
-                  value: formatCount > 0 ? `${formatCount}+` : "—",
-                  label: "Formats",
-                },
-                {
-                  value: activeCategories > 0 ? String(activeCategories) : "—",
-                  label: "Categories",
-                },
-                {
-                  value: pairCount > 0 ? `${pairCount.toLocaleString()}+` : "—",
-                  label: "Pairs",
-                },
-                {
-                  value: String(MAX_NONVIDEO_BATCH),
-                  label: "Per batch",
-                },
-                {
-                  value: formatNonVideoMaxUploadLabel(),
-                  label: "Max file",
-                },
-                {
-                  value: formatVideoMaxUploadLabel(),
-                  label: "Max video",
-                },
-              ].map((stat) => (
-                <span
-                  key={stat.label}
-                  className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] sm:text-[11px]"
-                >
-                  <span className="font-bold tabular-nums text-foreground">
-                    {stat.value}
-                  </span>
-                  <span className="text-muted-foreground">{stat.label}</span>
-                </span>
-              ))}
-            </div>
-
-            <div
-              className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex flex-1 flex-col gap-1.5 sm:max-w-[11rem]">
-                <Label className="text-[11px] font-medium text-muted-foreground">
-                  From
-                </Label>
-                <Select
-                  value={preferredFrom || "__any__"}
-                  onValueChange={(val) => {
-                    const nextFrom = val === "__any__" ? null : val;
-                    setPreferredFrom(nextFrom);
-                    if (nextFrom && preferredTo) {
-                      const targets = targetsForExt(nextFrom, targetFormatsMap);
-                      if (!targets.includes(preferredTo)) {
-                        setPreferredTo(null);
-                        syncPreferredPairUrl(nextFrom, null);
-                        return;
-                      }
-                    }
-                    syncPreferredPairUrl(nextFrom, preferredTo);
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Any format" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__any__">Any format</SelectItem>
-                    {enabledInputExts.map((ext) => (
-                      <SelectItem key={ext} value={ext}>
-                        {ext.toUpperCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <ArrowRightLeft className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:mb-2.5 sm:block" />
-              <div className="flex flex-1 flex-col gap-1.5 sm:max-w-[11rem]">
-                <Label className="text-[11px] font-medium text-muted-foreground">
-                  To
-                </Label>
-                <Select
-                  value={preferredTo || "__choose__"}
-                  onValueChange={(val) => {
-                    const nextTo = val === "__choose__" ? null : val;
-                    setPreferredTo(nextTo);
-                    syncPreferredPairUrl(preferredFrom, nextTo);
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Choose output" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__choose__">Choose output</SelectItem>
-                    {preferredToOptions.map((ext) => (
-                      <SelectItem key={ext} value={ext}>
-                        {ext.toUpperCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
           <div
             className={`upload-zone-enhanced p-5 sm:p-8 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
               dragOver
@@ -1710,6 +1609,112 @@ export function ConverterView() {
                 <HardDrive className="h-3 w-3 shrink-0" />
                 Temp process · converted files stay in your browser
               </p>
+
+              <div
+                className="mt-5 border-t border-border/50 pt-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+                  {[
+                    {
+                      value: formatCount > 0 ? `${formatCount}+` : "—",
+                      label: "Formats",
+                    },
+                    {
+                      value: activeCategories > 0 ? String(activeCategories) : "—",
+                      label: "Categories",
+                    },
+                    {
+                      value: pairCount > 0 ? `${pairCount.toLocaleString()}+` : "—",
+                      label: "Pairs",
+                    },
+                    {
+                      value: String(MAX_NONVIDEO_BATCH),
+                      label: "Per batch",
+                    },
+                    {
+                      value: formatNonVideoMaxUploadLabel(),
+                      label: "Max file",
+                    },
+                    {
+                      value: formatVideoMaxUploadLabel(),
+                      label: "Max video",
+                    },
+                  ].map((stat) => (
+                    <span
+                      key={stat.label}
+                      className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/90 px-2 py-0.5 text-[10px] sm:text-[11px]"
+                    >
+                      <span className="font-bold tabular-nums text-foreground">
+                        {stat.value}
+                      </span>
+                      <span className="text-muted-foreground">{stat.label}</span>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end sm:justify-center sm:gap-3">
+                  <div className="flex flex-1 flex-col gap-1 sm:max-w-[10rem]">
+                    <Label className="text-[10px] font-medium text-muted-foreground text-left">
+                      From
+                    </Label>
+                    <Select
+                      value={preferredFrom || "__any__"}
+                      onValueChange={(val) => {
+                        const nextFrom = val === "__any__" ? null : val;
+                        setPreferredFrom(nextFrom);
+                        if (nextFrom && preferredTo) {
+                          const targets = targetsForExt(nextFrom, targetFormatsMap);
+                          if (!targets.includes(preferredTo)) {
+                            setPreferredTo(null);
+                            syncPreferredPairUrl(nextFrom, null);
+                            return;
+                          }
+                        }
+                        syncPreferredPairUrl(nextFrom, preferredTo);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Any format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__any__">Any format</SelectItem>
+                        {enabledInputExts.map((ext) => (
+                          <SelectItem key={ext} value={ext}>
+                            {ext.toUpperCase()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <ArrowRightLeft className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground sm:mb-2 sm:block" />
+                  <div className="flex flex-1 flex-col gap-1 sm:max-w-[10rem]">
+                    <Label className="text-[10px] font-medium text-muted-foreground text-left">
+                      To
+                    </Label>
+                    <Select
+                      value={preferredTo || "__choose__"}
+                      onValueChange={(val) => {
+                        const nextTo = val === "__choose__" ? null : val;
+                        setPreferredTo(nextTo);
+                        syncPreferredPairUrl(preferredFrom, nextTo);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Choose output" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__choose__">Choose output</SelectItem>
+                        {preferredToOptions.map((ext) => (
+                          <SelectItem key={ext} value={ext}>
+                            {ext.toUpperCase()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1778,11 +1783,6 @@ export function ConverterView() {
           </div>
         </CardContent>
       </Card>
-
-      <PopularPairsSection
-        activePair={activePreferredPair}
-        onSelectPair={handlePopularPairSelect}
-      />
 
       {/* ─── File Queue ─── */}
       {batchProgress && batchProgress.total > 0 && (
