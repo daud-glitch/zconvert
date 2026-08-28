@@ -44,9 +44,8 @@ export function PopularPairsSection({
               Popular conversions
             </h2>
             <p className="text-[11px] text-muted-foreground truncate">
-              {source === "live"
-                ? "Updated from recent conversions"
-                : "Tap a pair to pre-select formats"}
+              Tap to select · tap again to clear
+              {source === "live" ? " · live rankings" : ""}
             </p>
           </div>
         </div>
@@ -66,6 +65,7 @@ export function PopularPairsSection({
             <button
               key={`${pair.from}-${pair.to}`}
               type="button"
+              aria-pressed={isActive}
               onClick={() => onSelectPair({ from: pair.from, to: pair.to })}
               className={`group flex items-center justify-center gap-1 rounded-lg border px-2 py-2 transition-all ${
                 isActive

@@ -376,10 +376,16 @@ export function ConverterView() {
 
   const handlePopularPairSelect = useCallback(
     (pair: ConversionPair) => {
+      const isSame =
+        preferredFrom === pair.from && preferredTo === pair.to;
+      if (isSame) {
+        applyPreferredPair(null);
+        return;
+      }
       applyPreferredPair(pair);
       uploadCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     },
-    [applyPreferredPair],
+    [applyPreferredPair, preferredFrom, preferredTo],
   );
 
   useEffect(() => {
