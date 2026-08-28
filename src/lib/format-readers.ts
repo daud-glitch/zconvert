@@ -2,18 +2,12 @@
  * Binary / legacy format readers (dynamic imports to limit bundle impact).
  */
 import fs from "fs/promises";
-import { createRequire } from "module";
 import os from "os";
 import path from "path";
 import { gunzipSync, inflateRawSync } from "zlib";
 import { XMLParser } from "fast-xml-parser";
 import * as tar from "tar-stream";
 import { extractRarWithToolchain } from "@/lib/external-toolchain";
-
-/** sav-reader is CJS-only (`exports.require`); Turbopack cannot resolve ESM import. */
-const nodeRequire = createRequire(
-  path.join(/* turbopackIgnore: true */ process.cwd(), "package.json"),
-);
 
 export type ArchiveEntry = { name: string; data: Buffer };
 
@@ -126,28 +120,32 @@ export async function readSqliteRecords(
 export async function readSavRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
-  const { SavBufferReader } = nodeRequire("sav-reader") as {
-    SavBufferReader: new (buf: Buffer) => {
-      open(): Promise<void>;
-      readAllRows(): Promise<unknown[][]>;
-      meta?: { variables?: { name?: string; label?: string }[] };
-    };
-  };
-  const sav = new SavBufferReader(input);
-  await sav.open();
-  const rows = await sav.readAllRows();
-  const vars = sav.meta?.variables ?? [];
-  const names = vars.map(
-    (v: { name?: string; label?: string }, i: number) =>
-      v.name || v.label || `var${i + 1}`,
-  );
-  return (rows as unknown[][]).map((row) => {
-    const rec: Record<string, unknown> = {};
-    names.forEach((n: string, i: number) => {
-      rec[n] = row[i];
+  try {
+    const { readSav, applyUserMissing } = await import("datareader-spss");
+    const bytes = input.buffer.slice(
+      input.byteOffset,
+      input.byteOffset + input.byteLength,
+    ) as ArrayBuffer;
+    const parsed = await readSav(bytes);
+    const sheet = applyUserMissing(parsed.sheets[0]);
+    if (!sheet?.variables?.length) return [];
+
+    const names = sheet.variables.map((v) => v.name);
+    return sheet.rows.map((row) => {
+      const rec: Record<string, unknown> = {};
+      names.forEach((name, i) => {
+        const val = row[i];
+        rec[name] =
+          val instanceof Date ? val.toISOString() : (val ?? null);
+      });
+      return rec;
     });
-    return rec;
-  });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to read SAV file: ${detail}. The file may be corrupt, password-protected, or an unsupported SPSS variant.`,
+    );
+  }
 }
 
 // ─── Feather / Arrow IPC ───────────────────────────────────────────────────
