@@ -286,6 +286,18 @@ export function humanizeConversionError(message: string): string {
   }
 
   if (
+    lower.includes("failed to read sav") ||
+    lower.includes("sav file contains no") ||
+    lower.includes("not a valid .sav")
+  ) {
+    const cleaned = msg
+      .replace(/[A-Za-z]:\\[^\s]+/g, "")
+      .replace(/\/app\/[^\s]+/g, "")
+      .trim();
+    return cleaned.length > 180 ? `${cleaned.slice(0, 177)}…` : cleaned;
+  }
+
+  if (
     lower.includes("could not convert azw") ||
     lower.includes("could not convert mobi") ||
     (lower.includes("ebook conversion requires calibre") &&

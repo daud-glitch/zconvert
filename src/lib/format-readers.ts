@@ -117,31 +117,85 @@ export async function readSqliteRecords(
 }
 
 // ─── SPSS SAV ──────────────────────────────────────────────────────────────
+function normalizeSavCell(value: unknown): string | number | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (typeof value === "string") return value.replace(/\0/g, "");
+  return String(value).replace(/\0/g, "");
+}
+
+function savRowsToRecords(
+  names: string[],
+  rows: unknown[][],
+): Record<string, unknown>[] {
+  return rows.map((row) => {
+    const rec = Object.create(null) as Record<string, unknown>;
+    names.forEach((name, i) => {
+      rec[name] = normalizeSavCell(row[i]);
+    });
+    return rec;
+  });
+}
+
+async function readSavWithDatareader(
+  bytes: ArrayBuffer,
+): Promise<Record<string, unknown>[]> {
+  const { readSav, applyUserMissing } = await import("datareader-spss");
+  const parsed = await readSav(bytes);
+  const sheet =
+    parsed.sheets.find((s) => s.variables?.length) ?? parsed.sheets[0];
+  if (!sheet?.variables?.length) {
+    throw new Error("SAV file has no variables");
+  }
+  const applied = applyUserMissing(sheet);
+  const names = applied.variables.map((v, i) => {
+    const n = String(v.name || `var${i + 1}`).trim();
+    return n || `var${i + 1}`;
+  });
+  return savRowsToRecords(names, applied.rows as unknown[][]);
+}
+
+async function readSavWithStatfmt(
+  bytes: Uint8Array,
+): Promise<Record<string, unknown>[]> {
+  const { readSav } = await import("@irbisadm/statfmt");
+  const ds = readSav(bytes);
+  const objects = ds.toObjects() as Record<string, unknown>[];
+  return objects.map((row) => {
+    const rec = Object.create(null) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(row)) {
+      rec[key] = normalizeSavCell(value);
+    }
+    return rec;
+  });
+}
+
 export async function readSavRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
-  try {
-    const { readSav, applyUserMissing } = await import("datareader-spss");
-    const bytes = input.buffer.slice(
-      input.byteOffset,
-      input.byteOffset + input.byteLength,
-    ) as ArrayBuffer;
-    const parsed = await readSav(bytes);
-    const sheet = applyUserMissing(parsed.sheets[0]);
-    if (!sheet?.variables?.length) return [];
+  const bytes = new Uint8Array(input.byteLength);
+  bytes.set(input);
 
-    const names = sheet.variables.map((v) => v.name);
-    return sheet.rows.map((row) => {
-      const rec: Record<string, unknown> = {};
-      names.forEach((name, i) => {
-        const val = row[i];
-        rec[name] =
-          val instanceof Date ? val.toISOString() : (val ?? null);
-      });
-      return rec;
-    });
+  let primaryError = "";
+  try {
+    const records = await readSavWithDatareader(bytes.buffer);
+    if (records.length > 0) return records;
+    primaryError = "SAV file contains no data rows";
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    primaryError = err instanceof Error ? err.message : String(err);
+    console.warn("[sav] datareader-spss failed:", primaryError);
+  }
+
+  try {
+    const records = await readSavWithStatfmt(bytes);
+    if (records.length > 0) return records;
+    throw new Error("SAV file contains no data rows");
+  } catch (fallbackErr) {
+    const fallbackMsg =
+      fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+    const detail = fallbackMsg || primaryError || "unknown error";
     throw new Error(
       `Failed to read SAV file: ${detail}. The file may be corrupt, password-protected, or an unsupported SPSS variant.`,
     );

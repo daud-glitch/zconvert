@@ -1168,7 +1168,17 @@ function parseCsv(
 
 function toCsv(data: Record<string, unknown>[]): string {
   if (!Array.isArray(data) || data.length === 0) return "";
-  return csvStringify(data, { header: true });
+  const normalized = data.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (value instanceof Date) out[key] = value.toISOString();
+      else if (typeof value === "number" && !Number.isFinite(value)) out[key] = null;
+      else if (value != null && typeof value === "object") out[key] = JSON.stringify(value);
+      else out[key] = value;
+    }
+    return out;
+  });
+  return csvStringify(normalized, { header: true });
 }
 
 function toTsv(data: Record<string, unknown>[]): string {

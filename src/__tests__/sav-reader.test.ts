@@ -19,6 +19,9 @@ describe("SAV reader", () => {
     const parsed = JSON.parse(json.toString("utf-8")) as unknown[];
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed.length).toBe(rows.length);
+
+    const csv = await convertFile(buf, "sav", "csv");
+    expect(csv.toString("utf-8")).toContain(",");
   });
 
   it("reads ZSAV (zlib) fixture", async () => {
