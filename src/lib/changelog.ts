@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    date: "2026-08-28",
+    title: "Conversion fixes",
+    items: [
+      "SPSS .sav files now convert reliably to CSV, JSON, and other data targets — including compressed (ZSAV) files and datasets that previously failed with a generic error. A second ReadStat-based reader is used automatically when the primary parser cannot read the file.",
+    ],
+  },
+  {
     date: "2026-08-26",
     title: "Conversion fixes",
     items: [
