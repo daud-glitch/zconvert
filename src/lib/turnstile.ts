@@ -16,12 +16,19 @@ export function isTurnstileRequired(): boolean {
 
 export async function verifyTurnstileToken(
   token: unknown,
-  ip?: string | null,
+  _ip?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (isTurnstileBypassed()) return { ok: true };
 
-  const secret = process.env.TURNSTILE_SECRET_KEY?.trim();
+  const secret = process.env.TURNSTILE_SECRET_KEY?.trim().replace(/^["']|["']$/g, "");
   if (!secret) return { ok: true };
+
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
+  if (siteKey && secret === siteKey) {
+    console.error(
+      "[turnstile] TURNSTILE_SECRET_KEY matches the site key — set the Secret Key from the Cloudflare Turnstile dashboard (not the Site Key).",
+    );
+  }
 
   const response = typeof token === "string" ? token.trim() : "";
   if (!response) {
@@ -35,7 +42,7 @@ export async function verifyTurnstileToken(
     const body = new URLSearchParams();
     body.set("secret", secret);
     body.set("response", response);
-    if (ip && ip !== "unknown") body.set("remoteip", ip);
+    // Omit remoteip: wrong/proxy IPs cause false rejects behind Heroku/CDNs.
 
     const res = await fetch(SITEVERIFY, {
       method: "POST",
@@ -50,6 +57,10 @@ export async function verifyTurnstileToken(
     } | null;
 
     if (!data?.success) {
+      console.error(
+        "[turnstile] siteverify failed:",
+        data?.["error-codes"] ?? "unknown",
+      );
       return {
         ok: false,
         error: "Security check failed. Refresh and try again.",

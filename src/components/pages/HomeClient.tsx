@@ -491,7 +491,11 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
               <CmsAdSlot ads={topAds} />
             </div>
           )}
-          {currentView === "converter" && <ConverterView />}
+          {currentView === "converter" && (
+            <Suspense fallback={<ViewFallback />}>
+              <ConverterView />
+            </Suspense>
+          )}
           {currentView === "formats" && (
             <Suspense fallback={<ViewFallback />}>
               <FormatsView />

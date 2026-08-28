@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Download, RefreshCw, Plus, Settings,
   History, Layers, Check, AlertCircle,
@@ -56,6 +57,7 @@ import {
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
+import { PopularPairsSection } from "@/components/converter/PopularPairsSection";
 import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
 import {
@@ -75,7 +77,8 @@ import {
   humanizeConversionError,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
-import { getFormatByExt } from "@/lib/formats";
+import { getFormatByExt, isConversionPairListed } from "@/lib/formats";
+import type { ConversionPair } from "@/lib/conversion-pairs";
 
 const MAX_NONVIDEO_BATCH = getMaxNonVideoBatchFiles();
 const MAX_VIDEO_BYTES = getVideoMaxUploadBytes();
@@ -161,11 +164,54 @@ function uniqueZipEntryName(
   return name;
 }
 
+function normalizeExtParam(value: string | null): string {
+  return (value || "").toLowerCase().replace(/^\./, "");
+}
+
+function acceptForPreferredFrom(ext: string): string {
+  if (ext === "jpg" || ext === "jpeg") return ".jpg,.jpeg,.jpe";
+  return `.${ext}`;
+}
+
+function resolveDefaultTargetFormat(
+  ext: string,
+  targets: string[],
+  preferredFrom: string | null,
+  preferredTo: string | null,
+): string {
+  if (
+    preferredTo &&
+    targets.includes(preferredTo) &&
+    (!preferredFrom || ext === preferredFrom)
+  ) {
+    return preferredTo;
+  }
+  if (ext === "pdf" && targets.includes("pdf")) return "pdf";
+  return targets.find((t) => t !== ext) || targets[0] || "";
+}
+
+function syncPreferredPairUrl(
+  from: string | null,
+  to: string | null,
+): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (from) url.searchParams.set("from", from);
+  else url.searchParams.delete("from");
+  if (to) url.searchParams.set("to", to);
+  else url.searchParams.delete("to");
+  const next = `${url.pathname}${url.search}`;
+  window.history.replaceState({}, "", next);
+}
+
 export function ConverterView() {
   const { currentUser, openAuth } = useApp();
+  const searchParams = useSearchParams();
   const [files, setFiles] = useState<FileItem[]>([]);
   const { data: formatsData } = useFormats();
   const [dragOver, setDragOver] = useState(false);
+  const [preferredFrom, setPreferredFrom] = useState<string | null>(null);
+  const [preferredTo, setPreferredTo] = useState<string | null>(null);
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
   >({});
@@ -187,6 +233,7 @@ export function ConverterView() {
     total: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadCardRef = useRef<HTMLDivElement>(null);
   const filesRef = useRef<FileItem[]>([]);
   const autoUploadChainRef = useRef(Promise.resolve());
   /** In-flight staging promises keyed by file item id */
@@ -303,6 +350,78 @@ export function ConverterView() {
     }
     setTargetFormatsMap(map);
   }, [formatsData]);
+
+  const enabledInputExts = useMemo(() => {
+    if (!formatsData?.grouped) return [];
+    const exts: string[] = [];
+    for (const group of Object.values(formatsData.grouped)) {
+      for (const fmt of group.formats) {
+        exts.push(fmt.ext);
+      }
+    }
+    return exts.sort();
+  }, [formatsData]);
+
+  const preferredToOptions = useMemo(() => {
+    if (preferredFrom) {
+      return targetsForExt(preferredFrom, targetFormatsMap);
+    }
+    const all = new Set<string>();
+    for (const targets of Object.values(targetFormatsMap)) {
+      for (const t of targets) all.add(t);
+    }
+    return Array.from(all).sort();
+  }, [preferredFrom, targetFormatsMap]);
+
+  const activePreferredPair = useMemo((): ConversionPair | null => {
+    if (!preferredFrom || !preferredTo) return null;
+    return { from: preferredFrom, to: preferredTo };
+  }, [preferredFrom, preferredTo]);
+
+  const formatCount = formatsData?.totalFormats ?? 0;
+  const activeCategories = formatsData
+    ? Object.values(formatsData.categoryCounts).filter((n) => n > 0).length
+    : 0;
+  const pairCount = formatsData?.totalConversions ?? 0;
+
+  const applyPreferredPair = useCallback((pair: ConversionPair | null) => {
+    if (pair) {
+      setPreferredFrom(pair.from);
+      setPreferredTo(pair.to);
+      syncPreferredPairUrl(pair.from, pair.to);
+    } else {
+      setPreferredFrom(null);
+      setPreferredTo(null);
+      syncPreferredPairUrl(null, null);
+    }
+  }, []);
+
+  const handlePopularPairSelect = useCallback(
+    (pair: ConversionPair) => {
+      applyPreferredPair(pair);
+      uploadCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [applyPreferredPair],
+  );
+
+  useEffect(() => {
+    const from = normalizeExtParam(searchParams.get("from"));
+    const to = normalizeExtParam(searchParams.get("to"));
+    if (from && to && isConversionPairListed(from, to)) {
+      setPreferredFrom(from);
+      setPreferredTo(to);
+    } else if (!from && !to) {
+      setPreferredFrom(null);
+      setPreferredTo(null);
+    } else if (from && !to) {
+      setPreferredFrom(from);
+      setPreferredTo(null);
+    }
+  }, [searchParams]);
+
+  const fileAccept = preferredFrom
+    ? acceptForPreferredFrom(preferredFrom)
+    : SUPPORTED_EXTENSIONS;
 
   // Isolate queue / recent when switching accounts on same browser
   useEffect(() => {
@@ -579,10 +698,12 @@ export function ConverterView() {
             size: file.size,
             ext,
             status: "pending" as const,
-            targetFormat:
-              ext === "pdf" && targets.includes("pdf")
-                ? "pdf"
-                : targets.find((t) => t !== ext) || targets[0] || "",
+            targetFormat: resolveDefaultTargetFormat(
+              ext,
+              targets,
+              preferredFrom,
+              preferredTo,
+            ),
             quality: 85,
             resizeWidth: null,
             resizeHeight: null,
@@ -1425,10 +1546,119 @@ export function ConverterView() {
       />
 
       {/* ─── Upload Zone ─── */}
-      <Card className="card-elevated overflow-hidden border-border/60 shadow-md -mt-2 sm:-mt-4">
+      <Card
+        ref={uploadCardRef}
+        className="card-elevated overflow-hidden border-border/60 shadow-md -mt-2 sm:-mt-4"
+      >
         <CardContent className="p-0">
+          <div className="border-b border-border/60 bg-muted/20 px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {[
+                {
+                  value: formatCount > 0 ? `${formatCount}+` : "—",
+                  label: "Formats",
+                },
+                {
+                  value: activeCategories > 0 ? String(activeCategories) : "—",
+                  label: "Categories",
+                },
+                {
+                  value: pairCount > 0 ? `${pairCount.toLocaleString()}+` : "—",
+                  label: "Pairs",
+                },
+                {
+                  value: String(MAX_NONVIDEO_BATCH),
+                  label: "Per batch",
+                },
+                {
+                  value: formatNonVideoMaxUploadLabel(),
+                  label: "Max file",
+                },
+                {
+                  value: formatVideoMaxUploadLabel(),
+                  label: "Max video",
+                },
+              ].map((stat) => (
+                <span
+                  key={stat.label}
+                  className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] sm:text-[11px]"
+                >
+                  <span className="font-bold tabular-nums text-foreground">
+                    {stat.value}
+                  </span>
+                  <span className="text-muted-foreground">{stat.label}</span>
+                </span>
+              ))}
+            </div>
+
+            <div
+              className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-1 flex-col gap-1.5 sm:max-w-[11rem]">
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  From
+                </Label>
+                <Select
+                  value={preferredFrom || "__any__"}
+                  onValueChange={(val) => {
+                    const nextFrom = val === "__any__" ? null : val;
+                    setPreferredFrom(nextFrom);
+                    if (nextFrom && preferredTo) {
+                      const targets = targetsForExt(nextFrom, targetFormatsMap);
+                      if (!targets.includes(preferredTo)) {
+                        setPreferredTo(null);
+                        syncPreferredPairUrl(nextFrom, null);
+                        return;
+                      }
+                    }
+                    syncPreferredPairUrl(nextFrom, preferredTo);
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Any format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any format</SelectItem>
+                    {enabledInputExts.map((ext) => (
+                      <SelectItem key={ext} value={ext}>
+                        {ext.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <ArrowRightLeft className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:mb-2.5 sm:block" />
+              <div className="flex flex-1 flex-col gap-1.5 sm:max-w-[11rem]">
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  To
+                </Label>
+                <Select
+                  value={preferredTo || "__choose__"}
+                  onValueChange={(val) => {
+                    const nextTo = val === "__choose__" ? null : val;
+                    setPreferredTo(nextTo);
+                    syncPreferredPairUrl(preferredFrom, nextTo);
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Choose output" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__choose__">Choose output</SelectItem>
+                    {preferredToOptions.map((ext) => (
+                      <SelectItem key={ext} value={ext}>
+                        {ext.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
           <div
-            className={`upload-zone-enhanced p-6 sm:p-12 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
+            className={`upload-zone-enhanced p-5 sm:p-8 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
               dragOver
                 ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25"
                 : "border-border/80"
@@ -1445,7 +1675,7 @@ export function ConverterView() {
               ref={fileInputRef}
               type="file"
               multiple
-              accept={SUPPORTED_EXTENSIONS}
+              accept={fileAccept}
               className="hidden"
               onChange={(e) => {
                 if (e.target.files) addFiles(e.target.files);
@@ -1454,22 +1684,27 @@ export function ConverterView() {
             />
             <div className="relative z-10">
               <div
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg ${
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
                   dragOver
                     ? "bg-emerald-500 shadow-emerald-500/40"
                     : "bg-emerald-500 shadow-emerald-500/30"
                 }`}
               >
-                <Upload className="w-8 h-8 text-white" />
+                <Upload className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-lg font-semibold mb-1.5">
+              <h3 className="text-base font-semibold mb-1">
                 {dragOver ? "Drop files to upload" : "Drop files here or click to browse"}
               </h3>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
+              {preferredFrom && preferredTo && (
+                <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  Selected: {preferredFrom.toUpperCase()} → {preferredTo.toUpperCase()}
+                </p>
+              )}
               <p className="text-[11px] text-muted-foreground/70 mt-2">
-                Up to {MAX_NONVIDEO_BATCH} files · up to 5 parallel converts (small first) · videos one-by-one · {formatNonVideoMaxUploadLabel()} · video {formatVideoMaxUploadLabel()} · Ctrl+U to browse
+                Up to {MAX_NONVIDEO_BATCH} files · Ctrl+U to browse
               </p>
               <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
                 <HardDrive className="h-3 w-3 shrink-0" />
@@ -1543,6 +1778,11 @@ export function ConverterView() {
           </div>
         </CardContent>
       </Card>
+
+      <PopularPairsSection
+        activePair={activePreferredPair}
+        onSelectPair={handlePopularPairSelect}
+      />
 
       {/* ─── File Queue ─── */}
       {batchProgress && batchProgress.total > 0 && (

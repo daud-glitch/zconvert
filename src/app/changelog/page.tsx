@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
-import { LegalPageShell } from "@/components/legal/LegalPageShell";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ScrollText,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import { changelogEntries } from "@/lib/changelog";
 import { OG_IMAGE_PATH } from "@/lib/seo";
 
 const SITE = "https://www.convertek.tech";
-const UPDATED = "August 24, 2026";
+const UPDATED = "August 28, 2026";
 
 export const metadata: Metadata = {
   title: "Changelog",
@@ -38,25 +46,148 @@ function formatDate(iso: string): string {
 
 export default function ChangelogPage() {
   return (
-    <LegalPageShell title="Changelog" updated={UPDATED}>
-      <p>
-        User-facing conversion fixes and product updates. We log issues that
-        affected converting or downloading files so you can see what was
-        resolved.
-      </p>
+    <div className="relative min-h-screen overflow-hidden bg-background">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.10),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(99,102,241,0.08),_transparent_50%)]" />
+      <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-indigo-400 to-emerald-500" />
 
-      {changelogEntries.map((entry) => (
-        <section key={entry.date}>
-          <h2>
-            {formatDate(entry.date)} — {entry.title}
-          </h2>
-          <ul>
-            {entry.items.map((item) => (
-              <li key={item}>{item}</li>
+      <div className="relative mx-auto max-w-3xl px-4 py-10 sm:px-6">
+        <Link
+          href="/"
+          className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Converter
+        </Link>
+
+        <header className="text-center sm:text-left">
+          <div className="mb-5 flex flex-col items-center gap-4 sm:flex-row sm:items-end">
+            <div className="relative">
+              <BrandMark className="h-14 w-14 sm:h-16 sm:w-16" priority />
+              <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/30">
+                <ScrollText className="h-3.5 w-3.5" aria-hidden />
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                Product updates
+              </p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                Changelog
+              </h1>
+            </div>
+          </div>
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:mx-0">
+            User-facing conversion fixes and product updates. We log issues that
+            affected converting or downloading files so you can see what was
+            resolved.
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Last updated: {UPDATED}
+          </p>
+        </header>
+
+        <section className="mt-10">
+          <div className="mb-5 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-emerald-500" aria-hidden />
+            <h2 className="text-lg font-semibold text-foreground">
+              Recent releases
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            {changelogEntries.map((entry, index) => (
+              <article
+                key={entry.date}
+                className="relative rounded-2xl border border-border/70 bg-background/80 p-5 backdrop-blur-sm"
+              >
+                {index === 0 && (
+                  <span className="absolute -top-2.5 right-4 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                    Latest
+                  </span>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <time
+                    dateTime={entry.date}
+                    className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400"
+                  >
+                    {formatDate(entry.date)}
+                  </time>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                    <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+                    {entry.title}
+                  </span>
+                </div>
+                <ul className="mt-4 space-y-3">
+                  {entry.items.map((item) => (
+                    <li
+                      key={item}
+                      className="flex gap-2.5 text-sm leading-relaxed text-muted-foreground"
+                    >
+                      <CheckCircle2
+                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"
+                        aria-hidden
+                      />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
             ))}
-          </ul>
+          </div>
         </section>
-      ))}
-    </LegalPageShell>
+
+        <section className="mt-12 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-6 text-center sm:text-left">
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <ScrollText className="h-5 w-5" aria-hidden />
+            </span>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">
+                Found a broken conversion?
+              </h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Tell us via the{" "}
+                <Link
+                  href="/contact"
+                  className="font-medium text-emerald-600 underline-offset-2 hover:underline"
+                >
+                  contact form
+                </Link>{" "}
+                — include the input format, target format, and what went wrong.
+                We fix real-world uploads as fast as we can.
+              </p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Back to the{" "}
+                <Link
+                  href="/"
+                  className="font-medium text-emerald-600 underline-offset-2 hover:underline"
+                >
+                  converter
+                </Link>
+                , or read{" "}
+                <Link
+                  href="/about"
+                  className="font-medium text-emerald-600 underline-offset-2 hover:underline"
+                >
+                  about Convertek
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <p className="mt-10 border-t border-border pt-6 text-center text-xs text-muted-foreground sm:text-left">
+          Convertek ·{" "}
+          <a
+            href={SITE}
+            className="text-emerald-600 underline-offset-2 hover:underline"
+          >
+            www.convertek.tech
+          </a>
+        </p>
+      </div>
+    </div>
   );
 }

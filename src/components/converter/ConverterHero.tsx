@@ -18,11 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/lib/app-context";
-import {
-  formatNonVideoMaxUploadLabel,
-  formatVideoMaxUploadLabel,
-  getMaxNonVideoBatchFiles,
-} from "@/lib/upload-limits";
 
 const FLOATING_FORMATS = [
   {
@@ -196,7 +191,6 @@ export function ConverterHero({
           </div>
 
           <div className="hidden lg:flex w-[320px] shrink-0 flex-col items-center gap-3">
-            {/* Neat rows of format chips — no random scatter / overlap */}
             <div className="flex w-full flex-col items-center gap-2">
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 {FLOATING_FORMATS.slice(0, 4).map((chip) => (
@@ -241,69 +235,6 @@ export function ConverterHero({
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 sm:gap-4">
-          {(
-            [
-              {
-                value: formatCount > 0 ? `${formatCount}+` : "—",
-                label: "Formats",
-              },
-              {
-                value: activeCategories > 0 ? String(activeCategories) : "—",
-                label: "Categories",
-              },
-              {
-                value:
-                  pairCount > 0
-                    ? `${pairCount.toLocaleString()}+`
-                    : "—",
-                label: "Conversion pairs",
-              },
-              {
-                value: String(getMaxNonVideoBatchFiles()),
-                label: "Files per batch",
-              },
-            ] as const
-          ).map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-2xl border border-border/50 bg-background/80 px-3 py-3 text-center sm:px-4"
-            >
-              <p className="text-xl font-bold tracking-tight sm:text-2xl tabular-nums">
-                {stat.value}
-              </p>
-              <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:text-[11px]">
-                {stat.label}
-              </p>
-            </div>
-          ))}
-
-          {/* Size limits: two clear rows — not stacked MB labels under “Max file size” */}
-          <div className="rounded-2xl border border-border/50 bg-background/80 px-3 py-3 text-center sm:px-4 col-span-2 sm:col-span-1">
-            <div className="mx-auto flex w-full max-w-[11rem] flex-col gap-1.5 text-left">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  Other files
-                </span>
-                <span className="text-base font-bold tabular-nums tracking-tight sm:text-lg">
-                  {formatNonVideoMaxUploadLabel()}
-                </span>
-              </div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  Video
-                </span>
-                <span className="text-base font-bold tabular-nums tracking-tight sm:text-lg">
-                  {formatVideoMaxUploadLabel()}
-                </span>
-              </div>
-            </div>
-            <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:text-[11px]">
-              Size limits
-            </p>
           </div>
         </div>
       </div>
