@@ -351,28 +351,6 @@ export function ConverterView() {
     setTargetFormatsMap(map);
   }, [formatsData]);
 
-  const enabledInputExts = useMemo(() => {
-    if (!formatsData?.grouped) return [];
-    const exts: string[] = [];
-    for (const group of Object.values(formatsData.grouped)) {
-      for (const fmt of group.formats) {
-        exts.push(fmt.ext);
-      }
-    }
-    return exts.sort();
-  }, [formatsData]);
-
-  const preferredToOptions = useMemo(() => {
-    if (preferredFrom) {
-      return targetsForExt(preferredFrom, targetFormatsMap);
-    }
-    const all = new Set<string>();
-    for (const targets of Object.values(targetFormatsMap)) {
-      for (const t of targets) all.add(t);
-    }
-    return Array.from(all).sort();
-  }, [preferredFrom, targetFormatsMap]);
-
   const activePreferredPair = useMemo((): ConversionPair | null => {
     if (!preferredFrom || !preferredTo) return null;
     return { from: preferredFrom, to: preferredTo };
@@ -1651,68 +1629,6 @@ export function ConverterView() {
                       <span className="text-muted-foreground">{stat.label}</span>
                     </span>
                   ))}
-                </div>
-
-                <div className="mt-3 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end sm:justify-center sm:gap-3">
-                  <div className="flex flex-1 flex-col gap-1 sm:max-w-[10rem]">
-                    <Label className="text-[10px] font-medium text-muted-foreground text-left">
-                      From
-                    </Label>
-                    <Select
-                      value={preferredFrom || "__any__"}
-                      onValueChange={(val) => {
-                        const nextFrom = val === "__any__" ? null : val;
-                        setPreferredFrom(nextFrom);
-                        if (nextFrom && preferredTo) {
-                          const targets = targetsForExt(nextFrom, targetFormatsMap);
-                          if (!targets.includes(preferredTo)) {
-                            setPreferredTo(null);
-                            syncPreferredPairUrl(nextFrom, null);
-                            return;
-                          }
-                        }
-                        syncPreferredPairUrl(nextFrom, preferredTo);
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-xs bg-background">
-                        <SelectValue placeholder="Any format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__any__">Any format</SelectItem>
-                        {enabledInputExts.map((ext) => (
-                          <SelectItem key={ext} value={ext}>
-                            {ext.toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <ArrowRightLeft className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground sm:mb-2 sm:block" />
-                  <div className="flex flex-1 flex-col gap-1 sm:max-w-[10rem]">
-                    <Label className="text-[10px] font-medium text-muted-foreground text-left">
-                      To
-                    </Label>
-                    <Select
-                      value={preferredTo || "__choose__"}
-                      onValueChange={(val) => {
-                        const nextTo = val === "__choose__" ? null : val;
-                        setPreferredTo(nextTo);
-                        syncPreferredPairUrl(preferredFrom, nextTo);
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-xs bg-background">
-                        <SelectValue placeholder="Choose output" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__choose__">Choose output</SelectItem>
-                        {preferredToOptions.map((ext) => (
-                          <SelectItem key={ext} value={ext}>
-                            {ext.toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
               </div>
             </div>
