@@ -288,13 +288,25 @@ export function humanizeConversionError(message: string): string {
   if (
     lower.includes("failed to read sav") ||
     lower.includes("sav file contains no") ||
-    lower.includes("not a valid .sav")
+    lower.includes("not a valid .sav") ||
+    lower.includes("not an spss system file") ||
+    lower.includes("bad magic")
   ) {
-    const cleaned = msg
-      .replace(/[A-Za-z]:\\[^\s]+/g, "")
-      .replace(/\/app\/[^\s]+/g, "")
-      .trim();
-    return cleaned.length > 180 ? `${cleaned.slice(0, 177)}…` : cleaned;
+    if (
+      lower.includes("zip archive") ||
+      lower.includes("microsoft office") ||
+      lower.includes("plain text/csv") ||
+      lower.includes("spss portable")
+    ) {
+      const cleaned = msg
+        .replace(/^Failed to read SAV file:\s*/i, "")
+        .replace(/\.\s*The file may be corrupt.*$/i, "")
+        .replace(/[A-Za-z]:\\[^\s]+/g, "")
+        .replace(/\/app\/[^\s]+/g, "")
+        .trim();
+      return cleaned.length > 220 ? `${cleaned.slice(0, 217)}…` : cleaned;
+    }
+    return "This file is not a valid SPSS statistics (.sav) dataset. The .sav extension is also used by game saves and other apps — open it in SPSS or export as CSV from your stats software, then try again.";
   }
 
   if (

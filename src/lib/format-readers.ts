@@ -117,6 +117,59 @@ export async function readSqliteRecords(
 }
 
 // ─── SPSS SAV ──────────────────────────────────────────────────────────────
+function isSpssMagic(bytes: Uint8Array): boolean {
+  if (bytes.length < 4) return false;
+  if (bytes[0] === 0x24 && bytes[1] === 0x46 && bytes[2] === 0x4c) {
+    const tag = bytes[3];
+    return tag === 0x32 || tag === 0x33;
+  }
+  return (
+    bytes[0] === 0x53 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x53 &&
+    bytes[3] === 0x53
+  );
+}
+
+/** Strip BOM / leading junk so real SPSS payloads still parse. */
+function normalizeSavBytes(input: Buffer): Uint8Array {
+  let bytes = new Uint8Array(input.byteLength);
+  bytes.set(input);
+
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xef &&
+    bytes[1] === 0xbb &&
+    bytes[2] === 0xbf
+  ) {
+    bytes = bytes.slice(3);
+  }
+
+  if (isSpssMagic(bytes)) return bytes;
+
+  const scanLimit = Math.min(bytes.length, 4096);
+  for (let i = 1; i < scanLimit - 3; i++) {
+    if (bytes[i] === 0x24 && bytes[i + 1] === 0x46 && bytes[i + 2] === 0x4c) {
+      const tag = bytes[i + 3];
+      if (tag === 0x32 || tag === 0x33) {
+        console.warn(`[sav] skipping ${i} leading bytes before SPSS signature`);
+        return bytes.slice(i);
+      }
+    }
+    if (
+      bytes[i] === 0x53 &&
+      bytes[i + 1] === 0x50 &&
+      bytes[i + 2] === 0x53 &&
+      bytes[i + 3] === 0x53
+    ) {
+      console.warn(`[sav] skipping ${i} leading bytes before legacy SPSS signature`);
+      return bytes.slice(i);
+    }
+  }
+
+  return bytes;
+}
+
 function normalizeSavCell(value: unknown): string | number | null {
   if (value == null) return null;
   if (value instanceof Date) return value.toISOString();
@@ -157,11 +210,38 @@ async function readSavWithDatareader(
   return savRowsToRecords(names, applied.rows as unknown[][]);
 }
 
+function describeUnknownSavBuffer(bytes: Uint8Array): string {
+  if (bytes.length < 4) {
+    return "File is too small to be a valid SPSS dataset";
+  }
+  const head4 = Buffer.from(bytes.slice(0, 4));
+  const headText = Buffer.from(bytes.slice(0, Math.min(bytes.length, 64)))
+    .toString("utf8")
+    .replace(/[^\x20-\x7e]/g, ".");
+  if (head4[0] === 0x50 && head4[1] === 0x4b) {
+    return "File looks like a ZIP archive (XLSX/DOCX), not SPSS .sav";
+  }
+  if (head4[0] === 0xd0 && head4[1] === 0xcf) {
+    return "File looks like a legacy Microsoft Office document, not SPSS .sav";
+  }
+  if (/SPSS\s+PORT/i.test(headText) || headText.startsWith("*")) {
+    return "File may be SPSS Portable (.por) — try renaming to .por and convert again";
+  }
+  if (headText.includes(",") && headText.includes("\n")) {
+    return "File looks like plain text/CSV, not a binary SPSS .sav";
+  }
+  return `Not an SPSS system file (header ${head4.toString("hex")})`;
+}
+
 async function readSavWithStatfmt(
   bytes: Uint8Array,
 ): Promise<Record<string, unknown>[]> {
-  const { readSav } = await import("@irbisadm/statfmt");
-  const ds = readSav(bytes);
+  const { detectFormat, readData } = await import("@irbisadm/statfmt");
+  const format = detectFormat(bytes);
+  if (!format) {
+    throw new Error(describeUnknownSavBuffer(bytes));
+  }
+  const ds = readData(format, bytes);
   const objects = ds.toObjects() as Record<string, unknown>[];
   return objects.map((row) => {
     const rec = Object.create(null) as Record<string, unknown>;
@@ -175,8 +255,7 @@ async function readSavWithStatfmt(
 export async function readSavRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
-  const bytes = new Uint8Array(input.byteLength);
-  bytes.set(input);
+  const bytes = normalizeSavBytes(input);
 
   let primaryError = "";
   try {
