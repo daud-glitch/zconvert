@@ -8,6 +8,13 @@ export type ChangelogEntry = {
 export const changelogEntries: ChangelogEntry[] = [
   {
     date: "2026-08-29",
+    title: "New formats as outputs",
+    items: [
+      "Recently added formats can now be used as conversion outputs — not just inputs. Examples: MP3→AIFF, MP4→M2TS, ZIP→APK/JAR, CSV→NDJSON, TXT→LOG, PNG→JFIF, and cross-converts between the new audio/video/archive types.",
+    ],
+  },
+  {
+    date: "2026-08-29",
     title: "New formats & homepage",
     items: [
       "Homepage popular pairs expanded to 15 — including MP4→MP3, PDF→PNG, and DOCX→PDF shortcuts below the hero.",

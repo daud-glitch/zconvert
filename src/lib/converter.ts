@@ -586,6 +586,7 @@ export const imageOutputFormats = new Set([
   "png",
   "jpg",
   "jpeg",
+  "jfif",
   "webp",
   "avif",
   "bmp",
@@ -643,6 +644,7 @@ export const dataOutputFormats = new Set([
   "tsv",
   "json",
   "jsonl",
+  "ndjson",
   "geojson",
   "yaml",
   "yml",
@@ -708,6 +710,8 @@ export const archiveOutputFormats = new Set([
   "tar.zst",
   "7z",
   "rar",
+  "apk",
+  "jar",
 ]);
 
 /** Presentation outputs (must match formats.ts presOutputSupported). */
@@ -775,6 +779,7 @@ const docFormats = new Set([
 export const docOutputFormats = new Set([
   "doc",
   "txt",
+  "log",
   "md",
   "html",
   "htm",
@@ -808,10 +813,6 @@ const audioFormats = new Set([
   "m4a",
   "wma",
   "opus",
-]);
-
-const audioInputFormats = new Set([
-  ...audioFormats,
   "aiff",
   "aif",
   "caf",
@@ -833,10 +834,6 @@ export const videoFormats = new Set([
   "3gp",
   "ogv",
   "ts",
-]);
-
-const videoInputFormats = new Set([
-  ...videoFormats,
   "m2ts",
   "mts",
   "vob",
@@ -1629,7 +1626,7 @@ async function convertImage(
   height?: number | null,
 ): Promise<Buffer> {
   const target =
-    outputExt.toLowerCase() === "jpeg"
+    outputExt.toLowerCase() === "jpeg" || outputExt.toLowerCase() === "jfif"
       ? "jpg"
       : outputExt.toLowerCase() === "tif"
         ? "tiff"
@@ -1829,6 +1826,7 @@ async function convertData(
     case "geojson":
       return Buffer.from(toGeoJson(records), "utf-8");
     case "jsonl":
+    case "ndjson":
       return Buffer.from(toJsonl(records), "utf-8");
     case "csv":
       return Buffer.from(toCsv(records), "utf-8");
@@ -2117,6 +2115,7 @@ async function convertDocument(
   // Convert to target format
   switch (dest) {
     case "txt":
+    case "log":
       return Buffer.from(plainText, "utf-8");
     case "md":
       if (src === "html" || src === "htm") {
@@ -2826,7 +2825,7 @@ async function convertArchive(
   };
 
   // Create target archive
-  if (dest === "zip" || dest === "cbz") {
+  if (dest === "zip" || dest === "cbz" || dest === "apk" || dest === "jar") {
     const zip = new JSZip();
     for (const f of files) zip.file(f.name, f.data);
     return Buffer.from(await zip.generateAsync({ type: "arraybuffer" }));
@@ -3045,6 +3044,41 @@ function getAudioEncodeStrategies(
       ),
     ];
   }
+  if (dest === "aiff" || dest === "aif") {
+    return [
+      withPin("aiff/pcm", (c) =>
+        c.audioCodec("pcm_s16be").audioFrequency(44100).format("aiff"),
+      ),
+    ];
+  }
+  if (dest === "caf") {
+    return [
+      withPin("caf/aac", (c) =>
+        c.audioCodec("aac").audioBitrate(bitrate).format("caf"),
+      ),
+      withPin("caf/pcm", (c) =>
+        c.audioCodec("pcm_s16le").audioFrequency(44100).format("caf"),
+      ),
+    ];
+  }
+  if (dest === "ac3") {
+    return [
+      withPin("ac3", (c) =>
+        c.audioCodec("ac3").audioBitrate(bitrate).format("ac3"),
+      ),
+    ];
+  }
+  if (dest === "amr") {
+    return [
+      withPin("amr/libopencore_amrnb", (c) =>
+        c
+          .audioCodec("libopencore_amrnb")
+          .audioFrequency(8000)
+          .audioChannels(1)
+          .format("amr"),
+      ),
+    ];
+  }
   return [
     withPin("audio/default", (c) => c.audioBitrate(bitrate)),
   ];
@@ -3149,6 +3183,45 @@ function applyVideoCodec(
     let cmd = command.videoCodec("wmv2").audioCodec("wmav2");
     if (scale) cmd = cmd.outputOptions(["-vf", scale]);
     return cmd;
+  }
+  if (dest === "asf") {
+    let cmd = command
+      .videoCodec("wmv2")
+      .audioCodec("wmav2")
+      .format("asf");
+    if (scale) cmd = cmd.outputOptions(["-vf", scale]);
+    return cmd;
+  }
+  if (dest === "ts" || dest === "m2ts" || dest === "mts") {
+    const tsOpts = [
+      "-f",
+      "mpegts",
+      "-preset",
+      preset,
+      "-crf",
+      String(crf),
+      "-pix_fmt",
+      "yuv420p",
+    ];
+    if (scale) tsOpts.unshift("-vf", scale);
+    return command
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .audioBitrate(large ? "96k" : "128k")
+      .outputOptions(tsOpts);
+  }
+  if (dest === "vob") {
+    const vobOpts = [
+      "-f",
+      "dvd",
+      "-target",
+      "ntsc-dvd",
+    ];
+    if (scale) vobOpts.unshift("-vf", scale);
+    return command
+      .videoCodec("mpeg2video")
+      .audioCodec("ac3")
+      .outputOptions(vobOpts);
   }
   const outOpts = [
     "-preset",
@@ -3376,11 +3449,11 @@ export async function convertFile(
     return convertImage(input, src, dest, quality, width, height);
   }
 
-  if (videoInputFormats.has(src) && (videoFormats.has(dest) || audioFormats.has(dest))) {
+  if (videoFormats.has(src) && (videoFormats.has(dest) || audioFormats.has(dest))) {
     return convertVideo(input, src, dest, quality);
   }
 
-  if (audioInputFormats.has(src) && audioFormats.has(dest)) {
+  if (audioFormats.has(src) && audioFormats.has(dest)) {
     return convertAudio(input, src, dest, quality);
   }
 
