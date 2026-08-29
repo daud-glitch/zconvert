@@ -7,6 +7,19 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    date: "2026-08-29",
+    title: "New formats & homepage",
+    items: [
+      "Homepage popular pairs expanded to 15 — including MP4→MP3, PDF→PNG, and DOCX→PDF shortcuts below the hero.",
+      "New image inputs: JFIF and WBMP.",
+      "New audio inputs: AIFF, AIF, CAF, AC3, and AMR (convert to MP3, WAV, FLAC, and more).",
+      "New video inputs: M2TS, MTS, VOB, and ASF (convert to MP4, MKV, or extract audio).",
+      "New archive inputs: APK and JAR (ZIP-based — extract or repackage to ZIP/TAR).",
+      "New data input: NDJSON (newline-delimited JSON, same as JSONL).",
+      "New document input: LOG files (convert to PDF, HTML, DOCX, and more).",
+    ],
+  },
+  {
     date: "2026-08-28",
     title: "Conversion fixes",
     items: [

@@ -514,6 +514,15 @@ const allFormats: FormatInfo[] = [
     targetFormats: imgNoSelf("jpg"),
   },
   {
+    ext: "jfif",
+    name: "JFIF",
+    description:
+      "JFIF (JPEG File Interchange Format) is a common file extension for JPEG images, especially on Windows and older digital cameras. It uses the same JPEG compression as .jpg files and converts to PNG, WebP, PDF, and other standard image formats.",
+    category: "image",
+    mimeTypes: ["image/jpeg", "image/pjpeg"],
+    targetFormats: imgNoSelf("jfif", ["jpg", "jpeg"]),
+  },
+  {
     ext: "jxl",
     name: "JXL",
     description:
@@ -662,6 +671,15 @@ const allFormats: FormatInfo[] = [
     })(),
   },
   {
+    ext: "wbmp",
+    name: "WBMP",
+    description:
+      "WBMP (Wireless Bitmap) is a monochrome image format used in early mobile WAP pages. It stores simple black-and-white graphics and converts to PNG, JPEG, and other modern image formats.",
+    category: "image",
+    mimeTypes: ["image/vnd.wap.wbmp"],
+    targetFormats: imgNoSelf("wbmp"),
+  },
+  {
     ext: "webp",
     name: "WebP",
     description:
@@ -767,6 +785,51 @@ const allFormats: FormatInfo[] = [
     category: "audio",
     mimeTypes: ["audio/opus", "audio/ogg; codecs=opus"],
     targetFormats: ["mp3", "wav", "ogg", "aac", "flac"],
+  },
+  {
+    ext: "aiff",
+    name: "AIFF",
+    description:
+      "AIFF (Audio Interchange File Format) is an uncompressed audio container developed by Apple, commonly used in professional music production and macOS workflows. Convert to MP3, WAV, FLAC, and other formats.",
+    category: "audio",
+    mimeTypes: ["audio/aiff", "audio/x-aiff"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
+  },
+  {
+    ext: "aif",
+    name: "AIF",
+    description:
+      "AIF is the classic Macintosh file extension for AIFF uncompressed audio. It is widely used in Logic Pro, GarageBand, and broadcast archives. Convert to MP3, WAV, AAC, and other formats.",
+    category: "audio",
+    mimeTypes: ["audio/aiff", "audio/x-aiff"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
+  },
+  {
+    ext: "caf",
+    name: "CAF",
+    description:
+      "CAF (Core Audio Format) is Apple's flexible audio container used on iOS and macOS for high-quality recordings and sound libraries. Convert to MP3, WAV, AAC, and other standard audio formats.",
+    category: "audio",
+    mimeTypes: ["audio/x-caf"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
+  },
+  {
+    ext: "ac3",
+    name: "AC3",
+    description:
+      "AC3 (Dolby Digital) is a lossy surround-sound audio codec used on DVDs, Blu-ray discs, and broadcast TV. Extract and convert to MP3, WAV, AAC, and other formats.",
+    category: "audio",
+    mimeTypes: ["audio/ac3"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
+  },
+  {
+    ext: "amr",
+    name: "AMR",
+    description:
+      "AMR (Adaptive Multi-Rate) is a speech-optimized audio codec used by mobile voice recorders and 3G phone systems. Convert recordings to MP3, WAV, AAC, and other formats.",
+    category: "audio",
+    mimeTypes: ["audio/amr"],
+    targetFormats: ["mp3", "wav", "ogg", "aac", "flac", "opus"],
   },
 
 
@@ -889,6 +952,42 @@ const allFormats: FormatInfo[] = [
     category: "video",
     mimeTypes: ["video/mp2t"],
     targetFormats: videoTargets("ts"),
+  },
+  {
+    ext: "m2ts",
+    name: "M2TS",
+    description:
+      "M2TS is the Blu-ray and AVCHD container for MPEG-2 Transport Stream video. Convert to MP4, MKV, WebM, or extract audio to MP3.",
+    category: "video",
+    mimeTypes: ["video/mp2t"],
+    targetFormats: videoTargets("m2ts"),
+  },
+  {
+    ext: "mts",
+    name: "MTS",
+    description:
+      "MTS is the file extension used by AVCHD camcorders for HD video in an MPEG Transport Stream wrapper. Convert to MP4, MOV, or extract audio.",
+    category: "video",
+    mimeTypes: ["video/mp2t"],
+    targetFormats: videoTargets("mts"),
+  },
+  {
+    ext: "vob",
+    name: "VOB",
+    description:
+      "VOB (Video Object) is the MPEG-2 video container used on DVD discs, typically holding H.262 video and AC3 audio. Convert to MP4, MKV, or extract audio to MP3.",
+    category: "video",
+    mimeTypes: ["video/dvd", "video/mpeg"],
+    targetFormats: videoTargets("vob"),
+  },
+  {
+    ext: "asf",
+    name: "ASF",
+    description:
+      "ASF (Advanced Systems Format) is Microsoft's streaming media container, commonly used for WMV and WMA content. Convert to MP4, WebM, or standard audio formats.",
+    category: "video",
+    mimeTypes: ["video/x-ms-asf", "application/vnd.ms-asf"],
+    targetFormats: videoTargets("asf"),
   },
   // ═══════════════════════════════════════════════════════════════════════════
   // Documents
@@ -1040,6 +1139,15 @@ const allFormats: FormatInfo[] = [
     targetFormats: docNoSelf("txt"),
   },
   {
+    ext: "log",
+    name: "LOG",
+    description:
+      "LOG files are plain-text application or server log output, one event per line or free-form text. Convert to PDF, HTML, Markdown, DOCX, and other document formats for sharing or archiving.",
+    category: "document",
+    mimeTypes: ["text/plain"],
+    targetFormats: docNoSelf("log"),
+  },
+  {
     ext: "eml",
     name: "EML",
     description:
@@ -1163,6 +1271,15 @@ const allFormats: FormatInfo[] = [
     category: "data",
     mimeTypes: ["application/jsonl"],
     targetFormats: dataNoSelf("jsonl"),
+  },
+  {
+    ext: "ndjson",
+    name: "NDJSON",
+    description:
+      "NDJSON (Newline Delimited JSON) is an alias for JSON Lines — one JSON object per line, ideal for streaming datasets and LLM training exports. Convert to CSV, JSON, Parquet, XLSX, and other data formats.",
+    category: "data",
+    mimeTypes: ["application/x-ndjson", "application/jsonl"],
+    targetFormats: dataNoSelf("ndjson", ["jsonl"]),
   },
   {
     ext: "ods",
@@ -1340,6 +1457,24 @@ const allFormats: FormatInfo[] = [
     category: "archive",
     mimeTypes: ["application/zip", "application/x-zip-compressed"],
     targetFormats: archiveNoSelf("zip"),
+  },
+  {
+    ext: "apk",
+    name: "APK",
+    description:
+      "APK (Android Package) is a ZIP-based archive that bundles Android app code, resources, and manifests. Extract contents or repackage to ZIP, TAR, and other archive formats.",
+    category: "archive",
+    mimeTypes: ["application/vnd.android.package-archive"],
+    targetFormats: archiveNoSelf("apk"),
+  },
+  {
+    ext: "jar",
+    name: "JAR",
+    description:
+      "JAR (Java Archive) is a ZIP-based package for Java classes, libraries, and resources. Extract or convert to ZIP, TAR, and other archive formats.",
+    category: "archive",
+    mimeTypes: ["application/java-archive"],
+    targetFormats: archiveNoSelf("jar"),
   },
   {
     ext: "gz",

@@ -4,7 +4,7 @@ import { getOptionalDb } from "@/lib/db";
 import { HOMEPAGE_POPULAR_PAIRS } from "@/lib/conversion-pairs";
 import { isConversionPairListed } from "@/lib/formats";
 
-const LIMIT = 12;
+const LIMIT = 15;
 
 function withRateLimit(
   res: NextResponse,

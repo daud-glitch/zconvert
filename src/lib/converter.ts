@@ -622,6 +622,7 @@ const dataFormats = new Set([
   "ini",
   "json",
   "jsonl",
+  "ndjson",
   "ods",
   "parquet",
   "sav",
@@ -752,6 +753,7 @@ const docFormats = new Set([
   "doc",
   "docx",
   "txt",
+  "log",
   "md",
   "html",
   "htm",
@@ -808,6 +810,15 @@ const audioFormats = new Set([
   "opus",
 ]);
 
+const audioInputFormats = new Set([
+  ...audioFormats,
+  "aiff",
+  "aif",
+  "caf",
+  "ac3",
+  "amr",
+]);
+
 export const videoFormats = new Set([
   "mp4",
   "webm",
@@ -822,6 +833,14 @@ export const videoFormats = new Set([
   "3gp",
   "ogv",
   "ts",
+]);
+
+const videoInputFormats = new Set([
+  ...videoFormats,
+  "m2ts",
+  "mts",
+  "vob",
+  "asf",
 ]);
 
 const ebookFormats = new Set([
@@ -882,6 +901,8 @@ const archiveFormats = new Set([
   "tar.zst",
   "zip",
   "gz",
+  "apk",
+  "jar",
 ]);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -1740,7 +1761,7 @@ async function convertData(
     records = Array.isArray(parsed) ? parsed : [parsed];
   } else if (src === "geojson") {
     records = parseGeoJson(text);
-  } else if (src === "jsonl") {
+  } else if (src === "jsonl" || src === "ndjson") {
     records = parseJsonl(text);
   } else if (src === "csv") {
     records = parseCsv(text, ",");
@@ -3352,11 +3373,11 @@ export async function convertFile(
     return convertImage(input, src, dest, quality, width, height);
   }
 
-  if (videoFormats.has(src) && (videoFormats.has(dest) || audioFormats.has(dest))) {
+  if (videoInputFormats.has(src) && (videoFormats.has(dest) || audioFormats.has(dest))) {
     return convertVideo(input, src, dest, quality);
   }
 
-  if (audioFormats.has(src) && audioFormats.has(dest)) {
+  if (audioInputFormats.has(src) && audioFormats.has(dest)) {
     return convertAudio(input, src, dest, quality);
   }
 

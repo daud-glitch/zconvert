@@ -936,7 +936,9 @@ export async function extractArchiveEntries(
     src === "pptx" ||
     src === "xlsx" ||
     src === "odt" ||
-    src === "ods"
+    src === "ods" ||
+    src === "apk" ||
+    src === "jar"
   ) {
     const JSZip = (await import("jszip")).default;
     const zip = await JSZip.loadAsync(input);

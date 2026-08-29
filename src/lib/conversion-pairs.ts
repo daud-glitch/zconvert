@@ -15,7 +15,7 @@ export interface ResolvedPair {
  * Top 200 high-traffic conversion pairs pre-built at deploy time (SSG).
  * All remaining valid pairs are served on-demand (ISR).
  */
-/** Top 12 pairs shown on the homepage converter. */
+/** Top 15 pairs shown on the homepage converter (fallback when live stats are sparse). */
 export const HOMEPAGE_POPULAR_PAIRS: ConversionPair[] = [
   { from: "png", to: "jpg" },
   { from: "jpg", to: "png" },
@@ -29,6 +29,9 @@ export const HOMEPAGE_POPULAR_PAIRS: ConversionPair[] = [
   { from: "svg", to: "png" },
   { from: "png", to: "webp" },
   { from: "jpg", to: "webp" },
+  { from: "mp4", to: "mp3" },
+  { from: "pdf", to: "png" },
+  { from: "docx", to: "pdf" },
 ];
 
 export const TOP_PAIRS: ConversionPair[] = [
