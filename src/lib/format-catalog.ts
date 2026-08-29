@@ -25,18 +25,17 @@ export async function resolveFormatByExt(
   const normalized = ext.toLowerCase().replace(/^\./, "");
   if (!normalized) return null;
 
+  const staticFmt = getFormatByExt(normalized);
+
   const prisma = getOptionalDb();
   if (prisma) {
     try {
       const row = await prisma.format.findFirst({
-        where: {
-          ext: normalized,
-          enabled: true,
-          category: { enabled: true },
-        },
+        where: { ext: normalized },
         include: { category: true },
       });
       if (row) {
+        if (!row.enabled || !row.category.enabled) return null;
         return {
           ext: row.ext,
           name: row.name,
@@ -45,16 +44,11 @@ export async function resolveFormatByExt(
           source: "database",
         };
       }
-      // DB has formats but this one is missing/disabled — don't fall through
-      // to static if the catalog was synced (any format rows exist).
-      const count = await prisma.format.count();
-      if (count > 0) return null;
     } catch (err) {
       console.warn("[format-catalog] DB lookup failed, using static:", err);
     }
   }
 
-  const staticFmt = getFormatByExt(normalized);
   if (!staticFmt) return null;
   return {
     ext: staticFmt.ext,

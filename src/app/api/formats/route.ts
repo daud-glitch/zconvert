@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     if (prisma) {
       try {
         const formatCount = await prisma.format.count();
-        if (formatCount === 0) {
+        if (formatCount === 0 || formatCount < formats.length) {
           await syncFormatsCatalog(prisma);
         }
 

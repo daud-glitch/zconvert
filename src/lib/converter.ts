@@ -2746,10 +2746,13 @@ async function convertArchive(
       );
     }
   }
-  if (src === "zip" && input.length >= 2) {
+  if (
+    (src === "zip" || src === "apk" || src === "jar" || src === "cbz") &&
+    input.length >= 2
+  ) {
     if (!(input[0] === 0x50 && input[1] === 0x4b)) {
       throw new Error(
-        "Invalid archive: file does not look like a real ZIP. Re-select the file and try again.",
+        `Invalid archive: file does not look like a real ${src.toUpperCase()} (ZIP container). Re-select the file and try again.`,
       );
     }
   }
