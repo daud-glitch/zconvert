@@ -259,7 +259,11 @@ export async function readSavRecords(
 
   let primaryError = "";
   try {
-    const records = await readSavWithDatareader(bytes.buffer);
+    const ab = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
+    const records = await readSavWithDatareader(ab);
     if (records.length > 0) return records;
     primaryError = "SAV file contains no data rows";
   } catch (err) {
