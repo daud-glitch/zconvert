@@ -142,20 +142,9 @@ function SignupForm() {
           </div>
 
           <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
-            {turnstileOn ? (
-              <>
-                <TurnstileField
-                  ref={turnstileRef}
-                  onToken={setTurnstileToken}
-                  className="flex justify-center"
-                />
-                <CaptchaContinueHint locked={actionsLocked} />
-              </>
-            ) : null}
-
             <GoogleAuthButton
               label="Sign up with Google"
-              disabled={loading || actionsLocked}
+              disabled={loading}
               withDivider={false}
             />
 
@@ -235,6 +224,17 @@ function SignupForm() {
                   <span>{error}</span>
                 </div>
               )}
+
+              {turnstileOn ? (
+                <>
+                  <TurnstileField
+                    ref={turnstileRef}
+                    onToken={setTurnstileToken}
+                    className="flex justify-center"
+                  />
+                  <CaptchaContinueHint locked={actionsLocked} />
+                </>
+              ) : null}
 
               <Button
                 type="submit"

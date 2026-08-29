@@ -172,17 +172,6 @@ export function AuthDialog({
             </div>
           )}
 
-          {turnstileOn ? (
-            <>
-              <TurnstileField
-                ref={turnstileRef}
-                onToken={setTurnstileToken}
-                className="flex justify-center min-h-[0]"
-              />
-              <CaptchaContinueHint locked={actionsLocked} />
-            </>
-          ) : null}
-
           {!requires2FA && googleOn && (
             <GoogleAuthButton
               label={
@@ -190,7 +179,7 @@ export function AuthDialog({
                   ? "Sign up with Google"
                   : "Continue with Google"
               }
-              disabled={isLoading || actionsLocked}
+              disabled={isLoading}
               withDivider={false}
             />
           )}
@@ -292,6 +281,17 @@ export function AuthDialog({
                 </div>
               </>
             )}
+
+            {turnstileOn ? (
+              <>
+                <TurnstileField
+                  ref={turnstileRef}
+                  onToken={setTurnstileToken}
+                  className="flex justify-center min-h-[0]"
+                />
+                <CaptchaContinueHint locked={actionsLocked} />
+              </>
+            ) : null}
 
             <Button
               type="submit"
