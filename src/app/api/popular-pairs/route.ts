@@ -3,6 +3,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/auth";
 import { getOptionalDb } from "@/lib/db";
 import { HOMEPAGE_POPULAR_PAIRS } from "@/lib/conversion-pairs";
 import { isConversionPairListed } from "@/lib/formats";
+import { nonAdminConversionWhere } from "@/lib/analytics-filters";
 
 const LIMIT = 15;
 
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const groups = await db.conversion.groupBy({
       by: ["originalExt", "targetExt"],
-      where: { status: "done" },
+      where: { status: "done", ...nonAdminConversionWhere },
       _count: { _all: true },
     });
 

@@ -2,13 +2,18 @@
 
 import { useEffect } from "react";
 import { isLikelyCrawler } from "@/lib/crawler";
+import { useApp } from "@/lib/app-context";
 
 /**
  * Lightweight first-party page-view beacon for admin traffic sources.
  * One beacon per path per browser session (privacy-friendly, no third party).
  */
 export function TrafficTracker() {
+  const { isAdmin, loading } = useApp();
+
   useEffect(() => {
+    if (loading || isAdmin) return;
+
     try {
       if (isLikelyCrawler()) return;
 
@@ -52,7 +57,7 @@ export function TrafficTracker() {
     } catch {
       // ignore tracker failures
     }
-  }, []);
+  }, [loading, isAdmin]);
 
   return null;
 }

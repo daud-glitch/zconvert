@@ -1,5 +1,6 @@
 import { getOptionalDb } from "@/lib/db";
 import { anonymizeFileName, hashIp } from "@/lib/format-catalog";
+import { isAdminUserId } from "@/lib/analytics-filters";
 
 export type ConversionLogStatus = "done" | "error";
 
@@ -31,6 +32,10 @@ export async function logConversion(
 ): Promise<string | null> {
   const prisma = getOptionalDb();
   if (!prisma) return null;
+
+  if (await isAdminUserId(prisma, input.userId)) {
+    return null;
+  }
 
   const hasUser = Boolean(input.userId);
   const safeName = anonymizeFileName(

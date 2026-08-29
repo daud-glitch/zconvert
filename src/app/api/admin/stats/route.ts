@@ -1,12 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import {
+  getAdminUserIds,
+  nonAdminConversionWhere,
+  nonAdminPageViewWhere,
+} from "@/lib/analytics-filters";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.authorized) return auth.response;
 
   try {
+    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const adminUserIds = await getAdminUserIds(db);
+    const pageViewFilter = nonAdminPageViewWhere(adminUserIds);
+    const pageViewRecentWhere = {
+      ...pageViewFilter,
+      createdAt: { gte: since30d },
+    };
+
+    const pvDailyQuery =
+      adminUserIds.length > 0
+        ? Prisma.sql`
+            SELECT to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD') as day,
+                   COUNT(*)::int as page_views
+            FROM "PageView"
+            WHERE "createdAt" >= ${since30d}
+              AND ("userId" IS NULL OR "userId" NOT IN (${Prisma.join(adminUserIds)}))
+            GROUP BY 1
+            ORDER BY 1 ASC
+          `
+        : Prisma.sql`
+            SELECT to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD') as day,
+                   COUNT(*)::int as page_views
+            FROM "PageView"
+            WHERE "createdAt" >= ${since30d}
+            GROUP BY 1
+            ORDER BY 1 ASC
+          `;
+
     const [
       totalConversions,
       totalUsers,
@@ -16,30 +50,35 @@ export async function GET(request: NextRequest) {
       conversionsByStatusRaw,
       recentConversions,
       pairGroups,
-      dailyStats,
+      convDailyRaw,
+      pvDailyRaw,
       trafficGroups,
       totalPageViews30d,
       dbPing,
     ] = await Promise.all([
-      db.conversion.count(),
-      db.user.count(),
+      db.conversion.count({ where: nonAdminConversionWhere }),
+      db.user.count({ where: { role: { not: "admin" } } }),
       db.conversion.aggregate({
+        where: nonAdminConversionWhere,
         _sum: { outputSize: true, inputSize: true },
       }),
       db.conversion.aggregate({
-        where: { duration: { not: null } },
+        where: { ...nonAdminConversionWhere, duration: { not: null } },
         _avg: { duration: true },
       }),
       db.conversion.groupBy({
         by: ["category"],
+        where: nonAdminConversionWhere,
         _count: { _all: true },
         _sum: { inputSize: true, outputSize: true },
       }),
       db.conversion.groupBy({
         by: ["status"],
+        where: nonAdminConversionWhere,
         _count: { _all: true },
       }),
       db.conversion.findMany({
+        where: nonAdminConversionWhere,
         take: 20,
         orderBy: { createdAt: "desc" },
         include: {
@@ -50,28 +89,33 @@ export async function GET(request: NextRequest) {
       }),
       db.conversion.groupBy({
         by: ["originalExt", "targetExt"],
+        where: nonAdminConversionWhere,
         _count: { _all: true },
       }),
-      db.dailyStats.findMany({
-        orderBy: { date: "desc" },
-        take: 30,
-      }),
-      db.pageView.groupBy({
-        by: ["source"],
-        where: {
-          createdAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          },
-        },
-        _count: { _all: true },
-      }).catch(() => [] as { source: string | null; _count: { _all: number } }[]),
-      db.pageView.count({
-        where: {
-          createdAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          },
-        },
-      }).catch(() => 0),
+      db.$queryRaw<
+        Array<{ day: string; conversions: number; storage: bigint }>
+      >`
+        SELECT to_char(c."createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD') as day,
+               COUNT(*)::int as conversions,
+               COALESCE(SUM(c."outputSize"), 0)::bigint as storage
+        FROM "Conversion" c
+        LEFT JOIN "User" u ON c."userId" = u.id
+        WHERE c."createdAt" >= ${since30d}
+          AND (c."userId" IS NULL OR u.role IS DISTINCT FROM 'admin')
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+      db.$queryRaw<Array<{ day: string; page_views: number }>>(pvDailyQuery),
+      db.pageView
+        .groupBy({
+          by: ["source"],
+          where: pageViewRecentWhere,
+          _count: { _all: true },
+        })
+        .catch(
+          () => [] as { source: string | null; _count: { _all: number } }[],
+        ),
+      db.pageView.count({ where: pageViewRecentWhere }).catch(() => 0),
       db.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     ]);
 
@@ -100,6 +144,17 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 15);
+
+    const pvByDay = new Map(
+      pvDailyRaw.map((row) => [row.day, row.page_views]),
+    );
+    const dailyStats = convDailyRaw.map((row) => ({
+      date: row.day,
+      conversions: row.conversions,
+      users: 0,
+      pageViews: pvByDay.get(row.day) ?? 0,
+      storageUsed: Number(row.storage),
+    }));
 
     const pageViewTotal30d =
       typeof totalPageViews30d === "number" ? totalPageViews30d : 0;
@@ -145,15 +200,7 @@ export async function GET(request: NextRequest) {
         ? Math.round(durationAgg._avg.duration)
         : null,
       popularPairs,
-      dailyStats: dailyStats
-        .map((d) => ({
-          date: d.date.toISOString().slice(0, 10),
-          conversions: d.conversions,
-          users: d.users,
-          pageViews: d.pageViews,
-          storageUsed: Number(d.storageUsed),
-        }))
-        .reverse(),
+      dailyStats,
       trafficSources,
       trafficTotals: {
         pageViews: pageViewTotal30d,

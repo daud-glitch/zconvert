@@ -1,5 +1,6 @@
 import { getOptionalDb } from "@/lib/db";
 import { hashIp } from "@/lib/format-catalog";
+import { isAdminUserId } from "@/lib/analytics-filters";
 import {
   resolveTrafficSource,
   sanitizePath,
@@ -40,6 +41,10 @@ export async function logPageView(input: PageViewInput): Promise<boolean> {
   if (!(await isAnalyticsEnabled())) return false;
   const prisma = getOptionalDb();
   if (!prisma) return false;
+
+  if (await isAdminUserId(prisma, input.userId)) {
+    return false;
+  }
 
   const path = sanitizePath(input.path);
   // Skip admin and noise paths

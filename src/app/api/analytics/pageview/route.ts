@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     utmCampaign:
       typeof body.utmCampaign === "string" ? body.utmCampaign : null,
     userAgent: request.headers.get("user-agent"),
+    userId: user?.id ?? null,
     ipAddress: ip,
   });
 
