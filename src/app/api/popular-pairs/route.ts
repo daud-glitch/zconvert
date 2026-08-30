@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/auth";
 import { getOptionalDb } from "@/lib/db";
-import { HOMEPAGE_POPULAR_PAIRS } from "@/lib/conversion-pairs";
+import { getPopularPairs } from "@/lib/conversion-pairs";
 import { isConversionPairListed } from "@/lib/formats";
 import { nonAdminConversionWhere } from "@/lib/analytics-filters";
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const fallback = HOMEPAGE_POPULAR_PAIRS.slice(0, LIMIT).map((p) => ({
+  const fallback = getPopularPairs(LIMIT).map((p) => ({
     from: p.from,
     to: p.to,
     count: null as number | null,
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       if (pairs.length >= LIMIT) break;
     }
 
-    for (const p of HOMEPAGE_POPULAR_PAIRS) {
+    for (const p of getPopularPairs(LIMIT)) {
       if (pairs.length >= LIMIT) break;
       const key = dedupeKey(p.from, p.to);
       if (seen.has(key)) continue;

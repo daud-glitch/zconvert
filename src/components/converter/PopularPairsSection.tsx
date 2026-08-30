@@ -1,24 +1,14 @@
 "use client";
 
-import { ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { Sparkles, TrendingUp } from "lucide-react";
 import type { ConversionPair } from "@/lib/conversion-pairs";
-import { getFormatChipClass } from "@/lib/format-chips";
 import { usePopularPairs } from "@/hooks/use-popular-pairs";
+import { PopularPairsGrid } from "@/components/converter/PopularPairsGrid";
 
 type PopularPairsSectionProps = {
   activePair: ConversionPair | null;
   onSelectPair: (pair: ConversionPair) => void;
 };
-
-function ExtChip({ ext }: { ext: string }) {
-  return (
-    <span
-      className={`inline-flex min-w-[2.25rem] items-center justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getFormatChipClass(ext)}`}
-    >
-      {ext}
-    </span>
-  );
-}
 
 export function PopularPairsSection({
   activePair,
@@ -57,36 +47,12 @@ export function PopularPairsSection({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5 sm:gap-2">
-        {pairs.map((pair) => {
-          const isActive =
-            activePair?.from === pair.from && activePair?.to === pair.to;
-          return (
-            <button
-              key={`${pair.from}-${pair.to}`}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => onSelectPair({ from: pair.from, to: pair.to })}
-              className={`group flex items-center justify-center gap-1 rounded-lg border px-2 py-2 transition-all ${
-                isActive
-                  ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500/25 dark:bg-emerald-950/30"
-                  : "border-border/60 bg-background/80 hover:border-emerald-500/40 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10"
-              }`}
-            >
-              <ExtChip ext={pair.from} />
-              <ArrowRight
-                className={`h-3 w-3 shrink-0 ${
-                  isActive
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-muted-foreground/50 group-hover:text-emerald-500"
-                }`}
-                aria-hidden
-              />
-              <ExtChip ext={pair.to} />
-            </button>
-          );
-        })}
-      </div>
+      <PopularPairsGrid
+        pairs={pairs}
+        variant="select"
+        activePair={activePair}
+        onSelectPair={onSelectPair}
+      />
     </section>
   );
 }

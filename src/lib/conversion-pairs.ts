@@ -12,27 +12,17 @@ export interface ResolvedPair {
 }
 
 /**
- * Top 200 high-traffic conversion pairs pre-built at deploy time (SSG).
+ * Top high-traffic conversion pairs — single source for homepage, /conversions, and API fallback.
  * All remaining valid pairs are served on-demand (ISR).
  */
-/** Top 15 pairs shown on the homepage converter (fallback when live stats are sparse). */
-export const HOMEPAGE_POPULAR_PAIRS: ConversionPair[] = [
-  { from: "png", to: "jpg" },
-  { from: "jpg", to: "png" },
-  { from: "heic", to: "jpg" },
-  { from: "webp", to: "jpg" },
-  { from: "pdf", to: "jpg" },
-  { from: "jpg", to: "pdf" },
-  { from: "png", to: "pdf" },
-  { from: "webp", to: "png" },
-  { from: "heic", to: "png" },
-  { from: "svg", to: "png" },
-  { from: "png", to: "webp" },
-  { from: "jpg", to: "webp" },
-  { from: "mp4", to: "mp3" },
-  { from: "pdf", to: "png" },
-  { from: "docx", to: "pdf" },
-];
+export const POPULAR_PAIRS_HOMEPAGE_COUNT = 15;
+export const POPULAR_PAIRS_DIRECTORY_COUNT = 40;
+
+export function getPopularPairs(
+  limit = POPULAR_PAIRS_HOMEPAGE_COUNT,
+): ConversionPair[] {
+  return TOP_PAIRS.slice(0, limit);
+}
 
 export const TOP_PAIRS: ConversionPair[] = [
   // ── Images (most searched) ────────────────────────────────────────────────

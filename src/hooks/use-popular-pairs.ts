@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ConversionPair } from "@/lib/conversion-pairs";
-import { HOMEPAGE_POPULAR_PAIRS } from "@/lib/conversion-pairs";
+import { getPopularPairs } from "@/lib/conversion-pairs";
 import { readJsonResponse } from "@/lib/http-json";
 
 export type PopularPairItem = ConversionPair & {
@@ -11,7 +11,7 @@ export type PopularPairItem = ConversionPair & {
 
 const POLL_MS = 60_000;
 
-const FALLBACK: PopularPairItem[] = HOMEPAGE_POPULAR_PAIRS.map((p) => ({
+const FALLBACK: PopularPairItem[] = getPopularPairs().map((p) => ({
   ...p,
   count: null,
 }));

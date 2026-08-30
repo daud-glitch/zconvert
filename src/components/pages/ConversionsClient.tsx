@@ -25,7 +25,7 @@ import {
   Video,
 } from "lucide-react";
 import { formats, categoryMeta } from "@/lib/formats";
-import { TOP_PAIRS } from "@/lib/conversion-pairs";
+import { PopularConversionsSection } from "@/components/pages/PopularConversionsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -224,29 +224,7 @@ export default function ConversionsClient() {
           </p>
         </div>
 
-        {/* Popular Conversion Pairs (Moved to top for high intent) */}
-        <section className="mb-12">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight">Popular Conversions</h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {TOP_PAIRS.slice(0, 40).map((pair) => (
-              <Link
-                key={`${pair.from}-${pair.to}`}
-                href={`/${pair.from}-to-${pair.to}`}
-                className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-3 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors group"
-              >
-                <span className="font-mono text-xs uppercase text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                  {pair.from}
-                </span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                <span className="font-mono text-xs uppercase text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                  {pair.to}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+        <PopularConversionsSection />
 
         <Separator className="mb-12" />
 
