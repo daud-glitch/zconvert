@@ -294,8 +294,8 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
           <p className="text-muted-foreground text-sm mb-5 ml-11">
             {format.name} can be converted to the following{" "}
             {format.targetFormats.length} format
-            {format.targetFormats.length !== 1 ? "s" : ""}. Click any format
-            to see its full details.
+            {format.targetFormats.length !== 1 ? "s" : ""}. Pick one to start
+            converting straight away.
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -305,7 +305,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
               const tMeta =
                 categoryMeta[tCat as keyof typeof categoryMeta];
               return (
-                <Link key={t} href={`/conversions/${t}`}>
+                <Link key={t} href={`/${ext}-to-${t}`}>
                   <div
                     className={`border rounded-xl p-3 hover:shadow-md transition-all cursor-pointer group bg-card hover:bg-muted/40 border-l-4 ${catBorder[tCat] ?? "border-l-gray-400"}`}
                   >
@@ -357,7 +357,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
             <p className="text-muted-foreground text-sm mb-5 ml-11">
               The following {convertsFrom.length} format
               {convertsFrom.length !== 1 ? "s" : ""} can be converted into{" "}
-              {format.name}. Click any format to explore it.
+              {format.name}. Pick one to convert from it.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -365,7 +365,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
                 const fMeta =
                   categoryMeta[f.category as keyof typeof categoryMeta];
                 return (
-                  <Link key={f.ext} href={`/conversions/${f.ext}`}>
+                  <Link key={f.ext} href={`/${f.ext}-to-${ext}`}>
                     <div
                       className={`border rounded-xl p-3 hover:shadow-md transition-all cursor-pointer group bg-card hover:bg-muted/40 border-l-4 ${catBorder[f.category] ?? "border-l-gray-400"}`}
                     >
