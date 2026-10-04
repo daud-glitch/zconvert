@@ -17,13 +17,17 @@ async function onePagePdf() {
   return Buffer.from(await doc.save());
 }
 
+// PDF rasterisation costs ~1.5s per call on its own and the default 5s budget
+// is not enough once the whole suite runs in parallel.
+const RASTER_TIMEOUT = 30_000;
+
 describe("PDF → JFIF", () => {
   it("emits JPEG bytes, not PNG bytes wearing a .jfif name", async () => {
     const pdf = await onePagePdf();
     const out = await convertFile(pdf, "pdf", "jfif");
     // JPEG SOI marker — previously the same size as PNG output.
     expect(out.subarray(0, 3).toString("hex")).toBe("ffd8ff");
-  });
+  }, RASTER_TIMEOUT);
 
   it("matches the jpg output size", async () => {
     const pdf = await onePagePdf();
@@ -32,14 +36,14 @@ describe("PDF → JFIF", () => {
       convertFile(pdf, "pdf", "jfif"),
     ]);
     expect(Math.abs(jpg.length - jfif.length)).toBeLessThan(200);
-  });
+  }, RASTER_TIMEOUT);
 
   it("rejects unknown raster targets instead of silently returning PNG", async () => {
     const png = await convertFile(await onePagePdf(), "pdf", "png");
     await expect(convertRenderedPng(png, "xyz")).rejects.toThrow(
       /cannot be rendered/i,
     );
-  });
+  }, RASTER_TIMEOUT);
 });
 
 describe("text → PDF font weight", () => {
