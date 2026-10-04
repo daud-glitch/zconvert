@@ -40,6 +40,7 @@ import {
 } from "@/lib/app-helpers";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { useApp } from "@/lib/app-context";
+import { AdminFailedConversions } from "@/components/admin/AdminFailedConversions";
 
 export function AdminOverview() {
   const { setCurrentView: navigate } = useApp();
@@ -422,6 +423,9 @@ export function AdminOverview() {
           </CardContent>
         </Card>
       )}
+
+      {/* Failed conversions — which formats are actually broken */}
+      <AdminFailedConversions />
 
       {/* Activity Feed */}
       <Card className="card-elevated">
