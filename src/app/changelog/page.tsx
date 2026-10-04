@@ -12,7 +12,8 @@ import { changelogEntries } from "@/lib/changelog";
 import { OG_IMAGE_PATH } from "@/lib/seo";
 
 const SITE = "https://www.convertek.tech";
-const UPDATED = "August 28, 2026";
+/** Owned by the data — never hand-maintained alongside it. */
+const UPDATED = formatDate(changelogEntries[0].date);
 
 export const metadata: Metadata = {
   title: "Changelog",
@@ -97,7 +98,7 @@ export default function ChangelogPage() {
           <div className="space-y-4">
             {changelogEntries.map((entry, index) => (
               <article
-                key={entry.date}
+                key={entry.id}
                 className="relative rounded-2xl border border-border/70 bg-background/80 p-5 backdrop-blur-sm"
               >
                 {index === 0 && (

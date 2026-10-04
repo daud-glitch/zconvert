@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import { notFound, permanentRedirect } from "next/navigation";
 import { formats } from "@/lib/formats";
+import { parseConversionSlug } from "@/lib/conversion-pairs";
 import FormatDetailClient from "@/components/pages/FormatDetailClient";
 import { FormatJsonLd } from "@/components/format-json-ld";
 import {
   formatPageDescription,
   formatPageTitle,
+  conversionPairTitle,
+  conversionPairDescription,
   OG_IMAGE_PATH,
   SITE_NAME,
   absoluteUrl,
@@ -17,6 +21,23 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { format: ext } = await params;
   const format = formats.find((f) => f.ext === ext);
+
+  // Legacy shape: pair pages were once listed under /conversions/<a>-to-<b>.
+  // Canonical home is the root pair URL, so point every signal there.
+  const pair = parseConversionSlug(ext);
+  if (pair) {
+    return {
+      title: conversionPairTitle(pair.from.ext, pair.to.ext),
+      description: conversionPairDescription(
+        pair.from.ext,
+        pair.from.name,
+        pair.to.ext,
+        pair.to.name,
+      ),
+      alternates: { canonical: `/${ext}` },
+      robots: { index: false, follow: true },
+    };
+  }
 
   if (!format) {
     return {
@@ -93,7 +114,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Page({ params }: Props) {
   const { format: ext } = await params;
+
+  // 301 to the canonical root pair page instead of rendering a duplicate.
+  if (parseConversionSlug(ext)) {
+    permanentRedirect(`/${ext}`);
+  }
+
   const format = formats.find((f) => f.ext === ext);
+  if (!format) notFound();
 
   return (
     <>

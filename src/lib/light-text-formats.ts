@@ -238,7 +238,19 @@ export function toM3u(records: Record<string, unknown>[]): string {
   const lines = ["#EXTM3U"];
   for (const r of records) {
     const title = String(r.title ?? r.name ?? r.summary ?? "Track");
-    const url = String(r.url ?? r.path ?? r.link ?? r.src ?? "");
+    // Records from JSON/CSV rarely carry a url/path column. Skipping them
+    // silently produced a playlist with only "#EXTM3U" in it, so fall back to
+    // the entry's own identity rather than dropping the row.
+    const url = String(
+      r.url ??
+        r.path ??
+        r.link ??
+        r.src ??
+        r.file ??
+        r.filename ??
+        r.location ??
+        title,
+    ).trim();
     if (!url) continue;
     lines.push(`#EXTINF:-1,${title}`);
     lines.push(url);

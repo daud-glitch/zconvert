@@ -1,4 +1,6 @@
 export type ChangelogEntry = {
+  /** Stable unique id — dates repeat when several entries ship the same day. */
+  id: string;
   date: string;
   title: string;
   items: string[];
@@ -7,6 +9,27 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-08-30-conversion-fixes",
+    date: "2026-08-30",
+    title: "Conversion fixes",
+    items: [
+      "JSON and CSV to M3U playlists now produce real entries. Records without a url column were silently skipped, so the download contained nothing but the #EXTM3U header.",
+      "Data and document to PDF downloads are far smaller — plain text no longer embeds a 1 MB font, cutting a typical CSV-to-PDF from about 570 KB to under 1 KB.",
+      "PDF to JFIF now returns a real JPEG instead of PNG bytes with the wrong extension, and an impossible raster target reports a clear error rather than downloading a mislabelled file.",
+      "Uncompressed BLP2 (Blizzard) textures now convert instead of failing with an unsupported-encoding error.",
+      "Failed conversions no longer show a generic \u201ctech team notified\u201d line \u2014 you now get the specific reason.",
+    ],
+  },
+  {
+    id: "2026-08-29-sav-bom",
+    date: "2026-08-29",
+    title: "Conversion fixes",
+    items: [
+      "SPSS .sav uploads that still failed — files with a UTF-8 BOM prefix or extra leading bytes — now parse correctly. Non-SPSS files renamed to .sav (ZIP, Office documents, CSV, SPSS Portable) now say what they actually are instead of failing with a generic error.",
+    ],
+  },
+  {
+    id: "2026-08-29-new-formats-as-outputs",
     date: "2026-08-29",
     title: "New formats as outputs",
     items: [
@@ -14,6 +37,7 @@ export const changelogEntries: ChangelogEntry[] = [
     ],
   },
   {
+    id: "2026-08-29-new-formats-homepage",
     date: "2026-08-29",
     title: "New formats & homepage",
     items: [
@@ -27,6 +51,7 @@ export const changelogEntries: ChangelogEntry[] = [
     ],
   },
   {
+    id: "2026-08-28-sav-readstat",
     date: "2026-08-28",
     title: "Conversion fixes",
     items: [
@@ -34,6 +59,7 @@ export const changelogEntries: ChangelogEntry[] = [
     ],
   },
   {
+    id: "2026-08-26-parquet-ebooks",
     date: "2026-08-26",
     title: "Conversion fixes",
     items: [
@@ -42,6 +68,7 @@ export const changelogEntries: ChangelogEntry[] = [
     ],
   },
   {
+    id: "2026-08-25-drawio-render",
     date: "2026-08-25",
     title: "Conversion fixes",
     items: [
@@ -49,6 +76,7 @@ export const changelogEntries: ChangelogEntry[] = [
     ],
   },
   {
+    id: "2026-08-24-blp-compression",
     date: "2026-08-24",
     title: "Conversion fixes",
     items: [

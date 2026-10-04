@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import type { ConversionPair } from "@/lib/conversion-pairs";
+import { pairToSlug, type ConversionPair } from "@/lib/conversion-pairs";
 import { FormatChip } from "@/components/converter/FormatChip";
 
 type PopularPairsGridProps = {
@@ -57,7 +57,7 @@ export function PopularPairsGrid({
           return (
             <Link
               key={`${pair.from}-${pair.to}`}
-              href={`/?from=${pair.from}&to=${pair.to}`}
+              href={`/${pairToSlug(pair.from, pair.to)}`}
               className={pairCellClass(false)}
             >
               {content}

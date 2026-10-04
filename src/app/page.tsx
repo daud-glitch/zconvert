@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { permanentRedirect } from "next/navigation";
 import HomeClient from "@/components/pages/HomeClient";
 import HomeFaqJsonLd from "@/components/seo/HomeFaqJsonLd";
+import { parseConversionSlug, pairToSlug } from "@/lib/conversion-pairs";
 import {
   BRAND_TAGLINE,
   BRAND_TAGLINE_ACTION,
@@ -41,11 +43,36 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+/** Page props with search params — Next 15+ passes these as a promise. */
+type Props = {
+  searchParams: Promise<{ from?: string | string[]; to?: string | string[] }>;
+};
+
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function Page({ searchParams }: Props) {
+  // Legacy `/?from=X&to=Y` deep links are duplicates of the canonical pair
+  // page. 301 them so link equity lands on /x-to-y instead of fragmenting
+  // across ~1.2k query-string variants of the homepage.
+  const params = await searchParams;
+  const from = first(params.from);
+  const to = first(params.to);
+  if (from && to) {
+    const slug = pairToSlug(
+      from.trim().toLowerCase(),
+      to.trim().toLowerCase(),
+    );
+    if (parseConversionSlug(slug)) {
+      permanentRedirect(`/${slug}`);
+    }
+  }
+
   return (
     <>
       <HomeFaqJsonLd />
       <HomeClient defaultView="converter" />
     </>
   );
-}
+}

@@ -37,7 +37,6 @@ import {
   formatDate,
   getCategoryIcon,
   isConversionSuccess,
-  CONVERSION_FAILED_USER_NOTE,
 } from "@/lib/app-helpers";
 import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { useApp } from "@/lib/app-context";
@@ -466,7 +465,7 @@ export function AdminOverview() {
                       </div>
                       {!ok ? (
                         <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 leading-snug">
-                          {CONVERSION_FAILED_USER_NOTE}
+                          {c.error || "Conversion failed"}
                         </p>
                       ) : null}
                     </div>

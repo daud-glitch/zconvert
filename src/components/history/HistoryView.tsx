@@ -22,7 +22,6 @@ import {
   formatDate,
   getCategoryIcon,
   isConversionSuccess,
-  CONVERSION_FAILED_USER_NOTE,
 } from "@/lib/app-helpers";
 import {
   getLocalHistory,
@@ -297,21 +296,9 @@ export function HistoryView() {
                       </div>
                       {!ok ? (
                         <div className="mt-1.5 space-y-0.5">
-                          {record.error ? (
-                            <p className="text-xs text-red-600 dark:text-red-400 flex items-start gap-1">
-                              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-                              <span>{record.error}</span>
-                            </p>
-                          ) : null}
-                          <p
-                            className={`text-[11px] text-red-600/80 dark:text-red-400/90 leading-snug ${
-                              record.error ? "pl-4" : "flex items-start gap-1"
-                            }`}
-                          >
-                            {!record.error ? (
-                              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-                            ) : null}
-                            <span>{CONVERSION_FAILED_USER_NOTE}</span>
+                          <p className="text-xs text-red-600 dark:text-red-400 flex items-start gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                            <span>{record.error || "Conversion failed"}</span>
                           </p>
                         </div>
                       ) : null}

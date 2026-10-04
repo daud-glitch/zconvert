@@ -910,6 +910,14 @@ async function decodeBlp2(input: Buffer): Promise<Buffer> {
       decodeBlpBgra(input, width, height, mipOffset, mipSize),
     );
   }
+  // BLP2 documents type 7 as uncompressed BGRA. It used to fall through to
+  // the "encoding not supported" throw because only encodings 3/4 reached the
+  // BGRA path, so every uncompressed BLP2 upload failed.
+  if (type === 7 || encoding === 0) {
+    return rgbaToPng(
+      decodeBlpBgra(input, width, height, mipOffset, mipSize),
+    );
+  }
   throw new Error(`BLP2 encoding ${encoding} not supported`);
 }
 

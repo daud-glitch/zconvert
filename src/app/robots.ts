@@ -1,4 +1,4 @@
-import type { MetadataRoute } from "next";
+import type { MetadataRoute } from 'next';
 import { CANONICAL_SITE_URL, resolveSiteUrl } from "@/lib/seo";
 
 /**
@@ -15,6 +15,14 @@ export default function robots(): MetadataRoute.Robots {
     "/admin/",
     "/forgot-password",
     "/reset-password",
+    // Non-HTML assets: crawled but never indexable, and they show up as
+    // noise in Search Console's "crawled, not indexed" report.
+    "/_next/static/",
+    "/_next/image",
+    "/manifest.webmanifest",
+    "/sw.js",
+    "/service-worker",
+    "/ads.txt",
   ];
 
   return {
@@ -38,4 +46,4 @@ export default function robots(): MetadataRoute.Robots {
     sitemap: `${base}/sitemap.xml`,
     host: "www.convertek.tech",
   };
-}
+}

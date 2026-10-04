@@ -96,7 +96,10 @@ export async function convertRenderedPng(
   outputExt: string,
   quality: number = 85,
 ): Promise<Buffer> {
-  const dest = outputExt.toLowerCase() === "jpeg" ? "jpg" : outputExt.toLowerCase();
+  const normalized = outputExt.toLowerCase();
+  // JFIF is the JPEG container under another extension — without this it fell
+  // through to `default` and shipped PNG bytes inside a .jfif download.
+  const dest = normalized === "jpeg" || normalized === "jfif" ? "jpg" : normalized;
   const sharp = await loadSharp();
   const pipeline = sharp(pngBuf);
 
@@ -123,7 +126,9 @@ export async function convertRenderedPng(
       return encodeIcoFromRgba(data, info.width, info.height);
     }
     default:
-      return pipeline.png().toBuffer();
+      throw new Error(
+        `PDF pages cannot be rendered as .${normalized.toUpperCase()}. Choose PNG, JPG, WebP, GIF, BMP, TIFF, AVIF or ICO.`,
+      );
   }
 }
 
@@ -192,7 +197,9 @@ export async function zipPdfPageImages(
 ): Promise<Buffer> {
   const zip = new JSZip();
   const ext =
-    targetFormat === "jpg" || targetFormat === "jpeg" ? "jpg" : targetFormat;
+    targetFormat === "jpg" || targetFormat === "jpeg" || targetFormat === "jfif"
+      ? "jpg"
+      : targetFormat;
 
   for (const page of pages) {
     const pageName = `${baseName}-page-${String(page.pageNumber).padStart(3, "0")}`;

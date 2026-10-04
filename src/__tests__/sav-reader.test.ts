@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { readSavRecords } from "@/lib/format-readers";
 import { convertFile } from "@/lib/converter";
+import { humanizeConversionError } from "@/lib/upload-limits";
 
 describe("SAV reader", () => {
   it("reads basic SPSS fixture and converts to JSON", async () => {
@@ -45,5 +46,33 @@ describe("SAV reader", () => {
     const buf = Buffer.from(await res.arrayBuffer());
     const rows = await readSavRecords(buf);
     expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("names the real format when a non-SPSS file is renamed to .sav", async () => {
+    const cases: [string, Buffer, RegExp][] = [
+      [
+        "csv",
+        Buffer.from("name,age\r\nada,36\r\ngrace,45\r\n", "utf8"),
+        /plain text\/CSV/i,
+      ],
+      ["csv-lf", Buffer.from("name,age\nada,36\n", "utf8"), /plain text\/CSV/i],
+      ["xlsx-like zip", Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]), /zip/i],
+      ["legacy office", Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1]), /office/i],
+    ];
+
+    for (const [label, buf, expected] of cases) {
+      await expect(readSavRecords(buf), label).rejects.toThrow(expected);
+    }
+  });
+
+  it("surfaces the specific reason to the user, not a generic failure", async () => {
+    const err = await readSavRecords(
+      Buffer.from("name,age\r\nada,36\r\n", "utf8"),
+    ).catch((e: unknown) => e as Error);
+    const message = humanizeConversionError(
+      err instanceof Error ? err.message : String(err),
+    );
+    expect(message).toMatch(/CSV/i);
+    expect(message).not.toMatch(/tech team notified/i);
   });
 });

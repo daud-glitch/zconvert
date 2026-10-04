@@ -109,7 +109,9 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
               <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground sm:text-xl">
                 Free, fast, and secure online conversion from {from.name} to {to.name}. No watermarks, no registration required.
               </p>
-              <Link href={`/?from=${from.ext}&to=${to.ext}`}>
+              {/* Plain homepage link — `?from=`/`?to=` now 301s to this
+                  very page, so linking to it would bounce the user back. */}
+              <Link href="/">
                 <Button size="lg" className="h-14 gap-2 rounded-xl bg-emerald-500 px-8 text-base hover:bg-emerald-600 font-semibold text-white">
                   Convert {fromUpper} to {toUpper} Now
                 </Button>

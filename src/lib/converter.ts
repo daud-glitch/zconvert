@@ -4,7 +4,12 @@ import { accessSync, chmodSync, constants as fsConstants } from "fs";
 import { execFileSync } from "child_process";
 import os from "os";
 import path from "path";
-import { PDFDocument, rgb } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+} from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import mammoth from "mammoth";
 import { isPdfRasterTarget } from "@/lib/pdf-raster-targets";
@@ -804,7 +809,7 @@ export const docOutputFormats = new Set([
   "tsv",
 ]);
 
-const audioFormats = new Set([
+export const audioFormats = new Set([
   "mp3",
   "wav",
   "ogg",
@@ -908,6 +913,25 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
+/**
+ * Helvetica is a PDF base-14 font: zero embedding, so a text→PDF stays a few
+ * KB instead of ~570 KB. The 1 MB Unicode font is only embedded when the text
+ * actually contains glyphs Helvetica cannot draw.
+ */
+const ASCII_ONLY = /^[\t\n\r\x20-\x7E]*$/;
+
+async function pickPdfFont(
+  pdfDoc: PDFDocument,
+  text: string,
+): Promise<PDFFont> {
+  if (ASCII_ONLY.test(text)) {
+    return pdfDoc.embedFont(StandardFonts.Helvetica);
+  }
+  pdfDoc.registerFontkit(fontkit);
+  const { loadPdfUnicodeFontBytes } = await import("@/lib/pdf-utils");
+  return pdfDoc.embedFont(await loadPdfUnicodeFontBytes());
+}
+
 export async function textToPdf(text: string, _title: string = "Document"): Promise<Buffer> {
   const sanitizedText = (text || "[No Content]")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
@@ -915,10 +939,7 @@ export async function textToPdf(text: string, _title: string = "Document"): Prom
 
   try {
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(fontkit);
-    const { loadPdfUnicodeFontBytes } = await import("@/lib/pdf-utils");
-    const fontBytes = await loadPdfUnicodeFontBytes();
-    const font = await pdfDoc.embedFont(fontBytes);
+    const font = await pickPdfFont(pdfDoc, sanitizedText);
     const fontSize = 11;
     const margin = 50;
     const pageWidth = 595.28 - margin * 2;

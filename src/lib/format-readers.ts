@@ -215,9 +215,8 @@ function describeUnknownSavBuffer(bytes: Uint8Array): string {
     return "File is too small to be a valid SPSS dataset";
   }
   const head4 = Buffer.from(bytes.slice(0, 4));
-  const headText = Buffer.from(bytes.slice(0, Math.min(bytes.length, 64)))
-    .toString("utf8")
-    .replace(/[^\x20-\x7e]/g, ".");
+  const head = Buffer.from(bytes.slice(0, Math.min(bytes.length, 64)));
+  const headText = head.toString("utf8").replace(/[^\x20-\x7e]/g, ".");
   if (head4[0] === 0x50 && head4[1] === 0x4b) {
     return "File looks like a ZIP archive (XLSX/DOCX), not SPSS .sav";
   }
@@ -227,7 +226,10 @@ function describeUnknownSavBuffer(bytes: Uint8Array): string {
   if (/SPSS\s+PORT/i.test(headText) || headText.startsWith("*")) {
     return "File may be SPSS Portable (.por) — try renaming to .por and convert again";
   }
-  if (headText.includes(",") && headText.includes("\n")) {
+  // Raw bytes, not headText — the printable filter above turns newlines into dots.
+  const hasComma = head.includes(0x2c);
+  const hasLineBreak = head.includes(0x0a) || head.includes(0x0d);
+  if (hasComma && hasLineBreak) {
     return "File looks like plain text/CSV, not a binary SPSS .sav";
   }
   return `Not an SPSS system file (header ${head4.toString("hex")})`;
