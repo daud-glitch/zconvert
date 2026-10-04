@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && next build",
-    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && npx prisma generate && npx prisma db push && npx tsx scripts/sync-formats-catalog.cjs && PRISMA_CONNECTION_LIMIT=1 next build && npx tsx scripts/notify-indexnow.cjs",
+    "heroku-postbuild": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && npx prisma generate && npx prisma db push && npx tsx scripts/sync-formats-catalog.cjs && PRISMA_CONNECTION_LIMIT=1 next build && npx tsx scripts/notify-indexnow.ts",
     "start": "node scripts/ensure-ffmpeg.js && node scripts/ensure-rar.js && next start",
     "lint": "eslint .",
     "test": "vitest run",
@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "preflight": "tsx scripts/preflight.ts",
+    "indexnow": "tsx scripts/notify-indexnow.ts",
     "db:migrate-from-sqlite": "node scripts/migrate-sqlite-to-pg.js",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",

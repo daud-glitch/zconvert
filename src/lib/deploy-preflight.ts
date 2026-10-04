@@ -213,6 +213,26 @@ export async function runDeployPreflight(): Promise<PreflightReport> {
     );
   }
 
+  // ── Indexing beyond Google ────────────────────────────────────
+  if (!process.env.INDEXNOW_KEY?.trim()) {
+    add(
+      "warn",
+      "indexnow.key",
+      "INDEXNOW_KEY is not set — Bing and other IndexNow engines are never notified.",
+      "A key makes new pages indexable in days instead of weeks on Bing.",
+    );
+  }
+  if (
+    !process.env.BING_SITE_VERIFICATION?.trim() &&
+    !process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION?.trim()
+  ) {
+    add(
+      "warn",
+      "bing.verification",
+      "Bing_SITE_VERIFICATION is not set — Bing Webmaster Tools cannot be verified.",
+    );
+  }
+
   // ── Third-party secrets set halfway ───────────────────────────────────────
   const halfConfigured: Array<[string, string, string]> = [
     ["SMTP_HOST", "SMTP_USER", "smtp"],
