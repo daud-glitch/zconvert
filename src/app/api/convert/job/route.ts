@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
   }
 
   // In-memory media jobs (web dyno video fallback)
-  const job = getMediaJob(id);
+  const job = await getMediaJob(id);
   if (!job) {
     return NextResponse.json(
       { error: "Job not found or expired. Retry convert." },

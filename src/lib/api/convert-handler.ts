@@ -290,6 +290,11 @@ export async function handleConvertPost(
       const job = await createMediaJob({
         fileName: outFileName,
         contentType: getMimeType(target),
+        sourceExt,
+        targetExt: target,
+        category,
+        userId,
+        ipAddress: ipAddr,
       });
       const jobId = job.id;
 
@@ -340,7 +345,10 @@ export async function handleConvertPost(
             error: errorMessage,
             ipAddress: ipAddr,
           });
-          markMediaJobError(jobId, humanizeConversionError(errorMessage));
+          await markMediaJobError(
+            jobId,
+            humanizeConversionError(errorMessage),
+          );
         }
       })();
 
