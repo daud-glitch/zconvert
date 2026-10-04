@@ -780,6 +780,16 @@ const docFormats = new Set([
   "msg",
 ]);
 
+/** HEIF/AVIF rejects very large pixel areas at encode time. */
+const HEIF_MAX_EDGE = 8192;
+
+function isHeifSizeError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e);
+  return /too large for the HEIF|exceeds maximum|maximum image size/i.test(
+    message,
+  );
+}
+
 /** Document outputs the converter actually produces (must match formats.ts docOutputSupported). */
 export const docOutputFormats = new Set([
   "doc",
@@ -1680,7 +1690,19 @@ async function convertImage(
       case "webp":
         return pipeline.webp({ quality }).toBuffer();
       case "avif":
-        return pipeline.avif({ quality }).toBuffer();
+        try {
+          return await pipeline.avif({ quality }).toBuffer();
+        } catch (e) {
+          // HEIF caps total pixel area, so very large photos fail at encode
+          // time with "Processed image is too large for the HEIF format".
+          // Shrinking to a size HEIF accepts is far better than failing.
+          if (!isHeifSizeError(e)) throw e;
+          return pipeline
+            .clone()
+            .resize(HEIF_MAX_EDGE, HEIF_MAX_EDGE, { fit: "inside" })
+            .avif({ quality })
+            .toBuffer();
+        }
       case "bmp": {
         const { data, info } = await pipeline
           .ensureAlpha()

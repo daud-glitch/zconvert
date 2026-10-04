@@ -131,8 +131,154 @@ async function decodeIcoCur(input: Buffer): Promise<Buffer> {
   if (chunk[0] === 0x89 && chunk[1] === 0x50) {
     return sharp(chunk).png().toBuffer();
   }
-  const { data, width, height } = decodeBmpToRgba(chunk);
+  // A .ico stores a bare BITMAPINFOHEADER (DIB) with no BMP file header, so it
+  // cannot be handed straight to the .BMP reader — "BM" is never there.
+  const { data, width, height } = decodeDibToRgba(chunk);
   return rgbaToPng({ data, width, height });
+}
+
+/**
+ * Parse a bare BITMAPINFOHEADER (the payload inside .ico/.cur).
+ *
+ * Two quirks versus a standalone BMP:
+ *  - no 14-byte file header, so the pixel data starts after the header and any
+ *    colour table;
+ *  - the stored height covers both the colour bitmap and the 1-bit AND mask,
+ *    so the real image is half of it.
+ */
+function decodeDibToRgba(dib: Buffer): {
+  data: Buffer;
+  width: number;
+  height: number;
+} {
+  if (dib.length < 40) throw new Error("Invalid icon bitmap data");
+  const headerSize = dib.readUInt32LE(0);
+  if (headerSize < 12) throw new Error("Invalid icon bitmap header");
+
+  const width = dib.readInt32LE(4);
+  let height = dib.readInt32LE(8);
+  if (width <= 0) throw new Error("Invalid icon bitmap width");
+
+  // Negative height means a top-down bitmap; icons always store X + mask.
+  const topDown = height < 0;
+  height = Math.abs(height);
+  if (height % 2 === 0 && height / 2 > 0) height /= 2;
+  if (height <= 0) throw new Error("Invalid icon bitmap height");
+
+  const bpp = dib.readUInt16LE(14);
+  const compression = headerSize >= 20 ? dib.readUInt32LE(16) : 0;
+  const clrUsed = headerSize >= 36 ? dib.readUInt32LE(32) : 0;
+
+  // BI_BITFIELDS (3) stores explicit masks after a 40-byte header.
+  let channelMasks: { r: number; g: number; b: number; a: number } | null = null;
+  let pixelOffset = headerSize;
+  if (compression === 3 && headerSize >= 40) {
+    channelMasks = {
+      r: dib.readUInt32LE(40),
+      g: dib.readUInt32LE(44),
+      b: dib.readUInt32LE(48),
+      a: headerSize >= 52 ? dib.readUInt32LE(52) : 0,
+    };
+    pixelOffset = headerSize + 12;
+  } else if (compression === 0 && clrUsed > 0 && bpp <= 8) {
+    pixelOffset = headerSize + clrUsed * 4;
+  }
+
+  // Palette for 1/4/8-bit images.
+  const palette: Array<[number, number, number]> = [];
+  if (bpp <= 8) {
+    const entries = clrUsed > 0 ? clrUsed : 1 << bpp;
+    const tableOffset = headerSize;
+    for (let i = 0; i < entries; i++) {
+      const o = tableOffset + i * 4;
+      if (o + 2 >= dib.length) break;
+      palette.push([dib[o + 2], dib[o + 1], dib[o]]);
+    }
+  }
+
+  if (![1, 4, 8, 16, 24, 32].includes(bpp)) {
+    throw new Error(`Icon bitmap with ${bpp} bits per pixel is not supported`);
+  }
+
+  const rowSize = Math.ceil((width * bpp) / 32) * 4;
+  const needed = pixelOffset + rowSize * height;
+  if (dib.length < needed) {
+    throw new Error("Icon bitmap data is truncated");
+  }
+
+  const rgba = Buffer.alloc(width * height * 4, 255);
+  for (let y = 0; y < height; y++) {
+    const srcY = topDown ? y : height - 1 - y;
+    const rowStart = pixelOffset + srcY * rowSize;
+    for (let x = 0; x < width; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 255;
+
+      if (bpp === 32) {
+        const i = rowStart + x * 4;
+        b = dib[i];
+        g = dib[i + 1];
+        r = dib[i + 2];
+        a = dib[i + 3];
+      } else if (bpp === 24) {
+        const i = rowStart + x * 3;
+        b = dib[i];
+        g = dib[i + 1];
+        r = dib[i + 2];
+      } else if (bpp === 16) {
+        const v = dib.readUInt16LE(rowStart + x * 2);
+        if (channelMasks) {
+          const shift = (mask: number) => {
+            let s = 0;
+            while (mask && !((mask as number) & (1 << s))) s++;
+            return s;
+          };
+          const bits = (mask: number) => {
+            let n = 0;
+            let m = mask;
+            while (m) {
+              n += m & 1;
+              m >>= 1;
+            }
+            return n;
+          };
+          const scale = (value: number, mask: number) => {
+            const n = bits(mask);
+            if (!n) return 0;
+            return Math.round(((value & mask) >>> shift(mask)) * 255 / ((1 << n) - 1));
+          };
+          r = scale(v, channelMasks.r);
+          g = scale(v, channelMasks.g);
+          b = scale(v, channelMasks.b);
+          a = channelMasks.a ? scale(v, channelMasks.a) : 255;
+        } else {
+          // Default 5-6-5.
+          r = ((v >> 10) & 0x1f) << 3;
+          g = ((v >> 5) & 0x3f) << 2;
+          b = (v & 0x1f) << 3;
+        }
+      } else {
+        const perByte = 8 / bpp;
+        const byte = dib[rowStart + Math.floor(x / perByte)];
+        const shift = 8 - bpp * ((x % perByte) + 1);
+        const idx = (byte >> shift) & ((1 << bpp) - 1);
+        const entry = palette[idx] ?? [0, 0, 0];
+        r = entry[0];
+        g = entry[1];
+        b = entry[2];
+      }
+
+      const o = (y * width + x) * 4;
+      rgba[o] = r;
+      rgba[o + 1] = g;
+      rgba[o + 2] = b;
+      rgba[o + 3] = a;
+    }
+  }
+
+  return { data: rgba, width, height };
 }
 
 function decodeBmpToRgba(bmp: Buffer): {
@@ -528,20 +674,57 @@ async function decodeIcns(input: Buffer): Promise<Buffer> {
   if (input.length < 8 || input.toString("ascii", 0, 4) !== "icns") {
     throw new Error("Invalid ICNS file");
   }
-  let bestPng: Buffer | null = null;
-  let bestArea = 0;
+
+  type Chunk = { type: string; bytes: Buffer };
+  const chunks: Chunk[] = [];
   let pos = 8;
+  // Each element is at least 8 bytes of type+length, so the cursor must always
+  // move forward by at least that much. A zero or truncated length field would
+  // otherwise spin here forever and wedge a convert slot.
   while (pos + 8 <= input.length) {
-    const len = input.readUInt32BE(pos + 4);
-    const data = input.subarray(pos + 8, pos + len);
+    const type = input.toString("ascii", pos, pos + 4);
+    const declared = input.readUInt32BE(pos + 4);
+    if (declared < 8) break;
+    const len = Math.min(declared, input.length - pos);
+    if (len < 8) break;
+    chunks.push({ type, bytes: input.subarray(pos + 8, pos + len) });
     pos += len;
-    if (data[0] === 0x89 && data[1] === 0x50 && data.length > bestArea) {
-      bestPng = data;
-      bestArea = data.length;
+  }
+
+  if (!chunks.length) throw new Error("ICNS file contains no image data");
+
+  // Newer macOS icons store JPEG (ic07/ic08) or JPEG 2000 (ic09+) rather than
+  // PNG, so accept every payload libvips understands and take the largest.
+  const candidates: Array<{ bytes: Buffer; score: number }> = [];
+  for (const { bytes } of chunks) {
+    if (bytes.length < 4) continue;
+    if (bytes[0] === 0x89 && bytes[1] === 0x50) {
+      candidates.push({ bytes, score: bytes.length });
+    } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+      candidates.push({ bytes, score: bytes.length });
+    } else if (
+      bytes[0] === 0x00 &&
+      bytes[1] === 0x00 &&
+      bytes[2] === 0x00 &&
+      bytes[3] === 0x0c &&
+      bytes.toString("ascii", 4, 8) === "jP  "
+    ) {
+      candidates.push({ bytes, score: bytes.length });
     }
   }
-  if (!bestPng) throw new Error("ICNS has no embedded PNG");
-  return sharp(bestPng).png().toBuffer();
+
+  candidates.sort((a, b) => b.score - a.score);
+  for (const candidate of candidates) {
+    try {
+      return await sharp(candidate.bytes).png().toBuffer();
+    } catch {
+      // Try the next payload rather than failing the whole file.
+    }
+  }
+
+  throw new Error(
+    "ICNS contains no decodable image. Modern .icns icons should convert — please report this file.",
+  );
 }
 
 // ─── MSP ─────────────────────────────────────────────────────────────────────
