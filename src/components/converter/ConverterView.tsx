@@ -57,6 +57,22 @@ import {
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { PopularPairsSection } from "@/components/converter/PopularPairsSection";
+import { useConverterToasts } from "@/components/converter/useConverterToasts";
+import { useResultPreview } from "@/components/converter/useResultPreview";
+import {
+  AUDIO_CONVERSION_ENABLED,
+  VIDEO_CONVERSION_ENABLED,
+  acceptForPreferredFrom,
+  canPreviewResult,
+  formatSizeChangeLabel,
+  getMergeSourceBlob,
+  mergeOutputFileName,
+  normalizeExtParam,
+  resolveDefaultTargetFormat,
+  syncPreferredPairUrl,
+  targetsForExt,
+  uniqueZipEntryName,
+} from "@/lib/converter-helpers";
 import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
 import {
@@ -76,132 +92,11 @@ import {
   humanizeConversionError,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
-import { getFormatByExt, isConversionPairListed } from "@/lib/formats";
+import { isConversionPairListed } from "@/lib/formats";
 import type { ConversionPair } from "@/lib/conversion-pairs";
 
 const MAX_NONVIDEO_BATCH = getMaxNonVideoBatchFiles();
 const MAX_VIDEO_BYTES = getVideoMaxUploadBytes();
-const MEDIA_CONVERSION_ENABLED =
-  process.env.NEXT_PUBLIC_MEDIA_ENABLED !== "0" &&
-  process.env.NEXT_PUBLIC_AUDIO_ENABLED !== "0";
-const VIDEO_CONVERSION_ENABLED =
-  process.env.NEXT_PUBLIC_VIDEO_ENABLED !== "0" &&
-  process.env.NEXT_PUBLIC_MEDIA_ENABLED !== "0";
-const AUDIO_CONVERSION_ENABLED =
-  MEDIA_CONVERSION_ENABLED ||
-  Boolean(process.env.NEXT_PUBLIC_CONVERT_API_URL?.trim());
-
-function getMergeSourceBlob(item: FileItem): Blob | null {
-  if (item.outputPackage === "zip" || item.targetFormat !== "pdf") return null;
-  if (item.status === "done" && item.result) return item.result;
-  if (item.ext === "pdf") return item.file;
-  return null;
-}
-
-function mergeOutputFileName(item: FileItem): string {
-  const baseName = item.name.replace(/\.[^/.]+$/, "");
-  if (item.ext === "pdf" && item.targetFormat === "pdf") {
-    return item.name.toLowerCase().endsWith(".pdf") ? item.name : `${baseName}.pdf`;
-  }
-  return `${baseName}.${item.targetFormat}`;
-}
-
-/** API map first; fall back to built-in catalog so cold loads still accept files. */
-function targetsForExt(
-  ext: string,
-  map: Record<string, string[]>,
-): string[] {
-  const fromMap = map[ext];
-  if (fromMap && fromMap.length > 0) return fromMap;
-  return getFormatByExt(ext)?.targetFormats ?? [];
-}
-
-/** Human size change: avoid crazy % like ↑13428% on WAV/uncompressed output. */
-function formatSizeChangeLabel(input: number, output: number): string {
-  if (input <= 0) return "—";
-  if (output < input) return `↓${Math.round((1 - output / input) * 100)}%`;
-  if (output === input) return "same";
-  const ratio = output / input;
-  if (ratio >= 2) {
-    return `↑${ratio >= 10 ? ratio.toFixed(0) : ratio.toFixed(1)}×`;
-  }
-  return `↑${Math.round((ratio - 1) * 100)}%`;
-}
-
-function canPreviewResult(item: FileItem): boolean {
-  if (!item.result || item.outputPackage === "zip") return false;
-  const t = (item.targetFormat || "").toLowerCase();
-  return [
-    "png",
-    "jpg",
-    "jpeg",
-    "webp",
-    "gif",
-    "bmp",
-    "svg",
-    "pdf",
-    "avif",
-    "ico",
-  ].includes(t);
-}
-
-function uniqueZipEntryName(
-  used: Set<string>,
-  preferred: string,
-): string {
-  if (!used.has(preferred)) {
-    used.add(preferred);
-    return preferred;
-  }
-  const dot = preferred.lastIndexOf(".");
-  const base = dot > 0 ? preferred.slice(0, dot) : preferred;
-  const ext = dot > 0 ? preferred.slice(dot) : "";
-  let n = 2;
-  while (used.has(`${base}-${n}${ext}`)) n += 1;
-  const name = `${base}-${n}${ext}`;
-  used.add(name);
-  return name;
-}
-
-function normalizeExtParam(value: string | null): string {
-  return (value || "").toLowerCase().replace(/^\./, "");
-}
-
-function acceptForPreferredFrom(ext: string): string {
-  if (ext === "jpg" || ext === "jpeg") return ".jpg,.jpeg,.jpe";
-  return `.${ext}`;
-}
-
-function resolveDefaultTargetFormat(
-  ext: string,
-  targets: string[],
-  preferredFrom: string | null,
-  preferredTo: string | null,
-): string {
-  if (
-    preferredTo &&
-    targets.includes(preferredTo) &&
-    (!preferredFrom || ext === preferredFrom)
-  ) {
-    return preferredTo;
-  }
-  if (ext === "pdf" && targets.includes("pdf")) return "pdf";
-  return targets.find((t) => t !== ext) || targets[0] || "";
-}
-
-function syncPreferredPairUrl(
-  from: string | null,
-  to: string | null,
-): void {
-  if (typeof window === "undefined") return;
-  const url = new URL(window.location.href);
-  if (from) url.searchParams.set("from", from);
-  else url.searchParams.delete("from");
-  if (to) url.searchParams.set("to", to);
-  else url.searchParams.delete("to");
-  const next = `${url.pathname}${url.search}`;
-  window.history.replaceState({}, "", next);
-}
 
 export function ConverterView() {
   const { currentUser, openAuth } = useApp();
@@ -214,15 +109,18 @@ export function ConverterView() {
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
   >({});
-  const [toasts, setToasts] = useState<
-    { id: string; message: string; type: "success" | "error" }[]
-  >([]);
+  const { toasts, showToast } = useConverterToasts();
   const [recentConversions, setRecentConversions] = useState<
     ConversionRecord[]
   >([]);
-  
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewName, setPreviewName] = useState("");
+
+  const {
+    previewUrl,
+    previewName,
+    openPreview,
+    closePreview,
+    handleOpenChange,
+  } = useResultPreview();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [urlFetching, setUrlFetching] = useState(false);
@@ -317,18 +215,6 @@ export function ConverterView() {
     setBatchProgress({ current, total: alive.length });
   };
 
-  const showToast = (
-    message: string,
-    type: "success" | "error" = "success",
-  ) => {
-    const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(
-      () => setToasts((prev) => prev.filter((t) => t.id !== id)),
-      3500,
-    );
-  };
-
   useEffect(() => {
     if (!formatsData?.grouped) return;
     const map: Record<string, string[]> = {};
@@ -417,11 +303,7 @@ export function ConverterView() {
     batchIdsRef.current = null;
     autoUploadChainRef.current = Promise.resolve();
     setBatchProgress(null);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setPreviewName("");
+    closePreview();
     setRecentConversions([]);
 
     // Recent list only for signed-in accounts (bookmarks live in Bookmarks section only).
@@ -450,7 +332,7 @@ export function ConverterView() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, closePreview]);
 
   const fetchRemoteFile = async (url: string) => {
     if (urlFetching) return;
@@ -2449,15 +2331,12 @@ export function ConverterView() {
                                     className="h-8 w-8"
                                   onClick={() => {
                                     if (item.result) {
-                                      const url = URL.createObjectURL(
-                                        item.result,
-                                      );
                                       const baseName = item.name.replace(
                                         /\.[^/.]+$/,
                                         "",
                                       );
-                                      setPreviewUrl(url);
-                                      setPreviewName(
+                                      openPreview(
+                                        item.result,
                                         `${baseName}.${item.targetFormat}`,
                                       );
                                     }
@@ -3185,13 +3064,7 @@ export function ConverterView() {
       {/* ─── Image Preview Dialog ─── */}
       <Dialog
         open={previewUrl !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            setPreviewUrl(null);
-            setPreviewName("");
-          }
-        }}
+        onOpenChange={handleOpenChange}
       >
         <DialogContent className="max-w-3xl w-[calc(100%-1.5rem)] sm:w-full">
           <DialogHeader>
@@ -3212,11 +3085,7 @@ export function ConverterView() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                setPreviewUrl(null);
-                setPreviewName("");
-              }}
+              onClick={closePreview}
             >
               Close
             </Button>
