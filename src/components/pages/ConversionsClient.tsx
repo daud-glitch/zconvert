@@ -97,9 +97,96 @@ formats.forEach((f) => {
   extCatMap[f.ext] = f.category;
 });
 
+/** Target chips shown before a "show all" toggle. Keeps the DOM small. */
+const CHIP_PREVIEW = 8;
+/** Format cards rendered per batch — the full grid is 157 cards. */
+const CARD_BATCH = 24;
+
+function FormatCard({ fmt, cat }: { fmt: (typeof formats)[number]; cat: string }) {
+  const [showAll, setShowAll] = useState(false);
+  const meta = categoryMeta[cat as keyof typeof categoryMeta];
+  const hidden = fmt.targetFormats.length - CHIP_PREVIEW;
+  const chips = showAll ? fmt.targetFormats : fmt.targetFormats.slice(0, CHIP_PREVIEW);
+
+  return (
+    <div
+      className={`bg-card border rounded-xl overflow-hidden border-l-4 ${catBorder[cat]} hover:shadow-lg transition-shadow flex flex-col`}
+    >
+      <div className="p-4 flex-1">
+        {/* Format header */}
+        <div className="flex items-start gap-3 mb-3">
+          <div
+            className={`w-12 h-12 ${catColors[cat]} rounded-xl flex items-center justify-center text-white font-bold font-mono text-xs shrink-0`}
+          >
+            .{fmt.ext.length > 4 ? fmt.ext.slice(0, 4) : fmt.ext}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold">{fmt.name}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full text-white ${catColors[cat]}`}>
+                {meta?.label}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+              {fmt.description}
+            </p>
+          </div>
+        </div>
+
+        <Separator className="my-3" />
+
+        {/* Target formats — previewed, not all 2.5k links at once */}
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+            Convert .{fmt.ext} to — {fmt.targetFormats.length} formats
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {chips.map((t) => {
+              const tCat = extCatMap[t] || "other";
+              return (
+                <Link key={t} href={`/conversions/${t}`}>
+                  <span
+                    className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-mono uppercase bg-muted hover:text-white transition-colors cursor-pointer ${catTargetBg[tCat]}`}
+                  >
+                    {t}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          {hidden > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((s) => !s)}
+              className="mt-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              {showAll ? "Show fewer" : `+${hidden} more formats`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Card footer CTA */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/30">
+        <Link href={`/${fmt.ext}-to-${fmt.targetFormats[0] ?? ""}`}>
+          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground">
+            Convert Now
+          </Button>
+        </Link>
+        <Link href={`/conversions/${fmt.ext}`}>
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+            Details <ArrowRight className="w-3 h-3" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function ConversionsClient() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(CARD_BATCH);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
     const prefersDark = typeof window !== "undefined"
@@ -152,6 +239,28 @@ export default function ConversionsClient() {
     () => formats.reduce((acc, f) => acc + f.targetFormats.length, 0),
     []
   );
+
+  // Slice the flat filtered list once, then regroup — keeps at most
+  // `visibleCount` cards in the DOM instead of all 157.
+  const { visibleGroups, remainingCount } = useMemo(() => {
+    const seen: Record<string, (typeof formats)[number][]> = {};
+    let used = 0;
+    for (const f of filtered) {
+      if (used >= visibleCount) break;
+      if (!seen[f.category]) seen[f.category] = [];
+      seen[f.category].push(f);
+      used += 1;
+    }
+    return {
+      visibleGroups: Object.entries(seen),
+      remainingCount: Math.max(0, filtered.length - used),
+    };
+  }, [filtered, visibleCount]);
+
+  // A new filter/search starts from a clean slate.
+  useEffect(() => {
+    setVisibleCount(CARD_BATCH);
+  }, [search, activeCategory]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -301,7 +410,7 @@ export default function ConversionsClient() {
         )}
 
         {/* Grouped format sections */}
-        {Object.entries(grouped).map(([cat, fmts]) => {
+        {visibleGroups.map(([cat, fmts]) => {
           const meta = categoryMeta[cat as keyof typeof categoryMeta];
           return (
             <div key={cat} className="mb-14">
@@ -314,92 +423,49 @@ export default function ConversionsClient() {
                 </div>
                 <h2 className="text-xl font-bold">{meta?.label || cat}</h2>
                 <Badge variant="secondary" className="text-xs">
-                  {fmts.length} formats
+                  {grouped[cat]?.length ?? 0} formats
                 </Badge>
               </div>
 
               {/* Format cards grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {fmts.map((fmt) => (
-                  <div
-                    key={fmt.ext}
-                    className={`bg-card border rounded-xl overflow-hidden border-l-4 ${catBorder[cat]} hover:shadow-lg transition-shadow flex flex-col`}
-                  >
-                    <div className="p-4 flex-1">
-                      {/* Format header */}
-                      <div className="flex items-start gap-3 mb-3">
-                        <div
-                          className={`w-12 h-12 ${catColors[cat]} rounded-xl flex items-center justify-center text-white font-bold font-mono text-xs shrink-0`}
-                        >
-                          .{fmt.ext.length > 4 ? fmt.ext.slice(0, 4) : fmt.ext}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold">{fmt.name}</span>
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full text-white ${catColors[cat]}`}
-                            >
-                              {meta?.label}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                            {fmt.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <Separator className="my-3" />
-
-                      {/* All target formats */}
-                      <div className="mb-3">
-                        <p className="text-[11px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-                          Convert .{fmt.ext} to — {fmt.targetFormats.length}{" "}
-                          formats
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {fmt.targetFormats.map((t) => {
-                            const tCat = extCatMap[t] || "other";
-                            return (
-                              <Link key={t} href={`/conversions/${t}`}>
-                                <span
-                                  className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-mono uppercase bg-muted hover:text-white transition-colors cursor-pointer ${catTargetBg[tCat]}`}
-                                >
-                                  {t}
-                                </span>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card footer CTA */}
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/30">
-                      <Link href="/">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          Convert Now
-                        </Button>
-                      </Link>
-                      <Link href={`/conversions/${fmt.ext}`}>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
-                        >
-                          Details <ArrowRight className="w-3 h-3" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
+                  <FormatCard key={fmt.ext} fmt={fmt} cat={cat} />
                 ))}
               </div>
             </div>
           );
         })}
+
+        {/* Load more — keeps first paint small on a 157-format directory */}
+        {remainingCount > 0 && (
+          <div className="flex flex-col items-center gap-3 py-10">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((c) => c + CARD_BATCH)}
+            >
+              Show more formats ({remainingCount} remaining)
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Searching narrows the list instantly — try{" "}
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => setSearch("png")}
+              >
+                png
+              </button>{" "}
+              or{" "}
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => setSearch("pdf")}
+              >
+                pdf
+              </button>
+            </p>
+          </div>
+        )}
       </main>
 
       {/* Footer */}

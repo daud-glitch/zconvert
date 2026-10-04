@@ -105,3 +105,48 @@ export function anonymizeFileName(
   }
   return `upload.${originalExt.toLowerCase() || "bin"}`;
 }
+
+/**
+ * Extensions an admin has disabled in the panel, plus every pair slug that
+ * involves one. Used by the sitemap so disabling a format in the admin panel
+ * actually removes it from what we ask Google to index.
+ *
+ * Returns an empty set when the DB is unavailable — the static catalog is the
+ * fallback, and a missing DB must never empty the sitemap.
+ */
+export async function getDisabledFormatExclusions(): Promise<Set<string>> {
+  const exclusions = new Set<string>();
+  const prisma = getOptionalDb();
+  if (!prisma) return exclusions;
+
+  try {
+    const disabled = await prisma.format.findMany({
+      where: { enabled: false },
+      select: { ext: true },
+    });
+    const disabledExts = new Set(
+      disabled.map((f) => f.ext.toLowerCase().replace(/^\./, "")),
+    );
+    if (disabledExts.size === 0) return exclusions;
+
+    for (const ext of disabledExts) exclusions.add(ext);
+
+    // Pair slugs are `from-to-to`; drop any pair touching a disabled format.
+    const { getAllConversionPairSlugs, parseConversionSlug } = await import(
+      "@/lib/conversion-pairs"
+    );
+    for (const slug of getAllConversionPairSlugs()) {
+      const pair = parseConversionSlug(slug);
+      if (
+        pair &&
+        (disabledExts.has(pair.from.ext) || disabledExts.has(pair.to.ext))
+      ) {
+        exclusions.add(slug);
+      }
+    }
+  } catch (err) {
+    console.warn("[format-catalog] disabled-format lookup failed:", err);
+  }
+
+  return exclusions;
+}
