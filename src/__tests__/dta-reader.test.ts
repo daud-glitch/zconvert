@@ -48,27 +48,60 @@ describe("DTA reading", () => {
 });
 
 /**
- * Known limitations.
- *
- * The `dta` npm package (v0.0.2, unmaintained) throws an internal TypeError on
- * two features real Stata files use. These are characterised here so the
- * behaviour is visible and cannot change silently; when the reader is replaced
- * these two assertions should be flipped to expect success.
- *
- * Observed in production as:
- *   DTA Parse Error: Cannot read properties of undefined (reading '1')
+ * Production reported these as failures:
  *   DTA Parse Error: Cannot read properties of undefined (reading 'length')
+ *   DTA Parse Error: Cannot read properties of undefined (reading '1')
+ *
+ * Both came from the unmaintained `dta` package: it cannot resolve strL
+ * (long-string) cells and its value-label pass walks a SheetJS internal the
+ * installed xlsx no longer produces. `readDtaRecords` now falls back to
+ * src/lib/dta-reader.ts, so these are pinned as successes.
+ *
+ * Expected values were cross-checked against pandas' read_stata.
  */
-describe("DTA reader known gaps", () => {
-  it("fails on strL fields (long strings), not on user error", async () => {
-    await expect(readDtaRecords(read("v_strl.dta"))).rejects.toThrow(
-      /DTA Parse Error/,
-    );
+describe("DTA features the dta package could not read", () => {
+  it.each([117, 118, 119])(
+    "reads strings longer than 2045 characters (release %i)",
+    async (release) => {
+      const rows = await readDtaRecords(read(`v_strl${release}.dta`));
+      expect(rows).toHaveLength(2);
+      expect(rows[0].t).toHaveLength(3000);
+      expect(rows[1].t).toHaveLength(2500);
+    },
+  );
+
+  it.each([117, 118])(
+    "leaves a missing long string empty instead of crashing (release %i)",
+    async (release) => {
+      const rows = await readDtaRecords(read(`v_strlmissing${release}.dta`));
+      expect(rows).toHaveLength(3);
+      expect(String(rows[0].t)).toHaveLength(3000);
+      expect(rows[1].t).toBe("");
+      expect(String(rows[2].t)).toHaveLength(2500);
+    },
+  );
+
+  it("resolves categorical value labels to their text", async () => {
+    const rows = await readDtaRecords(read("v_valuelabels.dta"));
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.grade)).toEqual(["A", "B", "A"]);
   });
 
-  it("fails on categorical value labels", async () => {
-    await expect(readDtaRecords(read("v_valuelabels.dta"))).rejects.toThrow(
-      /DTA Parse Error/,
-    );
+  it.each([117, 118, 119])(
+    "reads labels and long strings together (release %i)",
+    async (release) => {
+      const rows = await readDtaRecords(read(`v_valuelabels${release}.dta`));
+      expect(rows).toHaveLength(3);
+      // The third category is missing, which Stata stores as a missing byte.
+      expect(rows.map((r) => r.g)).toEqual(["A", "B", null]);
+      expect(rows[0].n).toBe(1.5);
+      expect(String(rows[0].t)).toHaveLength(3000);
+    },
+  );
+
+  it("still reports a clear error for a file it cannot read", async () => {
+    await expect(
+      readDtaRecords(Buffer.from("<stata_dta><header><release>117")),
+    ).rejects.toThrow(/DTA Parse Error/);
   });
 });

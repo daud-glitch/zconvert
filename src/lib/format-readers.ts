@@ -8,6 +8,7 @@ import { gunzipSync, inflateRawSync } from "zlib";
 import { XMLParser } from "fast-xml-parser";
 import * as tar from "tar-stream";
 import { extractRarWithToolchain } from "@/lib/external-toolchain";
+import { readDtaRows } from "@/lib/dta-reader";
 
 export type ArchiveEntry = { name: string; data: Buffer };
 
@@ -309,6 +310,25 @@ export async function readFeatherRecords(
 export async function readDtaRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
+  try {
+    return await readDtaWithSheetJs(input);
+  } catch (err) {
+    // The `dta` package (unmaintained) throws internal TypeErrors on long
+    // strings and categorical value labels, which real Stata files use. Fall
+    // back to our own reader before reporting a failure.
+    try {
+      return readDtaRows(input);
+    } catch {
+      throw new Error(
+        `DTA Parse Error: ${err instanceof Error ? err.message : "The file structure is invalid or unsupported."}`,
+      );
+    }
+  }
+}
+
+async function readDtaWithSheetJs(
+  input: Buffer,
+): Promise<Record<string, unknown>[]> {
   const XLSX = await import("xlsx");
   const dtaMod = await import("dta");
   const DTA = dtaMod.default ?? dtaMod;
@@ -323,19 +343,13 @@ export async function readDtaRecords(
     view[i] = input[i];
   }
 
-  try {
-    const wb = DTA.parse(view) as {
-      Sheets: Record<string, XLSX.WorkSheet>;
-      SheetNames: string[];
-    };
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    if (!sheet) return [];
-    return XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
-  } catch (err) {
-    throw new Error(
-      `DTA Parse Error: ${err instanceof Error ? err.message : "The file structure is invalid or unsupported."}`,
-    );
-  }
+  const wb = DTA.parse(view) as {
+    Sheets: Record<string, XLSX.WorkSheet>;
+    SheetNames: string[];
+  };
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
 }
 
 export async function readBinaryDataRecords(

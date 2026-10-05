@@ -15,7 +15,6 @@ locally before being classified.
 | 5 | `icns -> svg/png` — "ICNS has no embedded PNG" | `decodeIcns` only accepted PNG payloads. Real macOS icons store JPEG (`ic07`/`ic08`) or JPEG 2000. All three are now accepted, largest wins. |
 | 5 | `ico -> *` — "Invalid BMP data in icon" | An `.ico` payload is a bare `BITMAPINFOHEADER` with **no `BM` signature**, so it was routed to the `.BMP` reader and rejected. Added `decodeDibToRgba`, which handles the missing file header, the doubled height (colour bits + AND mask), palettes, 16-bit BI_BITFIELDS and 1/4/8/16/24/32 bpp. |
 | 1 | `jpg -> avif` — "too large for the HEIF format" | AVIF now retries once at 8192px when HEIF rejects the pixel area, instead of failing. |
-| — | `mpo -> jpg/gif/pdf` (4) | **Already fixed** before this batch — reproduced as passing. |
 | — | `pdf -> tsv`, `docx -> tsv` (6) | **Already fixed** before this batch — reproduced as passing. |
 
 ### The severe one: ICNS denial of service
@@ -34,7 +33,22 @@ test asserts both the error **and** that it returns in under five seconds.
 
 ---
 
-## Known reader gap — needs a decision
+## Fixed later — `mpo -> jpg`: "premature end of JPEG image"
+
+The earlier "already fixed" note for `mpo` was wrong: it had been reproduced with
+two plain JPEGs concatenated. Real MPO files also carry an **MPF APP2 index** and
+frequently an **EXIF thumbnail** (APP1), and both contain their own `FFD8…FFD9`
+pair. `decodeMpoFirstJpeg` searched for the first `FFD8` and then the first
+`FFD9`, so it cut the primary image short at the thumbnail (or inside the MPF
+index) and handed libjpeg a truncated segment list — the exact production error.
+
+Frame extraction now walks the JPEG marker structure instead of byte pairs, and
+uses the MPF index for the frame boundary when one is present. Fixtures cover a
+two-frame MPO, one with an EXIF thumbnail, and a single-frame `.mpo`.
+
+---
+
+## Fixed later — `dta -> csv`: strL and categorical value labels
 
 **DTA (Stata): ~8 failures.** The `dta` npm package is `v0.0.2` and unmaintained.
 It throws an internal `TypeError` on two features real Stata files use:
@@ -42,13 +56,17 @@ It throws an internal `TypeError` on two features real Stata files use:
 - **strL fields** (strings over ~2045 chars) → `Cannot read properties of undefined (reading '1')`
 - **categorical value labels** → `Cannot read properties of undefined (reading 'length')`
 
-Reproduced with `pandas.to_stata` fixtures; both errors match production exactly.
-Plain 117/118 files, large files, unicode and mixed column types all read fine.
+The first turned out to be broader than "a missing value dereferences undefined":
+the package cannot resolve *any* strL cell, because the pointer it looks up is
+keyed differently from the one it stores. The second is not a data problem at
+all — its label pass walks `ws["!data"]`, a SheetJS internal the installed xlsx
+build no longer produces, so **every** file with a value label failed.
 
-Fixing this means either swapping the dependency or hand-writing a DTA 117/118
-parser. Both are meaningful changes, so it is left as an explicit decision rather
-than done silently. `dta-reader.test.ts` pins current behaviour and the two
-limitations, so replacing the reader is a small, visible change.
+`src/lib/dta-reader.ts` is a self-contained 117–121 reader that handles strL,
+value labels and missing values. `readDtaRecords` still calls the package first
+and only falls back to the new reader when it throws, so every file that already
+converted keeps its exact current output. Expected values for all sixteen
+fixtures were cross-checked against pandas' `read_stata`.
 
 The `dta -> *` failures reading **"Not a DTA file"** are *not* a bug: the upload
 was not a Stata file, and the message is correct.
@@ -86,6 +104,8 @@ These are the largest single group and none of them should be "fixed":
 ## Summary
 
 - **Real code bugs: 11 rows**, including one denial-of-service. All fixed.
+- **Real code bugs: ~12 more rows** (`mpo`, `dta`) found after this export was
+  written, also fixed — see the two sections above.
 - **Already fixed by earlier deploys: 10 rows** — no action, verified passing.
 - **Environment/config: ~34 rows** — need server packages, not code.
 - **User input: ~35 rows** — working as intended.

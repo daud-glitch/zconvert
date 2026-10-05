@@ -7,6 +7,11 @@ import {
   nonAdminConversionWhere,
   nonAdminPageViewWhere,
 } from "@/lib/analytics-filters";
+import {
+  parseTrafficRange,
+  trafficRangeDays,
+  trafficSince,
+} from "@/lib/traffic-range";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -14,12 +19,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // Traffic Sources alone is range-aware; every other metric keeps its
+    // existing window.
+    const trafficRange = parseTrafficRange(
+      request.nextUrl.searchParams.get("trafficRange"),
+    );
+    const trafficFrom = trafficSince(trafficRange);
     const adminUserIds = await getAdminUserIds(db);
     const pageViewFilter = nonAdminPageViewWhere(adminUserIds);
-    const pageViewRecentWhere = {
-      ...pageViewFilter,
-      createdAt: { gte: since30d },
-    };
+    const trafficPageViewWhere = trafficFrom
+      ? { ...pageViewFilter, createdAt: { gte: trafficFrom } }
+      : pageViewFilter;
 
     const pvDailyQuery =
       adminUserIds.length > 0
@@ -53,7 +63,7 @@ export async function GET(request: NextRequest) {
       convDailyRaw,
       pvDailyRaw,
       trafficGroups,
-      totalPageViews30d,
+      trafficPageViewCount,
       dbPing,
     ] = await Promise.all([
       db.conversion.count({ where: nonAdminConversionWhere }),
@@ -109,13 +119,13 @@ export async function GET(request: NextRequest) {
       db.pageView
         .groupBy({
           by: ["source"],
-          where: pageViewRecentWhere,
+          where: trafficPageViewWhere,
           _count: { _all: true },
         })
         .catch(
           () => [] as { source: string | null; _count: { _all: number } }[],
         ),
-      db.pageView.count({ where: pageViewRecentWhere }).catch(() => 0),
+      db.pageView.count({ where: trafficPageViewWhere }).catch(() => 0),
       db.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     ]);
 
@@ -156,8 +166,8 @@ export async function GET(request: NextRequest) {
       storageUsed: Number(row.storage),
     }));
 
-    const pageViewTotal30d =
-      typeof totalPageViews30d === "number" ? totalPageViews30d : 0;
+    const trafficPageViews =
+      typeof trafficPageViewCount === "number" ? trafficPageViewCount : 0;
     const trafficSources = (Array.isArray(trafficGroups) ? trafficGroups : [])
       .map((g) => {
         const count = g._count._all;
@@ -165,8 +175,8 @@ export async function GET(request: NextRequest) {
           source: g.source || "Unknown",
           count,
           percent:
-            pageViewTotal30d > 0
-              ? Math.round((count / pageViewTotal30d) * 1000) / 10
+            trafficPageViews > 0
+              ? Math.round((count / trafficPageViews) * 1000) / 10
               : 0,
         };
       })
@@ -203,9 +213,10 @@ export async function GET(request: NextRequest) {
       dailyStats,
       trafficSources,
       trafficTotals: {
-        pageViews: pageViewTotal30d,
+        pageViews: trafficPageViews,
         uniqueSources: trafficSources.length,
-        days: 30,
+        range: trafficRange,
+        days: trafficRangeDays(trafficRange),
       },
       system: {
         apiOnline: true,

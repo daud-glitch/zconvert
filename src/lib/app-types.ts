@@ -111,7 +111,9 @@ export interface AdminStats {
   trafficTotals?: {
     pageViews: number;
     uniqueSources: number;
-    days: number;
+    range: "1d" | "7d" | "30d" | "all";
+    /** Days covered by the range, null for all time. */
+    days: number | null;
   };
   system?: {
     apiOnline: boolean;

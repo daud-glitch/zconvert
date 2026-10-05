@@ -773,20 +773,141 @@ async function decodeDib(input: Buffer): Promise<Buffer> {
   return sharp(Buffer.concat([header, input])).png().toBuffer();
 }
 
-async function decodeMpoFirstJpeg(input: Buffer): Promise<Buffer> {
-  for (let i = 0; i < input.length - 1; i++) {
-    if (input[i] === 0xff && input[i + 1] === 0xd8) {
-      let end = i + 2;
-      while (end < input.length - 1) {
-        if (input[end] === 0xff && input[end + 1] === 0xd9) {
-          end += 2;
-          return sharp(input.subarray(i, end)).png().toBuffer();
+/**
+ * Offset just past the EOI marker of the JPEG starting at `from`, or -1.
+ *
+ * Walks the marker structure instead of scanning for byte pairs, because both
+ * an embedded EXIF thumbnail (FFD8…FFD9 inside an APP1 payload) and the binary
+ * MPF index (inside APP2) contain that pair. Stopping at either one truncates
+ * the frame and libjpeg reports "premature end of JPEG image".
+ */
+function jpegImageEnd(input: Buffer, from: number): number {
+  if (input[from] !== 0xff || input[from + 1] !== 0xd8) return -1;
+  let p = from + 2;
+  while (p < input.length - 1) {
+    if (input[p] !== 0xff) return -1;
+    let m = p;
+    while (m < input.length && input[m] === 0xff) m++;
+    if (m >= input.length) return -1;
+    const marker = input[m];
+    if (marker === 0xd9) return m + 1;
+    if (marker === 0xda) {
+      // Entropy-coded data follows; skip it to the next real marker.
+      if (m + 3 > input.length) return -1;
+      const len = input.readUInt16BE(m + 1);
+      if (len < 2) return -1;
+      let q = m + 1 + len;
+      while (q < input.length - 1) {
+        if (input[q] === 0xff) {
+          const next = input[q + 1];
+          // 0x00 is a stuffed byte, 0xd0-0xd7 are restart markers.
+          if (next !== 0x00 && (next < 0xd0 || next > 0xd7)) break;
         }
-        end++;
+        q++;
+      }
+      if (q >= input.length - 1) return -1;
+      p = q;
+      continue;
+    }
+    // Standalone markers carry no length.
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      p = m + 1;
+      continue;
+    }
+    if (marker === 0xd8 || marker === 0x00) return -1;
+    if (m + 3 > input.length) return -1;
+    const len = input.readUInt16BE(m + 1);
+    if (len < 2) return -1;
+    p = m + 1 + len;
+  }
+  return -1;
+}
+
+/**
+ * Byte length of the primary image according to the MPF APP2 index, or null.
+ * The first image starts at byte 0 of the file and its size covers the MPF
+ * segment itself, so the index gives the frame boundary directly.
+ */
+function mpoPrimarySize(input: Buffer): number | null {
+  const soi = input.indexOf(Buffer.from([0xff, 0xd8]));
+  if (soi !== 0) return null;
+  for (let p = 2; p + 4 < input.length; ) {
+    if (input[p] !== 0xff) return null;
+    const marker = input[p + 1];
+    if (marker === 0xda || marker === 0xd9) return null;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      p += 2;
+      continue;
+    }
+    if (p + 4 > input.length) return null;
+    const len = input.readUInt16BE(p + 2);
+    if (len < 2) return null;
+    const seg = p + 4;
+    if (marker === 0xe2 && input.toString("ascii", seg, seg + 4) === "MPF\0") {
+      return readMpfPrimarySize(input, seg + 4);
+    }
+    p += 2 + len;
+  }
+  return null;
+}
+
+function readMpfPrimarySize(input: Buffer, base: number): number | null {
+  if (base + 8 > input.length) return null;
+  const order = input.toString("ascii", base, base + 2);
+  if (order !== "II" && order !== "MM") return null;
+  const le = order === "II";
+  const u16at = (o: number) => (le ? input.readUInt16LE(o) : input.readUInt16BE(o));
+  const u32at = (o: number) => (le ? input.readUInt32LE(o) : input.readUInt32BE(o));
+  const ifd = base + u32at(base + 4);
+  if (ifd + 2 > input.length) return null;
+  const entries = u16at(ifd);
+  for (let i = 0; i < entries; i++) {
+    const e = ifd + 2 + i * 12;
+    if (e + 12 > input.length) return null;
+    if (u16at(e) !== 0xb001) continue;
+    const count = u32at(e + 4);
+    if (count < 16) return null;
+    // UNDEFINED count > 4 lives at an offset.
+    const data = u32at(e + 4) <= 4 ? e + 8 : base + u32at(e + 8);
+    // Entries after the first have no MPAttribute field.
+    const size = u32at(data + 4);
+    if (size > 0 && size <= input.length) return size;
+    return null;
+  }
+  return null;
+}
+
+async function decodeMpoFirstJpeg(input: Buffer): Promise<Buffer> {
+  const soi = input.indexOf(Buffer.from([0xff, 0xd8]));
+  if (soi >= 0) {
+    const end = mpoPrimarySize(input) ?? jpegImageEnd(input, soi);
+    if (end > soi + 1) {
+      const frame = input.subarray(soi, end);
+      try {
+        return await sharp(frame, { failOn: "none" }).png().toBuffer();
+      } catch {
+        /* fall through to the whole-file decoders */
       }
     }
   }
-  return sharp(input, { page: 0 }).png().toBuffer();
+  try {
+    return await sharp(input, { page: 0, failOn: "none" }).png().toBuffer();
+  } catch {
+    /* keep looking */
+  }
+  for (let i = Math.max(soi, 0); i < input.length - 1; i++) {
+    if (input[i] === 0xff && input[i + 1] === 0xd8) {
+      const end = jpegImageEnd(input, i);
+      if (end > i + 1) {
+        return sharp(input.subarray(i, end), { failOn: "none" })
+          .png()
+          .toBuffer();
+      }
+    }
+  }
+  throw new Error(
+    "MPO file contains no complete JPEG frame. The file may be corrupt or truncated.",
+  );
 }
 
 async function decodeEpsEmbedded(input: Buffer): Promise<Buffer> {

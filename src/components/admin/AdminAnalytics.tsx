@@ -30,6 +30,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { type AdminStats, type FormatsData } from "@/lib/app-types";
+import {
+  DEFAULT_TRAFFIC_RANGE,
+  TRAFFIC_RANGES,
+  trafficRangeLabel,
+  trafficRangePhrase,
+  type TrafficRange,
+} from "@/lib/traffic-range";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatBytes } from "@/lib/app-helpers";
 import { categoryColors } from "@/lib/app-constants";
@@ -38,10 +45,17 @@ export function AdminAnalytics() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [formatsData, setFormatsData] = useState<FormatsData | null>(null);
+  const [trafficRange, setTrafficRange] = useState<TrafficRange>(
+    DEFAULT_TRAFFIC_RANGE,
+  );
 
   useEffect(() => {
+    // Re-runs when the Traffic Sources range changes; the other panels are
+    // unaffected by that choice.
     Promise.all([
-      fetch("/api/admin/stats").then((r) => r.json()).catch(() => null),
+      fetch(`/api/admin/stats?trafficRange=${trafficRange}`)
+        .then((r) => r.json())
+        .catch(() => null),
       fetch("/api/formats").then((r) => r.json()).catch(() => null),
     ])
       .then(([statsData, fmtData]) => {
@@ -50,7 +64,7 @@ export function AdminAnalytics() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [trafficRange]);
 
   if (loading) {
     return (
@@ -173,9 +187,31 @@ export function AdminAnalytics() {
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Globe2 className="w-4 h-4 text-sky-500" />
             Traffic Sources
+            <div
+              className="ml-auto inline-flex items-center rounded-md border p-0.5"
+              role="group"
+              aria-label="Traffic sources time range"
+            >
+              {TRAFFIC_RANGES.map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  onClick={() => setTrafficRange(range)}
+                  aria-pressed={trafficRange === range}
+                  className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                    trafficRange === range
+                      ? "bg-sky-500 text-white"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {trafficRangeLabel(range)}
+                </button>
+              ))}
+            </div>
             {trafficTotals ? (
-              <Badge variant="secondary" className="ml-auto text-xs font-normal">
-                Last {trafficTotals.days} days · {trafficTotals.pageViews} views
+              <Badge variant="secondary" className="text-xs font-normal">
+                {trafficRangePhrase(trafficTotals.range ?? trafficRange)} ·{" "}
+                {trafficTotals.pageViews} views
               </Badge>
             ) : null}
           </CardTitle>
