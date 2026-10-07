@@ -73,6 +73,23 @@ was not a Stata file, and the message is correct.
 
 ---
 
+## Fixed later — `tar -> apk`: "Invalid tar header"
+
+This row was previously filed under "not bugs — corrupt or truncated tar". It was
+not: the same error covers **compressed tars that are served with a bare `.tar`
+name**, which is how most tarballs are actually distributed. `tar-stream` reports
+the wrapper's stray bytes as `Invalid tar header. Maybe the tar is corrupted or it
+needs to be gunzipped?` — advice the converter never acted on.
+
+`extractArchiveEntries` now sniffs the container by magic bytes for `src === "tar"`:
+GZIP and ZSTD are unwrapped with Node's zlib, BZIP2/XZ/LZ4/compress through the
+7-Zip toolchain, and the result is parsed as a tar. The mirror case is handled too
+— a plain tar renamed `.tar.gz` is parsed directly instead of failing gunzip.
+When the bytes are a *different* container (`zip`, `rar`, `7z`) the error names it
+and says which extension to upload instead of blaming the file for corruption.
+
+---
+
 ## Environment — server configuration, not code
 
 | Failures | Needs |
@@ -97,7 +114,8 @@ These are the largest single group and none of them should be "fixed":
 - **`sav -> *` (~20)** — "not a valid SPSS statistics (.sav) dataset". `.sav` is
   overwhelmingly used for game saves, not SPSS. The message already says so.
 - **`json -> *` (7)** — malformed JSON. The parser reports the exact byte offset.
-- **`tar -> *` (2)** — corrupt or truncated tar. Message is accurate.
+- **`tar -> *` (2)** — ~~corrupt or truncated tar~~ **not accurate**: these were
+  gzip-wrapped tars named `.tar`. See the `tar -> apk` section above.
 
 ---
 

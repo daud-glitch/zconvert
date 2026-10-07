@@ -1023,6 +1023,147 @@ export async function packTo7zip(
   }
 }
 
+/** Compression wrappers that are commonly shipped under a bare `.tar` name. */
+type TarContainer =
+  | "gzip"
+  | "bzip2"
+  | "xz"
+  | "zstd"
+  | "lz4"
+  | "compress"
+  | "zip"
+  | "rar"
+  | "7z";
+
+/**
+ * Identify the real container by magic bytes. Files served as “something.tar”
+ * are frequently gzip/bzip2/xz wrapped, which makes tar-stream report the
+ * misleading “Invalid tar header … needs to be gunzipped?” error.
+ */
+function sniffTarContainer(input: Buffer): TarContainer | null {
+  if (input.length < 4) return null;
+  if (input[0] === 0x1f && input[1] === 0x8b) return "gzip";
+  if (input[0] === 0x42 && input[1] === 0x5a && input[2] === 0x68) return "bzip2"; // BZh
+  if (input[0] === 0xfd && input[1] === 0x37 && input[2] === 0x7a && input[3] === 0x58) return "xz";
+  if (input[0] === 0x28 && input[1] === 0xb5 && input[2] === 0x2f && input[3] === 0xfd) return "zstd";
+  if (input[0] === 0x04 && input[1] === 0x22 && input[2] === 0x4d && input[3] === 0x18) return "lz4";
+  if (input[0] === 0x1f && input[1] === 0x9d) return "compress"; // .Z
+  // Full 4-byte ZIP signatures only: a tar whose first entry is named “PKG-INFO”
+  // (every Python sdist) also starts with “PK”, and must keep working.
+  if (input[0] === 0x50 && input[1] === 0x4b && input[2] === 0x03 && input[3] === 0x04) {
+    return "zip";
+  }
+  if (input[0] === 0x50 && input[1] === 0x4b && input[2] === 0x05 && input[3] === 0x06) {
+    return "zip"; // empty archive
+  }
+  if (input[0] === 0x52 && input[1] === 0x61 && input[2] === 0x72 && input[3] === 0x21) return "rar";
+  if (input[0] === 0x37 && input[1] === 0x7a && input[2] === 0xbc && input[3] === 0xaf) return "7z";
+  return null;
+}
+
+const TAR_CONTAINER_LABEL: Record<TarContainer, string> = {
+  gzip: "GZIP",
+  bzip2: "BZIP2",
+  xz: "XZ",
+  zstd: "ZSTD",
+  lz4: "LZ4",
+  compress: "COMPRESS",
+  zip: "ZIP",
+  rar: "RAR",
+  "7z": "7Z",
+};
+
+/** 7-Zip needs a real extension on the temp file to pick the right decoder. */
+const TAR_CONTAINER_7Z_EXT: Partial<Record<TarContainer, string>> = {
+  bzip2: "tar.bz2",
+  xz: "tar.xz",
+  zstd: "tar.zst",
+  lz4: "tar.lz4",
+  compress: "tar.Z",
+};
+
+/** POSIX/GNU/ustar magic at 257, or a matching v7 header checksum. */
+function looksLikeTarHeader(input: Buffer): boolean {
+  if (input.length < 512) return false;
+  if (input.subarray(257, 262).toString("latin1") === "ustar") return true;
+  const stored = parseInt(input.subarray(148, 156).toString("latin1").trim(), 8);
+  if (!Number.isFinite(stored)) return false;
+  let sum = 0;
+  for (let i = 0; i < 512; i++) sum += i >= 148 && i < 156 ? 0x20 : input[i];
+  return sum === stored;
+}
+
+/** Strip one compression layer with Node's zlib, then 7-Zip as a fallback. */
+async function unwrapTarContainer(
+  input: Buffer,
+  container: TarContainer,
+): Promise<Buffer> {
+  if (container === "gzip") {
+    try {
+      return gunzipSync(input);
+    } catch {
+      // Fall through to 7-Zip for exotic/concatenated gzip streams.
+    }
+  }
+  if (container === "zstd") {
+    const zlib = await import("node:zlib");
+    const zstdDecompressSync = (
+      zlib as unknown as { zstdDecompressSync?: (value: Buffer) => Buffer }
+    ).zstdDecompressSync;
+    if (typeof zstdDecompressSync === "function") {
+      try {
+        return Buffer.from(zstdDecompressSync(input));
+      } catch {
+        // Fall through to 7-Zip.
+      }
+    }
+  }
+
+  const ext = TAR_CONTAINER_7Z_EXT[container];
+  if (!ext) {
+    throw new Error(`Cannot decompress a ${TAR_CONTAINER_LABEL[container]} wrapper.`);
+  }
+  const { unpack } = await import("7zip-min");
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-tar-"));
+  const inPath = path.join(tmp, `archive.${ext}`);
+  const outDir = path.join(tmp, "out");
+  try {
+    await fs.mkdir(outDir, { recursive: true });
+    await fs.writeFile(inPath, input);
+    await unpack(inPath, outDir);
+    const names = await fs.readdir(outDir);
+    const inner = names.find((n) => /\.tar$/i.test(n)) ?? names[0];
+    if (!inner) throw new Error("no payload inside wrapper");
+    return await fs.readFile(path.join(outDir, inner));
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * Resolve a `.tar` payload: decompress a wrapper when the extension lied, and
+ * fail with an accurate message when the file is a different container type.
+ */
+async function resolveTarPayload(input: Buffer): Promise<Buffer> {
+  const container = sniffTarContainer(input);
+  if (!container) return input;
+  if (container === "zip" || container === "rar" || container === "7z") {
+    throw new Error(
+      `this file is a ${TAR_CONTAINER_LABEL[container]} archive, not an uncompressed TAR. ` +
+        `Rename it to .${container === "7z" ? "7z" : container} and convert from there.`,
+    );
+  }
+  try {
+    return await unwrapTarContainer(input, container);
+  } catch (err) {
+    throw new Error(
+      `could not decompress the ${TAR_CONTAINER_LABEL[container]} wrapper ` +
+        `(${err instanceof Error ? err.message : "unknown error"}). ` +
+        `The file may be truncated or corrupt.`,
+    );
+  }
+}
+
 export async function extractArchiveEntries(
   input: Buffer,
   src: string,
@@ -1058,25 +1199,23 @@ export async function extractArchiveEntries(
     }
   }
   if (src === "tar.gz" || src === "tgz") {
+    // A plain TAR renamed .tar.gz is the mirror image of the bug below.
+    if (!sniffTarContainer(input) && looksLikeTarHeader(input)) {
+      return extractTarBuffer(input);
+    }
     const decompressed = gunzipSync(input);
     return extractTarBuffer(decompressed);
   }
   if (src === "tar.zst") {
     try {
-      const zlib = await import("node:zlib");
-      const zstdDecompressSync = (
-        zlib as unknown as { zstdDecompressSync?: (value: Buffer) => Buffer }
-      ).zstdDecompressSync;
-      if (typeof zstdDecompressSync === "function") {
-        const decompressed = Buffer.from(zstdDecompressSync(input));
-        return extractTarBuffer(decompressed);
-      }
+      const decompressed = await unwrapTarContainer(input, "zstd");
+      return extractTarBuffer(decompressed);
     } catch {
       // Fall back to 7zip extraction below.
     }
   }
   if (src === "tar") {
-    return extractTarBuffer(input);
+    return extractTarBuffer(await resolveTarPayload(input));
   }
   if (
     src === "7z" ||
