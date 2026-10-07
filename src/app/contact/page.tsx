@@ -11,6 +11,7 @@ import {
   type TurnstileHandle,
   isTurnstileEnabled,
 } from "@/components/security/TurnstileField";
+import { SiteFooter } from "@/components/common/SiteFooter";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
@@ -75,6 +76,7 @@ export default function ContactPage() {
   };
 
   return (
+    <>
     <div className="min-h-screen bg-background">
       <div className="h-1 w-full bg-emerald-500" />
       <div className="mx-auto max-w-lg px-4 py-10">
@@ -200,5 +202,7 @@ export default function ContactPage() {
         </form>
       </div>
     </div>
+      <SiteFooter />
+    </>
   );
 }

@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTitle } from "@/components/common/BrandTitle";
+import { SiteFooter } from "@/components/common/SiteFooter";
+import { PairGuideSection } from "@/components/pages/PairGuideSection";
 import { Moon, Sun, ChevronRight, RefreshCw, Upload, Download, Settings2, FileQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -187,6 +189,9 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
           </div>
         </div>
 
+        {/* Editorial content — unique per category pairing */}
+        <PairGuideSection pair={pair} />
+
         {/* FAQ Section */}
         <section id="faq" className="mb-16">
           <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">Frequently Asked Questions</h2>
@@ -221,6 +226,8 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
           </div>
         )}
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

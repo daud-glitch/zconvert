@@ -21,6 +21,7 @@ import {
   ScrollText,
   Heart,
   LifeBuoy,
+  BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -339,6 +340,12 @@ export const navItems: NavItem[] = [
     label: "Formats",
     icon: LayoutGrid,
     href: "/conversions",
+  },
+  {
+    id: "guides",
+    label: "Guides",
+    icon: BookOpen,
+    href: "/guides",
   },
   {
     id: "bookmarks",

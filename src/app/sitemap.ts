@@ -3,6 +3,7 @@ import { getAllConversionPairSlugs } from "@/lib/conversion-pairs";
 import { formats } from "@/lib/formats";
 import { CANONICAL_SITE_URL } from "@/lib/seo";
 import { getDisabledFormatExclusions } from "@/lib/format-catalog";
+import { getGuideSlugs } from "@/lib/guides";
 
 /**
  * Sitemap must only advertise URLs that are actually indexable.
@@ -38,11 +39,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }));
 
+  // Original editorial pages — the site's non-generated content.
+  const guideFields: MetadataRoute.Sitemap = getGuideSlugs().map((slug) => ({
+    url: `${CANONICAL_SITE_URL}/guides/${slug}`,
+    lastModified,
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }));
+
   return [
     ...pairFields,
     ...formatFields,
     { url: `${CANONICAL_SITE_URL}/`, lastModified, changeFrequency: "daily" as const, priority: 1.0 },
     { url: `${CANONICAL_SITE_URL}/conversions`, lastModified, changeFrequency: "weekly" as const, priority: 0.9 },
+    { url: `${CANONICAL_SITE_URL}/guides`, lastModified, changeFrequency: "weekly" as const, priority: 0.7 },
+    ...guideFields,
     { url: `${CANONICAL_SITE_URL}/about`, lastModified, changeFrequency: "monthly" as const, priority: 0.5 },
     { url: `${CANONICAL_SITE_URL}/donate`, lastModified, changeFrequency: "monthly" as const, priority: 0.4 },
     { url: `${CANONICAL_SITE_URL}/changelog`, lastModified, changeFrequency: "weekly" as const, priority: 0.5 },

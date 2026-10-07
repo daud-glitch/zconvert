@@ -10,6 +10,7 @@ import {
 import { BrandMark } from "@/components/common/BrandMark";
 import { changelogEntries } from "@/lib/changelog";
 import { OG_IMAGE_PATH } from "@/lib/seo";
+import { SiteFooter } from "@/components/common/SiteFooter";
 
 const SITE = "https://www.convertek.tech";
 /** Owned by the data — never hand-maintained alongside it. */
@@ -47,6 +48,7 @@ function formatDate(iso: string): string {
 
 export default function ChangelogPage() {
   return (
+    <>
     <div className="relative min-h-screen overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.10),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(99,102,241,0.08),_transparent_50%)]" />
       <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-indigo-400 to-emerald-500" />
@@ -190,5 +192,7 @@ export default function ChangelogPage() {
         </p>
       </div>
     </div>
+      <SiteFooter />
+    </>
   );
 }

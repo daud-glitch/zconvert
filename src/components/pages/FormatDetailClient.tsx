@@ -26,6 +26,7 @@ import {
   Video,
 } from "lucide-react";
 import { formats, categoryMeta } from "@/lib/formats";
+import { SiteFooter } from "@/components/common/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -433,30 +434,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-8 mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span>
-              &copy; {new Date().getFullYear()} Convertek. All rights
-              reserved.
-            </span>
-            <div className="flex gap-5">
-              <Link
-                href="/conversions"
-                className="hover:text-foreground transition-colors"
-              >
-                All Conversions
-              </Link>
-              <Link
-                href="/"
-                className="hover:text-foreground transition-colors"
-              >
-                ← Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

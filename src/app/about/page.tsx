@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
 import { OG_IMAGE_PATH } from "@/lib/seo";
+import { SiteFooter } from "@/components/common/SiteFooter";
 
 const SITE = "https://www.convertek.tech";
 const CONTACT = "support@convertek.tech";
@@ -65,6 +66,7 @@ const highlights = [
 
 export default function AboutPage() {
   return (
+    <>
     <div className="relative min-h-screen overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.12),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.08),_transparent_50%)]" />
       <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500" />
@@ -269,5 +271,7 @@ export default function AboutPage() {
         </p>
       </div>
     </div>
+      <SiteFooter />
+    </>
   );
 }

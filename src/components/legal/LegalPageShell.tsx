@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
+import { SiteFooter } from "@/components/common/SiteFooter";
 
 export function LegalPageShell({
   title,
@@ -38,6 +39,7 @@ export function LegalPageShell({
           </p>
         </article>
       </div>
+      <SiteFooter />
     </div>
   );
 }

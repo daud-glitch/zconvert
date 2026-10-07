@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/common/BrandMark";
+import { SiteFooter } from "@/components/common/SiteFooter";
 import { BrandTitle } from "@/components/common/BrandTitle";
 import {
   Search,
@@ -469,22 +470,7 @@ export default function ConversionsClient() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-8 mt-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span>
-              &copy; {new Date().getFullYear()} Convertek. All rights
-              reserved.
-            </span>
-            <Link
-              href="/"
-              className="hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              ← Back to Converter
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
