@@ -1450,7 +1450,7 @@ export function ConverterView({
               : undefined
           }
           onUploadClick={() => fileInputRef.current?.click()}
-          onSelectPair={handlePopularPairSelect}
+          onDropFiles={(files) => addFiles(files)}
         />
       )}
 
