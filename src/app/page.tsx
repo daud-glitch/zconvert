@@ -13,14 +13,13 @@ import {
   SITE_NAME,
   SITE_URL,
 } from "@/lib/seo";
+
 export const metadata: Metadata = {
-  title: {
-    absolute: DEFAULT_TITLE,
-  },
+  title: DEFAULT_TITLE,
   description: DEFAULT_DESCRIPTION,
   alternates: { canonical: SITE_URL },
   openGraph: {
-    title: DEFAULT_TITLE,
+    title: `${DEFAULT_TITLE} | ${SITE_NAME}`,
     description: OG_DESCRIPTION,
     url: SITE_URL,
     type: "website",
@@ -36,7 +35,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: DEFAULT_TITLE,
+    title: `${DEFAULT_TITLE} | ${SITE_NAME}`,
     description: OG_DESCRIPTION,
     images: [OG_IMAGE_PATH],
   },
@@ -81,14 +80,11 @@ export default async function Page({ searchParams }: Props) {
   );
 }
 
-// Dedicated admin route so a hard reload on /admin survives, instead of relying
-// on in-app view state that can be reset during hydration or auth restore.
-// This route keeps the existing AdminView shell; it does not change backend routes.
 export async function generateMetadata({
   params,
 }: {
   params: Promise<Record<string, string | string[]>>;
-}): Promise<import("next").Metadata> {
+}): Promise<Metadata> {
   const merged = await params;
   const tab = Array.isArray(merged.tab) ? merged.tab[0] : merged.tab ?? "overview";
   return {
@@ -109,4 +105,3 @@ export async function generateMetadata({
     alternates: { canonical: "/admin" },
   };
 }
-
