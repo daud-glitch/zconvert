@@ -1450,6 +1450,7 @@ export function ConverterView({
               : undefined
           }
           onUploadClick={() => fileInputRef.current?.click()}
+          onSelectPair={handlePopularPairSelect}
         />
       )}
 
@@ -1512,6 +1513,35 @@ export function ConverterView({
               }}
             />
             <div className="relative z-10">
+              {(preferredFrom || preferredTo) && (
+                <div className="mb-4 flex flex-col items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                    {preferredFrom && preferredTo
+                      ? "Selected conversion"
+                      : preferredFrom
+                        ? "Selected input"
+                        : "Selected output"}
+                  </p>
+                  <div className="flex items-center justify-center gap-2 sm:gap-3">
+                    {preferredFrom && (
+                      <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
+                        .{preferredFrom}
+                      </span>
+                    )}
+                    {preferredFrom && preferredTo && (
+                      <ArrowRightLeft
+                        className="h-5 w-5 shrink-0 text-emerald-500"
+                        aria-hidden
+                      />
+                    )}
+                    {preferredTo && (
+                      <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
+                        .{preferredTo}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <div
                 className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
                   dragOver
@@ -1522,10 +1552,20 @@ export function ConverterView({
                 <Upload className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-base font-semibold mb-1">
-                {dragOver ? "Drop files to upload" : "Drop files here or click to browse"}
+                {dragOver
+                  ? "Drop files to upload"
+                  : preferredFrom && preferredTo
+                    ? `Drop .${preferredFrom.toUpperCase()} files to convert to .${preferredTo.toUpperCase()}`
+                    : preferredFrom
+                      ? `Drop .${preferredFrom.toUpperCase()} files here`
+                      : "Drop files here or click to browse"}
               </h3>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Images, video, documents, data, audio, archives, subtitles, fonts & more
+                {preferredFrom && preferredTo
+                  ? `Accepts .${preferredFrom} · output set to .${preferredTo}`
+                  : preferredFrom
+                    ? `Accepts .${preferredFrom} · choose any output after upload`
+                    : "Images, video, documents, data, audio, archives, subtitles, fonts & more"}
               </p>
               {hasPendingVideo && (
                 <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
