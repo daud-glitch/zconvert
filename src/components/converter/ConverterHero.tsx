@@ -145,9 +145,6 @@ export function ConverterHero({
                   aria-hidden
                   className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-emerald-500/10 blur-2xl"
                 />
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Popular right now
-                </p>
 
                 <div
                   key={`${active.from}-${active.to}`}
@@ -165,23 +162,12 @@ export function ConverterHero({
                   </span>
                 </div>
 
-                <p className="mt-4 text-center text-sm text-muted-foreground">
-                  Convert{" "}
-                  <span className="font-medium text-foreground uppercase">
-                    {active.from}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium text-foreground uppercase">
-                    {active.to}
-                  </span>
-                </p>
-
                 <Button
                   className="mt-5 h-11 w-full rounded-full bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-600"
                   onClick={() => onSelectPair?.(active)}
                   disabled={!onSelectPair}
                 >
-                  Try this pair
+                  Convert {active.from.toUpperCase()} → {active.to.toUpperCase()}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
 
