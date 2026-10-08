@@ -277,7 +277,28 @@ export default function HomeClient({
     });
   };
 
+  const goHomeClean = () => {
+    setCurrentView("converter");
+    setMobileNavOpen(false);
+    // Always land on clean `/` so ?from=&to= (and other tool query) don't stick —
+    // otherwise logo / Converter look "broken" and users mash Back.
+    const params =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search)
+        : null;
+    const hasToolParams = Boolean(
+      params && (params.has("from") || params.has("to") || params.has("view")),
+    );
+    if (isAdminRoute(pathname) || hasToolParams || pathname !== "/") {
+      router.push("/");
+    }
+  };
+
   const toggleView = (view: ViewType) => {
+    if (view === "converter") {
+      goHomeClean();
+      return;
+    }
     setCurrentView(view);
     setMobileNavOpen(false);
     if (view === "admin") {
@@ -285,7 +306,7 @@ export default function HomeClient({
       return;
     }
     if (isAdminRoute(pathname)) {
-      router.push(view === "converter" ? "/" : `/?view=${view}`);
+      router.push(`/?view=${view}`);
     }
   };
 
@@ -329,17 +350,21 @@ export default function HomeClient({
       <header className="sticky top-1.5 z-50 w-full max-w-[100vw] border-b border-border/40 bg-background overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2 min-w-0">
-            {/* Logo */}
-            <div
+            {/* Logo — always resets to clean home (clears ?from=&to= deep links) */}
+            <Link
+              href="/"
               className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink"
-              onClick={() => toggleView("converter")}
+              onClick={(e) => {
+                e.preventDefault();
+                goHomeClean();
+              }}
             >
               <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" priority />
               <div className="min-w-0">
                 <BrandTitle className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate" />
                 <BrandTaglines className="hidden sm:block -mt-0.5" />
               </div>
-            </div>
+            </Link>
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-1">
