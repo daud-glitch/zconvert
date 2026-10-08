@@ -13,7 +13,6 @@ import {
   SITE_NAME,
   SITE_URL,
 } from "@/lib/seo";
-
 export const metadata: Metadata = {
   title: {
     absolute: DEFAULT_TITLE,
@@ -48,6 +47,11 @@ type Props = {
   searchParams: Promise<{ from?: string | string[]; to?: string | string[] }>;
 };
 
+// Dedicated admin route SEO constants (freebuffDocs-freebuff / Convertek identity kept conservative).
+const ADMIN_TITLE = "Admin Dashboard";
+const ADMIN_SUBTITLE = "Convertek";
+const ADMIN_DESC = "Manage your Convertek instance: formats, users, analytics, settings, and support.";
+
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -75,4 +79,34 @@ export default async function Page({ searchParams }: Props) {
       <HomeClient defaultView="converter" />
     </>
   );
-}
+}
+
+// Dedicated admin route so a hard reload on /admin survives, instead of relying
+// on in-app view state that can be reset during hydration or auth restore.
+// This route keeps the existing AdminView shell; it does not change backend routes.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Record<string, string | string[]>>;
+}): Promise<import("next").Metadata> {
+  const merged = await params;
+  const tab = Array.isArray(merged.tab) ? merged.tab[0] : merged.tab ?? "overview";
+  return {
+    title: `${ADMIN_TITLE} · ${ADMIN_SUBTITLE}`,
+    description: ADMIN_DESC,
+    robots: { index: false, follow: false },
+    openGraph: {
+      title: `${ADMIN_TITLE} · ${ADMIN_SUBTITLE}`,
+      description: ADMIN_DESC,
+      type: "website",
+      siteName: SITE_NAME,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${ADMIN_TITLE} · ${ADMIN_SUBTITLE}`,
+      description: ADMIN_DESC,
+    },
+    alternates: { canonical: "/admin" },
+  };
+}
+

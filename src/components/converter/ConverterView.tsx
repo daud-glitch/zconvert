@@ -109,7 +109,7 @@ export function ConverterView() {
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
   >({});
-  const { toasts, showToast } = useConverterToasts();
+  const { showToast } = useConverterToasts();
   const [recentConversions, setRecentConversions] = useState<
     ConversionRecord[]
   >([]);
@@ -131,6 +131,7 @@ export function ConverterView() {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadCardRef = useRef<HTMLDivElement>(null);
+  const queueLandedRef = useRef(false);
   const filesRef = useRef<FileItem[]>([]);
   const autoUploadChainRef = useRef(Promise.resolve());
   /** In-flight staging promises keyed by file item id */
@@ -146,6 +147,23 @@ export function ConverterView() {
 
   filesRef.current = files;
 
+  // When files just landed in an otherwise-empty queue, gently point the user at it.
+  // This is the “uploaded files are now in the Conversion Queue” moment for task 1.
+  useEffect(() => {
+    const pending = files.filter((f) => f.status === "pending").length;
+    const anyFiles = files.length > 0;
+    if (pending > 0 && !queueLandedRef.current && anyFiles) {
+      queueLandedRef.current = true;
+      const card = uploadCardRef.current;
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+    if (files.length === 0) {
+      queueLandedRef.current = false;
+    }
+  }, [files]);
+
   const isQueued = (id: string) =>
     filesRef.current.some((f) => f.id === id);
 
@@ -157,6 +175,11 @@ export function ConverterView() {
     abortControllersRef.current.set(id, controller);
     return controller;
   };
+
+  // Keep this ref in sync with files so convertAll / upload checks skip stale ids.
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
 
   const cancelFileWork = (id: string) => {
     const controller = abortControllersRef.current.get(id);
@@ -277,9 +300,9 @@ export function ConverterView() {
     const from = normalizeExtParam(searchParams.get("from"));
     const to = normalizeExtParam(searchParams.get("to"));
     if (from && to && isConversionPairListed(from, to)) {
-      setPreferredFrom(from);
-      setPreferredTo(to);
+      setPreferredFrom(from);      setPreferredTo(to);
     } else if (!from && !to) {
+
       setPreferredFrom(null);
       setPreferredTo(null);
     } else if (from && !to) {
@@ -1369,35 +1392,11 @@ export function ConverterView() {
     (f) => getCategoryFromExt(f.ext) === "subtitle" && f.status === "pending",
   );
 
+  const requiredMediaUnavailable =
+    !AUDIO_CONVERSION_ENABLED || !VIDEO_CONVERSION_ENABLED;
+
   return (
     <div className="space-y-6 sm:space-y-8 pb-24 sm:pb-0">
-      {/* Toast Stack */}
-      {toasts.length > 0 && (
-        <div className="toast-stack fixed top-20 right-4 z-50 space-y-2">
-          {toasts.slice(0, 5).map((t) => (
-            <div
-              key={t.id}
-              className={`toast-stack-item flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-foreground text-sm border border-border bg-background ${
-                t.type === "success" 
-                  ? "border-l-4 border-l-emerald-500" 
-                  : "border-l-4 border-l-destructive"
-              }`}
-            >
-              <div className={`p-1 rounded-full ${
-                t.type === "success" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"
-              }`}>
-                {t.type === "success" ? (
-                  <Check className="w-3.5 h-3.5" />
-                ) : (
-                  <AlertCircle className="w-3.5 h-3.5" />
-                )}
-              </div>
-              <span className="font-medium">{t.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       <ConverterHero
         totalFormats={formatsData?.totalFormats}
         totalConversionPairs={formatsData?.totalConversions}
@@ -1462,11 +1461,33 @@ export function ConverterView() {
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 Images, video, documents, data, audio, archives, subtitles, fonts & more
               </p>
-              {preferredFrom && preferredTo && (
-                <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                  Selected: {preferredFrom.toUpperCase()} → {preferredTo.toUpperCase()}
+              {hasPendingVideo && (
+                <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                  Videos convert one at a time after smaller files — this keeps the server stable.
                 </p>
               )}
+              {hasPendingAudio && !AUDIO_CONVERSION_ENABLED && (
+                <p className="mt-3 text-xs text-destructive">
+                  Audio conversion is currently unavailable.
+                </p>
+              )}
+              {hasPendingVideo && !VIDEO_CONVERSION_ENABLED && (
+                <p className="mt-3 text-xs text-destructive">
+                  Video conversion is currently unavailable.
+                </p>
+              )}
+              {requiredMediaUnavailable && (
+                <p className="mt-3 text-xs text-destructive">
+                  This conversion can’t run because media conversion is unavailable right now.
+                </p>
+              )}
+
+              {pendingCount > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground/70">
+                  {pendingCount} file${pendingCount === 1 ? "" : "s"} ready. Choose output formats, then Convert All.
+                </p>
+              )}
+
               <p className="text-[11px] text-muted-foreground/70 mt-2">
                 Up to {MAX_NONVIDEO_BATCH} files · Ctrl+U to browse
               </p>

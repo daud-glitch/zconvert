@@ -44,6 +44,7 @@ import Link from "next/link";
 import { HomeFaqSection } from "@/components/seo/HomeFaqSection";
 import { isLikelyCrawler } from "@/lib/crawler";
 
+
 /** Lazy page chunks — only the active view’s JS loads. */
 function ViewFallback() {
   return (
@@ -53,6 +54,7 @@ function ViewFallback() {
     </div>
   );
 }
+
 
 const ConverterView = dynamic(
   () =>
@@ -94,7 +96,18 @@ const CmsFeatureCards = dynamic(
   { loading: () => null },
 );
 
-export default function HomeClient({ defaultView }: { defaultView?: ViewType }) {
+export default function HomeClient({
+  defaultView,
+  extraQuery = {},
+}: {
+  defaultView?: ViewType;
+  extraQuery?: Record<string, string | string[] | null>;
+}) {
+  const resolvedTab = typeof extraQuery?.tab === "string"
+    ? extraQuery.tab
+    : Array.isArray(extraQuery?.tab)
+      ? extraQuery.tab[0] ?? null
+      : null;
   const {
     currentView,
     setCurrentView,
@@ -119,9 +132,12 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
   ];
   const footerAds = adsByLocation(ads, "footer");
 
-  useEffect(() => {
-    setCurrentView(defaultView || "converter");
-  }, [defaultView, setCurrentView]);
+  // Persist active view in URL so refresh / direct links survive (admin, history, bookmarks…).
+  // Converter-pair deep links keep using ?from=&to= — they are separate query keys.
+  const viewParam = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("view")
+    : null;
+  const initialView = defaultView || viewParam || "converter";
 
   useEffect(() => {
     if (loading) return;
@@ -132,6 +148,21 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
       setCurrentView("converter");
     }
   }, [loading, currentUser, currentView, setCurrentView]);
+  useEffect(() => {
+    // Keep ?view= in sync when the app context forces a view change (e.g. guard
+    // redirects admin→converter / profile→converter). Only mutate when running in
+    // the browser so SSR/static renders are unaffected.
+    if (typeof window === "undefined") return;
+    if (!loading && currentView === "converter") {
+      const params = new URLSearchParams(window.location.search);
+      const current = params.get("view");
+      if (current && current !== "converter") {
+        params.delete("view");
+        const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+        window.history.replaceState({}, "", next);
+      }
+    }
+  }, [loading, currentView]);
 
   // Warm formats catalog after first paint (idle) — converter needs it on file pick
   useEffect(() => {
@@ -597,6 +628,7 @@ export default function HomeClient({ defaultView }: { defaultView?: ViewType }) 
                   : [
                       { id: "c", label: "Converter", url: "/" },
                       { id: "f", label: "Supported Formats", url: "/conversions" },
+                      { id: "g", label: "Guides", url: "/guides" },
                     ]
                 ).map((link) =>
                   link.url.startsWith("/") && !link.url.startsWith("//") ? (
