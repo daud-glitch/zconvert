@@ -243,7 +243,11 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
                 </p>
               )}
             </div>
-            <Link href="/" className="shrink-0">
+            <Link
+              href={`/?from=${encodeURIComponent(ext)}`}
+              rel="nofollow"
+              className="shrink-0"
+            >
               <Button className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2">
                 <ArrowRightLeft className="w-4 h-4" />
                 Start Converting
@@ -414,7 +418,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
             sign-up required.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/">
+            <Link href={`/?from=${encodeURIComponent(ext)}`} rel="nofollow">
               <Button
                 size="lg"
                 className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"

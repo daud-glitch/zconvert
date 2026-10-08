@@ -15,6 +15,9 @@ export default function robots(): MetadataRoute.Robots {
     "/admin/",
     "/forgot-password",
     "/reset-password",
+    // Internal converter deep-links — keep out of the index; SEO uses /x-to-y.
+    "/*?*from=",
+    "/*?*to=",
     // Non-HTML assets: crawled but never indexable, and they show up as
     // noise in Search Console's "crawled, not indexed" report.
     "/_next/static/",

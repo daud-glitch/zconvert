@@ -98,14 +98,35 @@ import type { ConversionPair } from "@/lib/conversion-pairs";
 const MAX_NONVIDEO_BATCH = getMaxNonVideoBatchFiles();
 const MAX_VIDEO_BYTES = getVideoMaxUploadBytes();
 
-export function ConverterView() {
+export type ConverterViewProps = {
+  /** Preselect a conversion pair (SEO pair pages / deep links). */
+  initialFrom?: string;
+  initialTo?: string;
+  /**
+   * Compact tool embed: hide marketing hero + popular pairs, and do not
+   * rewrite the URL with ?from=&to= (keeps /x-to-y canonical clean).
+   */
+  embedded?: boolean;
+};
+
+export function ConverterView({
+  initialFrom,
+  initialTo,
+  embedded = false,
+}: ConverterViewProps = {}) {
   const { currentUser, openAuth } = useApp();
   const searchParams = useSearchParams();
   const [files, setFiles] = useState<FileItem[]>([]);
   const { data: formatsData } = useFormats();
   const [dragOver, setDragOver] = useState(false);
-  const [preferredFrom, setPreferredFrom] = useState<string | null>(null);
-  const [preferredTo, setPreferredTo] = useState<string | null>(null);
+  const lockedFrom = normalizeExtParam(initialFrom ?? null);
+  const lockedTo = normalizeExtParam(initialTo ?? null);
+  const [preferredFrom, setPreferredFrom] = useState<string | null>(
+    lockedFrom && lockedTo ? lockedFrom : null,
+  );
+  const [preferredTo, setPreferredTo] = useState<string | null>(
+    lockedFrom && lockedTo ? lockedTo : null,
+  );
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
   >({});
@@ -270,17 +291,20 @@ export function ConverterView() {
     : 0;
   const pairCount = formatsData?.totalConversions ?? 0;
 
-  const applyPreferredPair = useCallback((pair: ConversionPair | null) => {
-    if (pair) {
-      setPreferredFrom(pair.from);
-      setPreferredTo(pair.to);
-      syncPreferredPairUrl(pair.from, pair.to);
-    } else {
-      setPreferredFrom(null);
-      setPreferredTo(null);
-      syncPreferredPairUrl(null, null);
-    }
-  }, []);
+  const applyPreferredPair = useCallback(
+    (pair: ConversionPair | null) => {
+      if (pair) {
+        setPreferredFrom(pair.from);
+        setPreferredTo(pair.to);
+        if (!embedded) syncPreferredPairUrl(pair.from, pair.to);
+      } else {
+        setPreferredFrom(null);
+        setPreferredTo(null);
+        if (!embedded) syncPreferredPairUrl(null, null);
+      }
+    },
+    [embedded],
+  );
 
   const handlePopularPairSelect = useCallback(
     (pair: ConversionPair) => {
@@ -297,19 +321,37 @@ export function ConverterView() {
   );
 
   useEffect(() => {
+    if (lockedFrom && lockedTo && isConversionPairListed(lockedFrom, lockedTo)) {
+      setPreferredFrom(lockedFrom);
+      setPreferredTo(lockedTo);
+      return;
+    }
+    if (embedded) return;
+
     const from = normalizeExtParam(searchParams.get("from"));
     const to = normalizeExtParam(searchParams.get("to"));
     if (from && to && isConversionPairListed(from, to)) {
-      setPreferredFrom(from);      setPreferredTo(to);
+      setPreferredFrom(from);
+      setPreferredTo(to);
     } else if (!from && !to) {
-
       setPreferredFrom(null);
       setPreferredTo(null);
     } else if (from && !to) {
       setPreferredFrom(from);
       setPreferredTo(null);
     }
-  }, [searchParams]);
+  }, [searchParams, embedded, lockedFrom, lockedTo]);
+
+  // Deep-link landings (`/?from=` / `/?from=&to=`) jump straight to the upload box.
+  useEffect(() => {
+    if (embedded) return;
+    const from = normalizeExtParam(searchParams.get("from"));
+    if (!from) return;
+    const id = window.setTimeout(() => {
+      uploadCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [searchParams, embedded]);
 
   const fileAccept = preferredFrom
     ? acceptForPreferredFrom(preferredFrom)
@@ -1397,27 +1439,51 @@ export function ConverterView() {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-24 sm:pb-0">
-      <ConverterHero
-        totalFormats={formatsData?.totalFormats}
-        totalConversionPairs={formatsData?.totalConversions}
-        categoryCount={
-          formatsData
-            ? Object.values(formatsData.categoryCounts).filter((n) => n > 0)
-                .length
-            : undefined
-        }
-        onUploadClick={() => fileInputRef.current?.click()}
-      />
+      {!embedded && (
+        <ConverterHero
+          totalFormats={formatsData?.totalFormats}
+          totalConversionPairs={formatsData?.totalConversions}
+          categoryCount={
+            formatsData
+              ? Object.values(formatsData.categoryCounts).filter((n) => n > 0)
+                  .length
+              : undefined
+          }
+          onUploadClick={() => fileInputRef.current?.click()}
+        />
+      )}
 
-      <PopularPairsSection
-        activePair={activePreferredPair}
-        onSelectPair={handlePopularPairSelect}
-      />
+      {!embedded && (
+        <PopularPairsSection
+          activePair={activePreferredPair}
+          onSelectPair={handlePopularPairSelect}
+        />
+      )}
+
+      {embedded && preferredFrom && preferredTo && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-50/50 px-4 py-3 dark:bg-emerald-950/20">
+          <p className="text-sm font-medium text-foreground">
+            Ready to convert{" "}
+            <span className="font-mono uppercase text-emerald-600 dark:text-emerald-400">
+              .{preferredFrom}
+            </span>{" "}
+            →{" "}
+            <span className="font-mono uppercase text-emerald-600 dark:text-emerald-400">
+              .{preferredTo}
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Upload your file below — output is already set.
+          </p>
+        </div>
+      )}
 
       {/* ─── Upload Zone ─── */}
       <Card
         ref={uploadCardRef}
-        className="card-elevated overflow-hidden border-border/60 shadow-md -mt-2 sm:-mt-4"
+        className={`card-elevated overflow-hidden border-border/60 shadow-md ${
+          embedded ? "" : "-mt-2 sm:-mt-4"
+        }`}
       >
         <CardContent className="p-0">
           <div

@@ -207,7 +207,21 @@ export function middleware(request: NextRequest) {
       (route) => pathname === route || pathname.startsWith(route + "/"),
     )
   ) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    // Internal tool deep-links (`/?from=`, `/?to=`, `/?from=&to=`) stay usable
+    // for UX but must not be indexed — SEO lands on /x-to-y and /conversions/*.
+    if (
+      pathname === "/" &&
+      (request.nextUrl.searchParams.has("from") ||
+        request.nextUrl.searchParams.has("to"))
+    ) {
+      try {
+        res.headers.set("X-Robots-Tag", "noindex, follow");
+      } catch {
+        // mock headers in unit tests may be immutable
+      }
+    }
+    return res;
   }
 
   if (adminApiRoutes.some((route) => pathname.startsWith(route))) {

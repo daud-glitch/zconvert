@@ -1,21 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  Suspense,
+  useState,
+  useEffect,
+  useRef,
+  type SVGProps,
+} from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTitle } from "@/components/common/BrandTitle";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { PairGuideSection } from "@/components/pages/PairGuideSection";
-import { Moon, Sun, ChevronRight, RefreshCw, Upload, Download, Settings2, FileQuestion } from "lucide-react";
+import {
+  Moon,
+  Sun,
+  ChevronRight,
+  RefreshCw,
+  Upload,
+  Download,
+  Settings2,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import type { ResolvedPair } from "@/lib/conversion-pairs";
 import { getRelatedPairs } from "@/lib/conversion-pairs";
-import { categoryMeta } from "@/lib/formats";
 import { PAIR_FAQS } from "@/components/seo/ConversionPairJsonLd";
 
+const ConverterView = dynamic(
+  () =>
+    import("@/components/converter/ConverterView").then((m) => m.ConverterView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-card text-muted-foreground">
+        <Loader2 className="h-7 w-7 animate-spin text-emerald-500" aria-hidden />
+        <span className="sr-only">Loading converter…</span>
+      </div>
+    ),
+  },
+);
+
 export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
+  const converterRef = useRef<HTMLElement | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
     const prefersDark =
@@ -37,6 +66,10 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
     });
   };
 
+  const scrollToConverter = () => {
+    converterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const { from, to } = pair;
   const fromUpper = from.ext.toUpperCase();
   const toUpper = to.ext.toUpperCase();
@@ -46,10 +79,8 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* Accent bar */}
       <div className="h-1 bg-emerald-500" />
 
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
@@ -59,12 +90,20 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
             </Link>
             <nav className="flex items-center gap-2">
               <Link href="/">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   Converter
                 </Button>
               </Link>
               <Link href="/conversions">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   All Formats
                 </Button>
               </Link>
@@ -76,10 +115,8 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
         </div>
       </header>
 
-      {/* Main */}
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
-        <div className="mb-8 flex items-center gap-1.5 text-sm text-muted-foreground">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8 sm:py-10">
+        <div className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
           <Link href="/" className="transition-colors hover:text-foreground">
             Home
           </Link>
@@ -88,124 +125,157 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
             Conversions
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
-          <Link href={`/conversions/${from.ext}`} className="font-mono font-semibold uppercase transition-colors hover:text-foreground">
+          <Link
+            href={`/conversions/${from.ext}`}
+            className="font-mono font-semibold uppercase transition-colors hover:text-foreground"
+          >
             {from.ext}
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
-          <span className="font-mono font-semibold uppercase text-foreground">TO {to.ext}</span>
+          <span className="font-mono font-semibold uppercase text-foreground">
+            TO {to.ext}
+          </span>
         </div>
 
-        {/* Hero Section */}
-        <div className="mb-12 overflow-hidden rounded-3xl border border-border bg-card">
-          <div className="relative p-8 sm:p-12">
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="mb-6 flex items-center justify-center gap-3">
-                <Badge variant="secondary" className="bg-muted text-base uppercase px-3 py-1">.{from.ext}</Badge>
-                <RefreshCw className="h-5 w-5 text-muted-foreground" />
-                <Badge variant="secondary" className="bg-muted text-base uppercase px-3 py-1">.{to.ext}</Badge>
-              </div>
-              <h1 className="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl text-foreground">
-                Convert <span className="text-emerald-500">{fromUpper}</span> to{" "}
-                <span className="text-emerald-500">{toUpper}</span>
-              </h1>
-              <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-                Free, fast, and secure online conversion from {from.name} to {to.name}. No watermarks, no registration required.
-              </p>
-              {/* Plain homepage link — `?from=`/`?to=` now 301s to this
-                  very page, so linking to it would bounce the user back. */}
-              <Link href="/">
-                <Button size="lg" className="h-14 gap-2 rounded-xl bg-emerald-500 px-8 text-base hover:bg-emerald-600 font-semibold text-white">
-                  Convert {fromUpper} to {toUpper} Now
-                </Button>
-              </Link>
-            </div>
-            
-            {/* Background decorative elements */}
-            <div className="pointer-events-none absolute left-0 top-0 h-full w-full opacity-10">
-              <div className="absolute -left-10 -top-10 h-64 w-64 rounded-full bg-emerald-500 blur-3xl"></div>
-              <div className="absolute -bottom-10 -right-10 h-64 w-64 rounded-full bg-violet-500 blur-3xl"></div>
-            </div>
+        {/* Compact hero — one job: name the pair + start converting */}
+        <div className="mb-8 text-center sm:mb-10">
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <Badge variant="secondary" className="bg-muted px-3 py-1 text-base uppercase">
+              .{from.ext}
+            </Badge>
+            <RefreshCw className="h-5 w-5 text-muted-foreground" />
+            <Badge variant="secondary" className="bg-muted px-3 py-1 text-base uppercase">
+              .{to.ext}
+            </Badge>
           </div>
+          <h1 className="mb-3 text-3xl font-extrabold tracking-tight text-foreground sm:text-5xl">
+            Convert <span className="text-emerald-500">{fromUpper}</span> to{" "}
+            <span className="text-emerald-500">{toUpper}</span>
+          </h1>
+          <p className="mx-auto mb-6 max-w-2xl text-base text-muted-foreground sm:text-lg">
+            Free, fast {from.name} → {to.name}. No watermarks, no sign-up.
+          </p>
+          <Button
+            size="lg"
+            className="h-12 gap-2 rounded-xl bg-emerald-500 px-8 text-base font-semibold text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600"
+            onClick={scrollToConverter}
+          >
+            <Upload className="h-5 w-5" />
+            Convert {fromUpper} to {toUpper} Now
+          </Button>
         </div>
 
-        {/* How it works */}
+        {/* Live converter — pair already selected */}
+        <section
+          id="converter"
+          ref={converterRef}
+          className="mb-14 scroll-mt-24"
+          aria-label={`${fromUpper} to ${toUpper} converter`}
+        >
+          <Suspense
+            fallback={
+              <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-card">
+                <Loader2 className="h-7 w-7 animate-spin text-emerald-500" />
+              </div>
+            }
+          >
+            <ConverterView
+              embedded
+              initialFrom={from.ext}
+              initialTo={to.ext}
+            />
+          </Suspense>
+        </section>
+
         <div className="mb-16">
-          <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">How to convert {fromUpper} to {toUpper}</h2>
+          <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">
+            How to convert {fromUpper} to {toUpper}
+          </h2>
           <div className="grid gap-6 md:grid-cols-3">
-            <div className="flex flex-col items-center text-center rounded-2xl border border-border bg-muted/20 p-6">
+            <div className="flex flex-col items-center rounded-2xl border border-border bg-muted/20 p-6 text-center">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
                 <Upload className="h-6 w-6" />
               </div>
               <h3 className="mb-2 font-semibold">1. Upload {fromUpper}</h3>
-              <p className="text-sm text-muted-foreground">Select or drag and drop your {from.name} file into the converter.</p>
+              <p className="text-sm text-muted-foreground">
+                Drop your {from.name} file into the converter above.
+              </p>
             </div>
-            <div className="flex flex-col items-center text-center rounded-2xl border border-border bg-muted/20 p-6">
+            <div className="flex flex-col items-center rounded-2xl border border-border bg-muted/20 p-6 text-center">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400">
                 <Settings2 className="h-6 w-6" />
               </div>
-              <h3 className="mb-2 font-semibold">2. Choose {toUpper}</h3>
-              <p className="text-sm text-muted-foreground">Select {toUpper} as your output format. You can process multiple files at once.</p>
+              <h3 className="mb-2 font-semibold">2. Confirm {toUpper}</h3>
+              <p className="text-sm text-muted-foreground">
+                Output is already set to {toUpper}. Adjust only if you need to.
+              </p>
             </div>
-            <div className="flex flex-col items-center text-center rounded-2xl border border-border bg-muted/20 p-6">
+            <div className="flex flex-col items-center rounded-2xl border border-border bg-muted/20 p-6 text-center">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400">
                 <Download className="h-6 w-6" />
               </div>
               <h3 className="mb-2 font-semibold">3. Download</h3>
-              <p className="text-sm text-muted-foreground">Click convert and download your new {to.name} file instantly.</p>
+              <p className="text-sm text-muted-foreground">
+                Convert and download your {to.name} file instantly.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Format Comparison */}
-        <div className="mb-16 rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="mb-16 overflow-hidden rounded-2xl border border-border bg-card">
           <div className="border-b border-border bg-muted/30 px-6 py-4">
             <h2 className="text-xl font-semibold">Format Details</h2>
           </div>
-          <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+          <div className="grid divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0">
             <div className="p-6">
               <div className="mb-4 flex items-center gap-3">
-                <Badge variant="outline" className="font-mono text-sm">.{from.ext}</Badge>
+                <Badge variant="outline" className="font-mono text-sm">
+                  .{from.ext}
+                </Badge>
                 <h3 className="font-semibold">{from.name}</h3>
               </div>
-              <p className="text-sm leading-relaxed text-muted-foreground mb-4">
+              <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
                 {from.description}
               </p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="font-normal capitalize">{from.category}</Badge>
-              </div>
+              <Badge variant="secondary" className="font-normal capitalize">
+                {from.category}
+              </Badge>
             </div>
             <div className="p-6">
               <div className="mb-4 flex items-center gap-3">
-                <Badge variant="outline" className="font-mono text-sm">.{to.ext}</Badge>
+                <Badge variant="outline" className="font-mono text-sm">
+                  .{to.ext}
+                </Badge>
                 <h3 className="font-semibold">{to.name}</h3>
               </div>
-              <p className="text-sm leading-relaxed text-muted-foreground mb-4">
+              <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
                 {to.description}
               </p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="font-normal capitalize">{to.category}</Badge>
-              </div>
+              <Badge variant="secondary" className="font-normal capitalize">
+                {to.category}
+              </Badge>
             </div>
           </div>
         </div>
 
-        {/* Editorial content — unique per category pairing */}
         <PairGuideSection pair={pair} />
 
-        {/* FAQ Section */}
         <section id="faq" className="mb-16">
-          <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">Frequently Asked Questions</h2>
+          <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h2>
           <div className="space-y-4">
             {faqs.map((faq, i) => (
               <div key={i} className="rounded-xl border border-border bg-card p-6">
                 <h3 className="mb-2 font-semibold">{faq.question}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{faq.answer}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {faq.answer}
+                </p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Related Pairs */}
         {relatedPairs.length > 0 && (
           <div className="mb-10">
             <h2 className="mb-6 text-xl font-semibold">Popular Conversions</h2>
@@ -214,7 +284,7 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
                 <Link key={`${rp.from}-${rp.to}`} href={`/${rp.from}-to-${rp.to}`}>
                   <Badge
                     variant="outline"
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-normal hover:bg-muted transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-normal transition-colors hover:bg-muted"
                   >
                     <span className="font-mono uppercase">{rp.from}</span>
                     <ArrowRightIcon className="h-3 w-3 text-muted-foreground" />
@@ -232,7 +302,7 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
   );
 }
 
-function ArrowRightIcon(props: any) {
+function ArrowRightIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

@@ -41,8 +41,18 @@ import {
   adsByLocation,
 } from "@/hooks/use-cms";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { HomeFaqSection } from "@/components/seo/HomeFaqSection";
 import { isLikelyCrawler } from "@/lib/crawler";
+
+function isAdminRoute(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/admin" ||
+    pathname === "/core/system/admin" ||
+    pathname === "/system/core/admin"
+  );
+}
 
 
 /** Lazy page chunks — only the active view’s JS loads. */
@@ -119,6 +129,8 @@ export default function HomeClient({
     openAuth,
     closeAuth,
   } = useApp();
+  const pathname = usePathname();
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -134,20 +146,46 @@ export default function HomeClient({
 
   // Persist active view in URL so refresh / direct links survive (admin, history, bookmarks…).
   // Converter-pair deep links keep using ?from=&to= — they are separate query keys.
-  const viewParam = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("view")
-    : null;
-  const initialView = defaultView || viewParam || "converter";
+  const viewParam =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("view")
+      : null;
 
   useEffect(() => {
     if (loading) return;
+
+    const wantsAdmin =
+      defaultView === "admin" ||
+      isAdminRoute(pathname) ||
+      viewParam === "admin";
+
+    if (wantsAdmin) {
+      if (currentUser?.role === "admin") {
+        if (currentView !== "admin") setCurrentView("admin");
+      } else {
+        if (currentView === "admin") setCurrentView("converter");
+        if (isAdminRoute(pathname)) router.replace("/");
+      }
+      return;
+    }
+
     if (currentView === "admin" && currentUser?.role !== "admin") {
       setCurrentView("converter");
     }
     if (currentView === "profile" && !currentUser) {
       setCurrentView("converter");
     }
-  }, [loading, currentUser, currentView, setCurrentView]);
+  }, [
+    loading,
+    currentUser,
+    currentView,
+    defaultView,
+    pathname,
+    viewParam,
+    setCurrentView,
+    router,
+  ]);
+
   useEffect(() => {
     // Keep ?view= in sync when the app context forces a view change (e.g. guard
     // redirects admin→converter / profile→converter). Only mutate when running in
@@ -239,6 +277,18 @@ export default function HomeClient({
     });
   };
 
+  const toggleView = (view: ViewType) => {
+    setCurrentView(view);
+    setMobileNavOpen(false);
+    if (view === "admin") {
+      if (!isAdminRoute(pathname)) router.push("/admin");
+      return;
+    }
+    if (isAdminRoute(pathname)) {
+      router.push(view === "converter" ? "/" : `/?view=${view}`);
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -260,19 +310,15 @@ export default function HomeClient({
         }
       }
       if (e.key === "d" && !e.ctrlKey && !e.metaKey) toggleTheme();
-      if (e.key === "1") setCurrentView("converter");
+      if (e.key === "1") toggleView("converter");
       if (e.key === "2") window.location.href = "/conversions";
-      if (e.key === "3") setCurrentView("bookmarks");
-      if (e.key === "4") setCurrentView("history");
+      if (e.key === "3") toggleView("bookmarks");
+      if (e.key === "4") toggleView("history");
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [setCurrentView, themeReady]);
-
-  const toggleView = (view: ViewType) => {
-    setCurrentView(view);
-    setMobileNavOpen(false);
-  };
+    // toggleView/toggleTheme close over pathname/router; rebind when those change.
+  }, [themeReady, pathname, router, setCurrentView]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300 overflow-x-hidden">
@@ -387,7 +433,12 @@ export default function HomeClient({
                       Profile Settings
                     </DropdownMenuItem>
                     {currentUser.role === "admin" && (
-                      <DropdownMenuItem onClick={() => setCurrentView("admin")}>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setCurrentView("admin");
+                          if (!isAdminRoute(pathname)) router.push("/admin");
+                        }}
+                      >
                         <Shield className="mr-2 h-4 w-4" />
                         Admin Dashboard
                       </DropdownMenuItem>
@@ -517,11 +568,7 @@ export default function HomeClient({
       {/* ── Main Content ───────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col relative min-w-0 w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto w-full min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-10 flex-1 flex flex-col">
-          {currentView === "converter" && topAds.length > 0 && (
-            <div className="mb-6">
-              <CmsAdSlot ads={topAds} />
-            </div>
-          )}
+          {/* Converter first — ads / feature cards sit below so the tool is the hero */}
           {currentView === "converter" && (
             <Suspense fallback={<ViewFallback />}>
               <ConverterView />
@@ -552,8 +599,10 @@ export default function HomeClient({
               <AdminView />
             </Suspense>
           )}
-          {currentView === "converter" && (
-            <CmsFeatureCards features={features} />
+          {currentView === "converter" && topAds.length > 0 && (
+            <div className="mt-8">
+              <CmsAdSlot ads={topAds} />
+            </div>
           )}
         </div>
 
@@ -573,7 +622,14 @@ export default function HomeClient({
         )}
       </main>
 
-      {currentView === "converter" ? <HomeFaqSection /> : null}
+      {currentView === "converter" ? (
+        <>
+          <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
+            <CmsFeatureCards features={features} />
+          </div>
+          <HomeFaqSection />
+        </>
+      ) : null}
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer className="border-t border-border/40 bg-muted/30 py-12">
