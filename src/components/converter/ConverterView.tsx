@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -1433,13 +1434,48 @@ export function ConverterView({
   const hasPendingSubtitle = files.some(
     (f) => getCategoryFromExt(f.ext) === "subtitle" && f.status === "pending",
   );
+  const hasPendingPdf = files.some(
+    (f) => f.ext === "pdf" && f.status === "pending",
+  );
+
+  const availablePresetCategories = useMemo(() => {
+    const list: { id: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [];
+    if (hasPendingPdf) list.push({ id: "pdf", label: "PDF Tools", icon: FileIcon });
+    if (hasPendingDocument) list.push({ id: "document", label: "Document", icon: FileText });
+    if (hasPendingImage) list.push({ id: "image", label: "Image", icon: Sparkles });
+    if (hasPendingVideo) list.push({ id: "video", label: "Video", icon: Film });
+    if (hasPendingAudio) list.push({ id: "audio", label: "Audio", icon: Music2 });
+    if (hasPendingData) list.push({ id: "data", label: "Data", icon: Database });
+    if (hasPendingArchive) list.push({ id: "archive", label: "Archive", icon: Archive });
+    if (hasPendingSubtitle) list.push({ id: "subtitle", label: "Subtitle", icon: Subtitles });
+    return list;
+  }, [
+    hasPendingPdf,
+    hasPendingDocument,
+    hasPendingImage,
+    hasPendingVideo,
+    hasPendingAudio,
+    hasPendingData,
+    hasPendingArchive,
+    hasPendingSubtitle,
+  ]);
+
+  const defaultPresetTab = availablePresetCategories[0]?.id ?? "document";
+  const [presetTabChoice, setPresetTabChoice] = useState<string>();
+  const activePresetTab =
+    presetTabChoice &&
+    availablePresetCategories.some((c) => c.id === presetTabChoice)
+      ? presetTabChoice
+      : defaultPresetTab;
 
   const requiredMediaUnavailable =
     !AUDIO_CONVERSION_ENABLED || !VIDEO_CONVERSION_ENABLED;
 
+  const hasFiles = files.length > 0;
+
   return (
     <div className="space-y-6 sm:space-y-8 pb-24 sm:pb-0">
-      {!embedded && (
+      {!embedded && !hasFiles && (
         <ConverterHero
           totalFormats={formatsData?.totalFormats}
           totalConversionPairs={formatsData?.totalConversions}
@@ -1454,7 +1490,7 @@ export function ConverterView({
         />
       )}
 
-      {!embedded && (
+      {!embedded && !hasFiles && (
         <PopularPairsSection
           activePair={activePreferredPair}
           onSelectPair={handlePopularPairSelect}
@@ -1479,240 +1515,318 @@ export function ConverterView({
         </div>
       )}
 
-      {/* ─── Upload Zone ─── */}
-      <Card
-        ref={uploadCardRef}
-        className={`card-elevated overflow-hidden border-border/60 shadow-md ${
-          embedded ? "" : "-mt-2 sm:-mt-4"
-        }`}
-      >
-        <CardContent className="p-0">
-          <div
-            className={`upload-zone-enhanced p-5 sm:p-8 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
-              dragOver
-                ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25"
-                : "border-border/80"
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={fileAccept}
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) addFiles(e.target.files);
-                e.target.value = "";
+      {/* ─── Upload Zone: full dropzone when empty, compact add-more toolbar when queue has files ─── */}
+      {!hasFiles ? (
+        <Card
+          ref={uploadCardRef}
+          className={`card-elevated overflow-hidden border-border/60 shadow-md ${
+            embedded ? "" : "-mt-2 sm:-mt-4"
+          }`}
+        >
+          <CardContent className="p-0">
+            <div
+              className={`upload-zone-enhanced p-5 sm:p-8 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
+                dragOver
+                  ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25"
+                  : "border-border/80"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
               }}
-            />
-            <div className="relative z-10">
-              {(preferredFrom || preferredTo) && (
-                <div className="mb-4 flex flex-col items-center gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                    {preferredFrom && preferredTo
-                      ? "Selected conversion"
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={fileAccept}
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <div className="relative z-10">
+                {(preferredFrom || preferredTo) && (
+                  <div className="mb-4 flex flex-col items-center gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                      {preferredFrom && preferredTo
+                        ? "Selected conversion"
+                        : preferredFrom
+                          ? "Selected input"
+                          : "Selected output"}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 sm:gap-3">
+                      {preferredFrom && (
+                        <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
+                          .{preferredFrom}
+                        </span>
+                      )}
+                      {preferredFrom && preferredTo && (
+                        <ArrowRightLeft
+                          className="h-5 w-5 shrink-0 text-emerald-500"
+                          aria-hidden
+                        />
+                      )}
+                      {preferredTo && (
+                        <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
+                          .{preferredTo}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
+                    dragOver
+                      ? "bg-emerald-500 shadow-emerald-500/40"
+                      : "bg-emerald-500 shadow-emerald-500/30"
+                  }`}
+                >
+                  <Upload className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-base font-semibold mb-1">
+                  {dragOver
+                    ? "Drop files to upload"
+                    : preferredFrom && preferredTo
+                      ? `Drop .${preferredFrom.toUpperCase()} files to convert to .${preferredTo.toUpperCase()}`
                       : preferredFrom
-                        ? "Selected input"
-                        : "Selected output"}
+                        ? `Drop .${preferredFrom.toUpperCase()} files here`
+                        : "Drop files here or click to browse"}
+                </h3>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  {preferredFrom && preferredTo
+                    ? `Accepts .${preferredFrom} · output set to .${preferredTo}`
+                    : preferredFrom
+                      ? `Accepts .${preferredFrom} · choose any output after upload`
+                      : "Images, video, documents, data, audio, archives, subtitles, fonts & more"}
+                </p>
+                {hasPendingVideo && (
+                  <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                    Videos convert one at a time after smaller files — this keeps the server stable.
                   </p>
-                  <div className="flex items-center justify-center gap-2 sm:gap-3">
-                    {preferredFrom && (
-                      <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
-                        .{preferredFrom}
+                )}
+                {hasPendingAudio && !AUDIO_CONVERSION_ENABLED && (
+                  <p className="mt-3 text-xs text-destructive">
+                    Audio conversion is currently unavailable.
+                  </p>
+                )}
+                {hasPendingVideo && !VIDEO_CONVERSION_ENABLED && (
+                  <p className="mt-3 text-xs text-destructive">
+                    Video conversion is currently unavailable.
+                  </p>
+                )}
+                {requiredMediaUnavailable && (
+                  <p className="mt-3 text-xs text-destructive">
+                    This conversion can’t run because media conversion is unavailable right now.
+                  </p>
+                )}
+
+                {pendingCount > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground/70">
+                    {pendingCount} file${pendingCount === 1 ? "" : "s"} ready. Choose output formats, then Convert All.
+                  </p>
+                )}
+
+                <p className="text-[11px] text-muted-foreground/70 mt-2">
+                  Up to {MAX_NONVIDEO_BATCH} files · Ctrl+U to browse
+                </p>
+                <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                  <HardDrive className="h-3 w-3 shrink-0" />
+                  Temp process · converted files stay in your browser
+                </p>
+
+                {/* ── Quick Target Format Pills ── */}
+                <div
+                  className="mt-4 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-[11px] font-medium text-muted-foreground mr-1">
+                    Convert to:
+                  </span>
+                  {[
+                    { ext: "pdf", label: "PDF" },
+                    { ext: "png", label: "PNG" },
+                    { ext: "webp", label: "WEBP" },
+                    { ext: "jpg", label: "JPG" },
+                    { ext: "mp4", label: "MP4" },
+                    { ext: "mp3", label: "MP3" },
+                  ].map(({ ext, label }) => {
+                    const isSelected = preferredTo?.toLowerCase() === ext;
+                    return (
+                      <button
+                        key={ext}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setPreferredTo(null);
+                            if (!embedded) syncPreferredPairUrl(preferredFrom, null);
+                          } else {
+                            setPreferredTo(ext);
+                            if (!embedded) syncPreferredPairUrl(preferredFrom, ext);
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide transition-all shadow-xs ${
+                          isSelected
+                            ? "bg-emerald-600 text-white shadow-emerald-500/25 ring-2 ring-emerald-500/40"
+                            : "border border-border/80 bg-background/80 text-foreground hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
+                        }`}
+                        aria-label={`Set output format to ${label}`}
+                        aria-pressed={isSelected}
+                      >
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div
+                  className="mt-4 border-t border-border/50 pt-3"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+                    {[
+                      {
+                        value: formatCount > 0 ? `${formatCount}+` : "—",
+                        label: "Formats",
+                      },
+                      {
+                        value: activeCategories > 0 ? String(activeCategories) : "—",
+                        label: "Categories",
+                      },
+                      {
+                        value: pairCount > 0 ? `${pairCount.toLocaleString()}+` : "—",
+                        label: "Pairs",
+                      },
+                      {
+                        value: String(MAX_NONVIDEO_BATCH),
+                        label: "Per batch",
+                      },
+                      {
+                        value: formatNonVideoMaxUploadLabel(),
+                        label: "Max file",
+                      },
+                      {
+                        value: formatVideoMaxUploadLabel(),
+                        label: "Max video",
+                      },
+                    ].map((stat) => (
+                      <span
+                        key={stat.label}
+                        className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/90 px-2 py-0.5 text-[10px] sm:text-[11px]"
+                      >
+                        <span className="font-bold tabular-nums text-foreground">
+                          {stat.value}
+                        </span>
+                        <span className="text-muted-foreground">{stat.label}</span>
                       </span>
-                    )}
-                    {preferredFrom && preferredTo && (
-                      <ArrowRightLeft
-                        className="h-5 w-5 shrink-0 text-emerald-500"
-                        aria-hidden
-                      />
-                    )}
-                    {preferredTo && (
-                      <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
-                        .{preferredTo}
-                      </span>
-                    )}
+                    ))}
                   </div>
                 </div>
-              )}
-              <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
-                  dragOver
-                    ? "bg-emerald-500 shadow-emerald-500/40"
-                    : "bg-emerald-500 shadow-emerald-500/30"
-                }`}
-              >
-                <Upload className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-base font-semibold mb-1">
-                {dragOver
-                  ? "Drop files to upload"
-                  : preferredFrom && preferredTo
-                    ? `Drop .${preferredFrom.toUpperCase()} files to convert to .${preferredTo.toUpperCase()}`
-                    : preferredFrom
-                      ? `Drop .${preferredFrom.toUpperCase()} files here`
-                      : "Drop files here or click to browse"}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                {preferredFrom && preferredTo
-                  ? `Accepts .${preferredFrom} · output set to .${preferredTo}`
-                  : preferredFrom
-                    ? `Accepts .${preferredFrom} · choose any output after upload`
-                    : "Images, video, documents, data, audio, archives, subtitles, fonts & more"}
-              </p>
-              {hasPendingVideo && (
-                <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
-                  Videos convert one at a time after smaller files — this keeps the server stable.
-                </p>
-              )}
-              {hasPendingAudio && !AUDIO_CONVERSION_ENABLED && (
-                <p className="mt-3 text-xs text-destructive">
-                  Audio conversion is currently unavailable.
-                </p>
-              )}
-              {hasPendingVideo && !VIDEO_CONVERSION_ENABLED && (
-                <p className="mt-3 text-xs text-destructive">
-                  Video conversion is currently unavailable.
-                </p>
-              )}
-              {requiredMediaUnavailable && (
-                <p className="mt-3 text-xs text-destructive">
-                  This conversion can’t run because media conversion is unavailable right now.
-                </p>
-              )}
-
-              {pendingCount > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground/70">
-                  {pendingCount} file${pendingCount === 1 ? "" : "s"} ready. Choose output formats, then Convert All.
-                </p>
-              )}
-
-              <p className="text-[11px] text-muted-foreground/70 mt-2">
-                Up to {MAX_NONVIDEO_BATCH} files · Ctrl+U to browse
-              </p>
-              <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
-                <HardDrive className="h-3 w-3 shrink-0" />
-                Temp process · converted files stay in your browser
-              </p>
-
-              <div
-                className="mt-5 border-t border-border/50 pt-4"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
-                  {[
-                    {
-                      value: formatCount > 0 ? `${formatCount}+` : "—",
-                      label: "Formats",
-                    },
-                    {
-                      value: activeCategories > 0 ? String(activeCategories) : "—",
-                      label: "Categories",
-                    },
-                    {
-                      value: pairCount > 0 ? `${pairCount.toLocaleString()}+` : "—",
-                      label: "Pairs",
-                    },
-                    {
-                      value: String(MAX_NONVIDEO_BATCH),
-                      label: "Per batch",
-                    },
-                    {
-                      value: formatNonVideoMaxUploadLabel(),
-                      label: "Max file",
-                    },
-                    {
-                      value: formatVideoMaxUploadLabel(),
-                      label: "Max video",
-                    },
-                  ].map((stat) => (
-                    <span
-                      key={stat.label}
-                      className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/90 px-2 py-0.5 text-[10px] sm:text-[11px]"
-                    >
-                      <span className="font-bold tabular-nums text-foreground">
-                        {stat.value}
-                      </span>
-                      <span className="text-muted-foreground">{stat.label}</span>
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
-          </div>
 
-          {/* ── URL import (~40% prominence vs upload) ── */}
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
-            <div className="absolute inset-x-0 top-0 flex items-center justify-center -translate-y-1/2 z-10">
-              <span className="rounded-full border border-emerald-500/25 bg-background px-3.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90 shadow-sm dark:text-emerald-300/90">
-                or paste a link
-              </span>
-            </div>
-            <div className="rounded-b-2xl border-t border-emerald-500/10 bg-emerald-500/[0.04] px-5 py-5 dark:bg-emerald-500/[0.06]">
-              <div
-                className={`mx-auto flex max-w-2xl items-center gap-2.5 rounded-xl border bg-background px-3 py-2 shadow-sm transition-all focus-within:ring-2 focus-within:ring-emerald-500/25 ${
-                  urlReady ? "border-emerald-400/50" : "border-border/80"
-                }`}
-              >
+            {/* ── URL import (~40% prominence vs upload) ── */}
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute inset-x-0 top-0 flex items-center justify-center -translate-y-1/2 z-10">
+                <span className="rounded-full border border-emerald-500/25 bg-background px-3.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90 shadow-sm dark:text-emerald-300/90">
+                  or paste a link
+                </span>
+              </div>
+              <div className="rounded-b-2xl border-t border-emerald-500/10 bg-emerald-500/[0.04] px-5 py-5 dark:bg-emerald-500/[0.06]">
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                    urlReady
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                      : "bg-muted text-muted-foreground"
+                  className={`mx-auto flex max-w-2xl items-center gap-2.5 rounded-xl border bg-background px-3 py-2 shadow-sm transition-all focus-within:ring-2 focus-within:ring-emerald-500/25 ${
+                    urlReady ? "border-emerald-400/50" : "border-border/80"
                   }`}
-                  aria-hidden
                 >
-                  <Globe className="h-4 w-4" />
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                      urlReady
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                    aria-hidden
+                  >
+                    <Globe className="h-4 w-4" />
+                  </div>
+                  <Input
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://example.com/file.png"
+                    aria-label="File URL to import"
+                    className="h-9 flex-1 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && urlReady) {
+                        fetchRemoteFile(urlInput.trim());
+                      }
+                    }}
+                    disabled={urlFetching}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={`h-9 shrink-0 rounded-lg px-3.5 text-xs font-semibold ${
+                      urlReady
+                        ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                    onClick={() => {
+                      if (urlReady) fetchRemoteFile(urlInput.trim());
+                    }}
+                    disabled={!urlReady || urlFetching}
+                  >
+                    {urlFetching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <DownloadCloud className="mr-1 h-3.5 w-3.5" />
+                        Fetch
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Input
-                  type="url"
-                  inputMode="url"
-                  placeholder="https://example.com/file.png"
-                  aria-label="File URL to import"
-                  className="h-9 flex-1 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && urlReady) {
-                      fetchRemoteFile(urlInput.trim());
-                    }
-                  }}
-                  disabled={urlFetching}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className={`h-9 shrink-0 rounded-lg px-3.5 text-xs font-semibold ${
-                    urlReady
-                      ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                  onClick={() => {
-                    if (urlReady) fetchRemoteFile(urlInput.trim());
-                  }}
-                  disabled={!urlReady || urlFetching}
-                >
-                  {urlFetching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <DownloadCloud className="mr-1 h-3.5 w-3.5" />
-                      Fetch
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Compact Add-More Toolbar when files are already queued */
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={fileAccept}
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-foreground">
+              Queue active ({files.length} file{files.length === 1 ? "" : "s"})
+            </span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              · Up to {MAX_NONVIDEO_BATCH} files total
+            </span>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-3.5 h-3.5 mr-1.5" />
+            Add more files
+          </Button>
+        </div>
+      )}
 
       {/* ─── File Queue ─── */}
       {batchProgress && batchProgress.total > 0 && (
@@ -1745,68 +1859,443 @@ export function ConverterView({
         </div>
       )}
 
-      {/* ─── PDF Tools ─── */}
-      {files.some((f) => f.ext === "pdf" && f.status === "pending") && (
-        <Card className="card-accent-rose">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center text-white">
-                <FileIcon className="w-4 h-4" />
+      {/* ─── Quick Presets (single tabbed section, above queue) ─── */}
+      {availablePresetCategories.length > 0 && (
+        <Card data-slot="quick-presets" className="border-border/60 shadow-xs">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                <Zap className="w-4 h-4" />
               </div>
-              <div>
-                <h3 className="font-semibold text-sm">PDF Tools</h3>
-                <p className="text-xs text-muted-foreground">
-                  Each page becomes a separate image in a ZIP. Converting to PNG, JPG, or WebP does the same for multi-page PDFs.
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Quick presets</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  One tap applies the right output format for the files in your queue
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {files
-                .filter((f) => f.ext === "pdf" && f.status === "pending")
-                .map((pdfFile) => (
-                  <div key={pdfFile.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
-                    <span className="text-xs font-medium truncate max-w-40">{pdfFile.name}</span>
-                    {["png", "jpg", "webp"].map((fmt) => (
-                      <Button
-                        key={fmt}
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-[10px] px-2 uppercase"
-                        onClick={async () => {
-                          showToast(`Splitting ${pdfFile.name} to ${fmt.toUpperCase()} images...`);
-                          try {
-                            const fd = new FormData();
-                            fd.append("file", pdfFile.file);
-                            fd.append("targetFormat", fmt);
-                            const resp = await fetch("/api/pdf-split", { method: "POST", body: fd });
-                            if (!resp.ok) {
-                              const err = await resp.json().catch(() => ({ error: "Split failed" }));
-                              throw new Error(err.error || "Split failed");
-                            }
-                            const pageCount = resp.headers.get("X-Page-Count") || "?";
-                            const blob = await resp.blob();
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = brandedDownloadFilename(
-                              `${pdfFile.name.replace(/\.pdf$/i, "")}-pages`,
-                              "zip",
-                            );
-                            a.click();
-                            URL.revokeObjectURL(url);
-                            showToast(`Split into ${pageCount} ${fmt.toUpperCase()} images!`);
-                          } catch (err) {
-                            const msg = err instanceof Error ? err.message : "Split failed";
-                            showToast(msg, "error");
-                          }
-                        }}
+
+            <Tabs
+              value={activePresetTab}
+              onValueChange={(v) => setPresetTabChoice(v)}
+            >
+              <TabsList className="h-auto w-full flex-wrap justify-start gap-1.5 rounded-xl p-1">
+                {availablePresetCategories.map((cat) => (
+                  <TabsTrigger
+                    key={cat.id}
+                    value={cat.id}
+                    className="flex-none h-7 gap-1.5 rounded-lg px-2.5 text-xs font-medium [&_svg]:size-3.5"
+                  >
+                    <cat.icon className="h-3.5 w-3.5" />
+                    {cat.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {hasPendingPdf && (
+                <TabsContent value="pdf" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <FileIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">PDF Tools</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Each page becomes a separate image in a ZIP. Converting to PNG, JPG, or WebP does the same for multi-page PDFs.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {files
+                      .filter((f) => f.ext === "pdf" && f.status === "pending")
+                      .map((pdfFile) => (
+                        <div key={pdfFile.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
+                          <span className="text-xs font-medium truncate max-w-40">{pdfFile.name}</span>
+                          {["png", "jpg", "webp"].map((fmt) => (
+                            <Button
+                              key={fmt}
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] px-2 uppercase"
+                              onClick={async () => {
+                                showToast(`Splitting ${pdfFile.name} to ${fmt.toUpperCase()} images...`);
+                                try {
+                                  const fd = new FormData();
+                                  fd.append("file", pdfFile.file);
+                                  fd.append("targetFormat", fmt);
+                                  const resp = await fetch("/api/pdf-split", { method: "POST", body: fd });
+                                  if (!resp.ok) {
+                                    const err = await resp.json().catch(() => ({ error: "Split failed" }));
+                                    throw new Error(err.error || "Split failed");
+                                  }
+                                  const pageCount = resp.headers.get("X-Page-Count") || "?";
+                                  const blob = await resp.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = brandedDownloadFilename(
+                                    `${pdfFile.name.replace(/\.pdf$/i, "")}-pages`,
+                                    "zip",
+                                  );
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                  showToast(`Split into ${pageCount} ${fmt.toUpperCase()} images!`);
+                                } catch (err) {
+                                  const msg = err instanceof Error ? err.message : "Split failed";
+                                  showToast(msg, "error");
+                                }
+                              }}
+                            >
+                              → {fmt}
+                            </Button>
+                          ))}
+                        </div>
+                      ))}
+                  </div>
+                </TabsContent>
+              )}
+
+              {hasPendingDocument && (
+                <TabsContent value="document" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Document presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Jump to PDF, TXT, or DOCX
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {documentQuickPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() =>
+                          applyCategoryQuickPreset(
+                            "document",
+                            documentQuickPresets,
+                            preset.id,
+                            "document",
+                          )
+                        }
+                        className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-sky-400/60 hover:bg-sky-50/80 dark:hover:bg-sky-950/25 text-left transition-colors"
                       >
-                        → {fmt}
-                      </Button>
+                        <div className="w-8 h-8 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold">{preset.label}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {preset.desc}
+                          </div>
+                        </div>
+                      </button>
                     ))}
                   </div>
-                ))}
-            </div>
+                </TabsContent>
+              )}
+
+              {hasPendingImage && (
+                <TabsContent value="image" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Image presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Square crop, WhatsApp size, or quality
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                    {imageQuickActions.map((preset) => {
+                      const Icon = preset.id === "square" ? Crop : MessageCircle;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() =>
+                            applyCategoryQuickPreset(
+                              "image",
+                              imageQuickActions,
+                              preset.id,
+                              "image",
+                            )
+                          }
+                          className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-violet-400/60 hover:bg-violet-50/80 dark:hover:bg-violet-950/25 text-left transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-violet-500/15 text-violet-700 dark:text-violet-300 flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold">{preset.label}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {preset.desc}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {qualityPresets.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        disabled={isQueueBusy}
+                        onClick={() => {
+                          if (isQueueBusy) return;
+                          applyPresetToAll(preset.quality);
+                        }}
+                        className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-left transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        <div
+                          className={`w-7 h-7 ${preset.color} rounded-md flex items-center justify-center text-white shrink-0`}
+                        >
+                          {preset.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold truncate">
+                            {preset.label}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {preset.quality}%
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </TabsContent>
+              )}
+
+              {hasPendingVideo && (
+                <TabsContent value="video" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <Film className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Video presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        One tap for compress, WhatsApp, or MP3 extract
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {videoQuickPresets.map((preset) => {
+                      const Icon =
+                        preset.id === "whatsapp"
+                          ? MessageCircle
+                          : preset.id === "extract-mp3"
+                            ? Music2
+                            : Film;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyVideoQuickPreset(preset.id)}
+                          className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-amber-400/60 hover:bg-amber-50/80 dark:hover:bg-amber-950/25 text-left transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold">{preset.label}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {preset.desc}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </TabsContent>
+              )}
+
+              {hasPendingAudio && (
+                <TabsContent value="audio" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <Music2 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Audio presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Voice, podcast, or music bitrate
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {audioQuickPresets.map((preset) => {
+                      const Icon =
+                        preset.id === "voice"
+                          ? Mic
+                          : preset.id === "podcast"
+                            ? Radio
+                            : Music2;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() =>
+                            applyCategoryQuickPreset(
+                              "audio",
+                              audioQuickPresets,
+                              preset.id,
+                              "audio file",
+                            )
+                          }
+                          className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-rose-400/60 hover:bg-rose-50/80 dark:hover:bg-rose-950/25 text-left transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-300 flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold">{preset.label}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {preset.desc}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </TabsContent>
+              )}
+
+              {hasPendingData && (
+                <TabsContent value="data" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <Database className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Data presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        CSV, JSON, or Excel in one tap
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {dataQuickPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() =>
+                          applyCategoryQuickPreset(
+                            "data",
+                            dataQuickPresets,
+                            preset.id,
+                            "data file",
+                          )
+                        }
+                        className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-emerald-400/60 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/25 text-left transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                          <Database className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold">{preset.label}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {preset.desc}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </TabsContent>
+              )}
+
+              {hasPendingArchive && (
+                <TabsContent value="archive" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <Archive className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Archive presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Unpack &amp; repack as ZIP or 7Z
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {archiveQuickPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() =>
+                          applyCategoryQuickPreset(
+                            "archive",
+                            archiveQuickPresets,
+                            preset.id,
+                            "archive",
+                          )
+                        }
+                        className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-orange-400/60 hover:bg-orange-50/80 dark:hover:bg-orange-950/25 text-left transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-700 dark:text-orange-300 flex items-center justify-center shrink-0">
+                          <Archive className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold">{preset.label}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {preset.desc}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </TabsContent>
+              )}
+
+              {hasPendingSubtitle && (
+                <TabsContent value="subtitle" className="mt-3">
+                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                      <Subtitles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm">Subtitle presets</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Toggle between SRT and VTT
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {subtitleQuickPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() =>
+                          applyCategoryQuickPreset(
+                            "subtitle",
+                            subtitleQuickPresets,
+                            preset.id,
+                            "subtitle",
+                          )
+                        }
+                        className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-indigo-400/60 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/25 text-left transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                          <Subtitles className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold">{preset.label}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {preset.desc}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </TabsContent>
+              )}
+            </Tabs>
           </CardContent>
         </Card>
       )}
@@ -2035,6 +2524,91 @@ export function ConverterView({
               </div>
             </div>
           </CardHeader>
+
+          {/* ── Prominent Batch Completion Banner with Quick ZIP Download ── */}
+          {canBulkExport && doneCount > 0 && (
+            <div className="mx-3 sm:mx-6 mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-xs">
+                  <Check className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    All {doneCount} file{doneCount === 1 ? "" : "s"} converted successfully!
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    Ready to save to your device.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  size="default"
+                  className="flex-1 sm:flex-none h-9 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm font-semibold text-xs px-4"
+                  onClick={async () => {
+                    const doneFiles = files.filter(
+                      (f) => f.status === "done" && f.result,
+                    );
+                    if (doneFiles.length === 0) return;
+                    showToast(`Creating ZIP with ${doneFiles.length} files...`);
+                    try {
+                      const { default: JSZip } = await import("jszip");
+                      const zip = new JSZip();
+                      const usedNames = new Set<string>();
+                      for (const f of doneFiles) {
+                        const baseName = f.name.replace(/\.[^/.]+$/, "");
+                        const arrayBuffer = await f.result!.arrayBuffer();
+                        const entryBase =
+                          f.outputPackage === "zip"
+                            ? `${baseName}-pages`
+                            : baseName;
+                        const entryExt =
+                          f.outputPackage === "zip"
+                            ? "zip"
+                            : f.targetFormat || "bin";
+                        const preferred = brandedDownloadFilename(
+                          entryBase,
+                          entryExt,
+                        );
+                        zip.file(
+                          uniqueZipEntryName(usedNames, preferred),
+                          arrayBuffer,
+                        );
+                      }
+                      const blob = await zip.generateAsync({ type: "blob" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = bulkZipDownloadFilename(
+                        doneFiles.map((f) => f.name),
+                      );
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      showToast(
+                        `ZIP downloaded with ${doneFiles.length} files!`,
+                      );
+                    } catch {
+                      showToast("Failed to create ZIP", "error");
+                    }
+                  }}
+                >
+                  <DownloadCloud className="w-4 h-4 mr-1.5" />
+                  Download All (ZIP)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="h-9 rounded-lg text-xs px-3"
+                  onClick={downloadAll}
+                  title="Download individually"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1" />
+                  <span className="hidden sm:inline">Files</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
           <CardContent className="pt-0 px-3 sm:px-6">
             <div className="max-h-[min(55vh,28rem)] sm:max-h-[50vh] overflow-y-auto pr-1 sm:pr-2 overflow-x-hidden">
               <div className="space-y-2">
@@ -2057,21 +2631,21 @@ export function ConverterView({
                         setFiles(newFiles);
                         setDragIndex(null);
                       }}
-                      className={`p-3 rounded-lg border flex flex-col cursor-grab active:cursor-grabbing ${
+                      className={`p-3 rounded-xl border flex flex-col cursor-grab active:cursor-grabbing transition-all shadow-xs ${
                         item.status === "done"
-                          ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50"
+                          ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-950/40"
                           : item.status === "error"
-                            ? "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/50"
+                            ? "border-red-300 dark:border-red-700 bg-red-50/70 dark:bg-red-950/40"
                             : item.status === "converting"
-                              ? "border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950/50"
-                              : "border-border"
+                              ? "border-sky-300 dark:border-sky-700 bg-sky-50/70 dark:bg-sky-950/40"
+                              : "border-border bg-card/60 hover:bg-card/90"
                       } ${dragIndex === itemIndex ? "opacity-50 ring-2 ring-emerald-500 ring-offset-1" : ""}`}
                     >
                       <Collapsible>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           {/* Grip Handle */}
-                          <div className="hidden sm:block text-muted-foreground/40 mr-1 cursor-grab shrink-0">
+                          <div className="hidden sm:block text-muted-foreground/40 mr-0.5 cursor-grab shrink-0">
                             <GripVertical className="w-4 h-4" />
                           </div>
 
@@ -2080,11 +2654,11 @@ export function ConverterView({
 
                           {/* File Info */}
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">
+                            <div className="text-xs sm:text-sm font-semibold truncate leading-snug">
                               {item.name}
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                              <span className="uppercase font-mono">
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-muted-foreground mt-0.5 flex-wrap">
+                              <span className="uppercase font-mono font-medium">
                                 .{item.ext}
                               </span>
                               {item.status === "done" && item.outputSize != null ? (
@@ -2275,10 +2849,11 @@ export function ConverterView({
                           </div>
                           </div>
 
-                          <div className="flex items-center justify-between gap-2 sm:justify-end sm:shrink-0 flex-wrap pl-0 sm:pl-0">
+                          {/* Action strip: full width row on mobile, inline on desktop */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t border-border/40 sm:border-t-0">
                           {/* Format Selector */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-mono text-muted-foreground uppercase hidden sm:inline">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[11px] font-mono text-muted-foreground uppercase hidden sm:inline">
                               {item.ext}
                             </span>
                             <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
@@ -2321,7 +2896,7 @@ export function ConverterView({
                               }}
                               disabled={item.status === "converting" || isConverting}
                             >
-                              <SelectTrigger className="w-[5.5rem] sm:w-24 h-8 text-xs">
+                              <SelectTrigger className="w-20 sm:w-24 h-8 text-xs font-semibold">
                                 <SelectValue placeholder="Format" />
                               </SelectTrigger>
                               <SelectContent>
@@ -2354,7 +2929,7 @@ export function ConverterView({
                                   variant="outline"
                                   className="text-[9px] whitespace-nowrap border-rose-300 text-rose-700 dark:text-rose-300"
                                 >
-                                  Multi-page → ZIP
+                                  ZIP
                                 </Badge>
                               )}
                             {item.status === "done" && item.outputPackage === "zip" && (
@@ -2362,7 +2937,7 @@ export function ConverterView({
                                 variant="secondary"
                                 className="text-[9px] whitespace-nowrap"
                               >
-                                {item.pageCount ?? "?"} pages ZIP
+                                {item.pageCount ?? "?"}p ZIP
                               </Badge>
                             )}
                           </div>
@@ -2629,368 +3204,6 @@ export function ConverterView({
                   );
                 })}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Video Quick Presets ─── */}
-      {hasPendingVideo && (
-        <Card className="border-amber-200/70 dark:border-amber-900/50">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <Film className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Video presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  One tap for compress, WhatsApp, or MP3 extract
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {videoQuickPresets.map((preset) => {
-                const Icon =
-                  preset.id === "whatsapp"
-                    ? MessageCircle
-                    : preset.id === "extract-mp3"
-                      ? Music2
-                      : Film;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => applyVideoQuickPreset(preset.id)}
-                    className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-amber-400/60 hover:bg-amber-50/80 dark:hover:bg-amber-950/25 text-left transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{preset.label}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {preset.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Audio Quick Presets ─── */}
-      {hasPendingAudio && (
-        <Card className="border-rose-200/70 dark:border-rose-900/50">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <Music2 className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Audio presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Voice, podcast, or music bitrate
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {audioQuickPresets.map((preset) => {
-                const Icon =
-                  preset.id === "voice"
-                    ? Mic
-                    : preset.id === "podcast"
-                      ? Radio
-                      : Music2;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() =>
-                      applyCategoryQuickPreset(
-                        "audio",
-                        audioQuickPresets,
-                        preset.id,
-                        "audio file",
-                      )
-                    }
-                    className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-rose-400/60 hover:bg-rose-50/80 dark:hover:bg-rose-950/25 text-left transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-300 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{preset.label}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {preset.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Document Quick Presets ─── */}
-      {hasPendingDocument && (
-        <Card className="border-sky-200/70 dark:border-sky-900/50">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <FileText className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Document presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Jump to PDF, TXT, or DOCX
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {documentQuickPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() =>
-                    applyCategoryQuickPreset(
-                      "document",
-                      documentQuickPresets,
-                      preset.id,
-                      "document",
-                    )
-                  }
-                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-sky-400/60 hover:bg-sky-50/80 dark:hover:bg-sky-950/25 text-left transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold">{preset.label}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {preset.desc}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Data Quick Presets ─── */}
-      {hasPendingData && (
-        <Card className="border-emerald-200/70 dark:border-emerald-900/50">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <Database className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Data presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  CSV, JSON, or Excel in one tap
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {dataQuickPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() =>
-                    applyCategoryQuickPreset(
-                      "data",
-                      dataQuickPresets,
-                      preset.id,
-                      "data file",
-                    )
-                  }
-                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-emerald-400/60 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/25 text-left transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                    <Database className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold">{preset.label}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {preset.desc}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Archive Quick Presets ─── */}
-      {hasPendingArchive && (
-        <Card className="border-orange-200/70 dark:border-orange-900/50">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <Archive className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Archive presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Unpack &amp; repack as ZIP or 7Z
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {archiveQuickPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() =>
-                    applyCategoryQuickPreset(
-                      "archive",
-                      archiveQuickPresets,
-                      preset.id,
-                      "archive",
-                    )
-                  }
-                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-orange-400/60 hover:bg-orange-50/80 dark:hover:bg-orange-950/25 text-left transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-700 dark:text-orange-300 flex items-center justify-center shrink-0">
-                    <Archive className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold">{preset.label}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {preset.desc}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Subtitle Quick Presets ─── */}
-      {hasPendingSubtitle && (
-        <Card className="border-indigo-200/70 dark:border-indigo-900/50">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <Subtitles className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Subtitle presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Toggle between SRT and VTT
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {subtitleQuickPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() =>
-                    applyCategoryQuickPreset(
-                      "subtitle",
-                      subtitleQuickPresets,
-                      preset.id,
-                      "subtitle",
-                    )
-                  }
-                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-indigo-400/60 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/25 text-left transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
-                    <Subtitles className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold">{preset.label}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {preset.desc}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Conversion Quality Presets (below queue) ─── */}
-      {hasPendingImage && (
-        <Card className="card-accent-violet">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center text-white">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Image presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Square crop, WhatsApp size, or quality
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-              {imageQuickActions.map((preset) => {
-                const Icon = preset.id === "square" ? Crop : MessageCircle;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() =>
-                      applyCategoryQuickPreset(
-                        "image",
-                        imageQuickActions,
-                        preset.id,
-                        "image",
-                      )
-                    }
-                    className="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-violet-400/60 hover:bg-violet-50/80 dark:hover:bg-violet-950/25 text-left transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 text-violet-700 dark:text-violet-300 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{preset.label}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {preset.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {qualityPresets.map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  disabled={isQueueBusy}
-                  onClick={() => {
-                    if (isQueueBusy) return;
-                    applyPresetToAll(preset.quality);
-                  }}
-                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-left transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                >
-                  <div
-                    className={`w-7 h-7 ${preset.color} rounded-md flex items-center justify-center text-white shrink-0`}
-                  >
-                    {preset.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold truncate">
-                      {preset.label}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {preset.quality}%
-                    </div>
-                  </div>
-                </button>
-              ))}
             </div>
           </CardContent>
         </Card>

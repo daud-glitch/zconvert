@@ -353,21 +353,20 @@ export default function HomeClient({
             {/* Logo — always resets to clean home (clears ?from=&to= deep links) */}
             <Link
               href="/"
-              className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink"
+              className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group shrink-0"
               onClick={(e) => {
                 e.preventDefault();
                 goHomeClean();
               }}
             >
-              <BrandMark className="h-8 w-8 sm:h-10 sm:w-10" priority />
+              <BrandMark className="h-8 w-8 sm:h-9 sm:w-9" priority />
               <div className="min-w-0">
-                <BrandTitle className="text-base sm:text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate" />
-                <BrandTaglines className="hidden sm:block -mt-0.5" />
+                <BrandTitle className="text-base sm:text-lg font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate" />
               </div>
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden xl:flex items-center gap-1 shrink-0">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isDonate = item.id === "donate";
@@ -379,13 +378,13 @@ export default function HomeClient({
                       size="sm"
                       className={
                         isDonate
-                          ? "gap-2 h-9 px-4 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-sm shadow-rose-500/25"
-                          : "gap-2 h-9 px-4 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                          ? "gap-1.5 h-8.5 px-3 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-xs text-xs font-semibold"
+                          : "gap-1.5 h-8.5 px-2.5 xl:px-3 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-medium"
                       }
                       asChild
                     >
                       <Link href={item.href}>
-                        <Icon className="w-4 h-4" />
+                        <Icon className="w-3.5 h-3.5" />
                         {item.label}
                       </Link>
                     </Button>
@@ -397,14 +396,14 @@ export default function HomeClient({
                     key={item.id}
                     variant={isActive ? "secondary" : "ghost"}
                     size="sm"
-                    className={`gap-2 h-9 px-4 rounded-full ${
+                    className={`gap-1.5 h-8.5 px-2.5 xl:px-3 rounded-full text-xs font-medium ${
                       isActive
-                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shadow-sm ring-1 ring-emerald-500/20"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shadow-xs ring-1 ring-emerald-500/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     }`}
                     onClick={() => toggleView(item.id as ViewType)}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-3.5 h-3.5" />
                     {item.label}
                   </Button>
                 );
@@ -503,11 +502,11 @@ export default function HomeClient({
               <Button
                 variant="ghost"
                 size="sm"
-                className="hidden md:inline-flex gap-2 h-9 px-3 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="hidden xl:inline-flex gap-1.5 h-8.5 px-2.5 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
                 asChild
               >
                 <Link href={changelogNavItem.href!}>
-                  <ScrollText className="w-4 h-4" />
+                  <ScrollText className="w-3.5 h-3.5" />
                   {changelogNavItem.label}
                 </Link>
               </Button>
@@ -516,7 +515,7 @@ export default function HomeClient({
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden rounded-full w-8 h-8 sm:w-9 sm:h-9"
+                className="xl:hidden rounded-full w-8 h-8 sm:w-9 sm:h-9"
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
               >
                 {mobileNavOpen ? (
@@ -531,7 +530,7 @@ export default function HomeClient({
 
         {/* Mobile Navigation */}
         {mobileNavOpen && (
-          <div className="md:hidden border-t border-border bg-background animate-in slide-in-from-top-4">
+          <div className="xl:hidden border-t border-border bg-background animate-in slide-in-from-top-4">
             <div className="px-4 pt-2 pb-6 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
