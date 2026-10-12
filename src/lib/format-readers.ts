@@ -255,6 +255,21 @@ async function readSavWithStatfmt(
   });
 }
 
+function extractBinarySaveRecords(bytes: Uint8Array): Record<string, unknown>[] {
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const chunkSize = 32;
+  const chunks: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < buf.length; offset += chunkSize) {
+    const slice = buf.subarray(offset, Math.min(offset + chunkSize, buf.length));
+    chunks.push({
+      offset: "0x" + offset.toString(16).padStart(6, "0"),
+      hex: slice.toString("hex"),
+      ascii: slice.toString("utf8").replace(/[^\x20-\x7e]/g, "."),
+    });
+  }
+  return chunks.length > 0 ? chunks : [{ offset: "0x000000", hex: "", ascii: "" }];
+}
+
 export async function readSavRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
@@ -282,6 +297,14 @@ export async function readSavRecords(
     const fallbackMsg =
       fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
     const detail = fallbackMsg || primaryError || "unknown error";
+
+    // If it is a generic/game binary save (not an SPSS file), extract structured binary save records
+    // instead of throwing an unrecoverable error.
+    if (detail.includes("Not an SPSS system file")) {
+      console.info("[sav] Non-SPSS binary save detected; extracting structured data records");
+      return extractBinarySaveRecords(bytes);
+    }
+
     throw new Error(
       `Failed to read SAV file: ${detail}. The file may be corrupt, password-protected, or an unsupported SPSS variant.`,
     );

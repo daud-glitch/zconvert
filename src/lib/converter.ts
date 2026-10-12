@@ -1363,6 +1363,72 @@ function toJsonl(data: Record<string, unknown>[]): string {
   return data.map((d) => JSON.stringify(d)).join("\n");
 }
 
+export function parseResilientJson(raw: string): Record<string, unknown>[] {
+  const text = raw.trim();
+  if (!text) return [];
+
+  // 1. Direct standard parse
+  try {
+    const val = JSON.parse(text);
+    return Array.isArray(val) ? (val as Record<string, unknown>[]) : [val as Record<string, unknown>];
+  } catch (_) {
+    // Continue to recovery strategies
+  }
+
+  // 2. Extract embedded JSON array [ ... ]
+  const firstArr = text.indexOf("[");
+  const lastArr = text.lastIndexOf("]");
+  if (firstArr !== -1 && lastArr > firstArr) {
+    try {
+      const val = JSON.parse(text.slice(firstArr, lastArr + 1));
+      if (Array.isArray(val)) return val as Record<string, unknown>[];
+    } catch (_) {}
+  }
+
+  // 3. Extract embedded JSON object { ... }
+  const firstObj = text.indexOf("{");
+  const lastObj = text.lastIndexOf("}");
+  if (firstObj !== -1 && lastObj > firstObj) {
+    try {
+      const val = JSON.parse(text.slice(firstObj, lastObj + 1));
+      return Array.isArray(val) ? (val as Record<string, unknown>[]) : [val as Record<string, unknown>];
+    } catch (_) {}
+  }
+
+  // 4. Line-by-line JSON (JSONL / NDJSON)
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const jsonlRecords: Record<string, unknown>[] = [];
+  for (const line of lines) {
+    try {
+      const parsedLine = JSON.parse(line);
+      if (typeof parsedLine === "object" && parsedLine !== null) {
+        jsonlRecords.push(parsedLine as Record<string, unknown>);
+      }
+    } catch (_) {}
+  }
+  if (jsonlRecords.length > 0) {
+    return jsonlRecords;
+  }
+
+  // 5. Relaxed syntax repair (leading dot numbers, unquoted keys, single quotes, trailing commas)
+  try {
+    const sanitized = text
+      .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "") // strip comments
+      .replace(/:\s*\.([0-9]+)/g, ": 0.$1") // replace .4 with 0.4
+      .replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":') // quote unquoted keys
+      .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"') // single to double quotes
+      .replace(/,\s*([}\]])/g, "$1"); // trailing commas
+    const parsed = JSON.parse(sanitized);
+    return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [parsed as Record<string, unknown>];
+  } catch (_) {}
+
+  // 6. Graceful text fallback for non-JSON content uploaded with .json extension
+  if (lines.length > 1) {
+    return lines.map((line, idx) => ({ row: idx + 1, content: line }));
+  }
+  return [{ content: text }];
+}
+
 function parseYamlRecords(text: string): Record<string, unknown>[] {
   const parsed: unknown = jsYaml.load(text);
   if (Array.isArray(parsed)) {
@@ -1797,8 +1863,7 @@ async function convertData(
   let records: Record<string, unknown>[] = [];
 
   if (src === "json") {
-    const parsed = JSON.parse(text);
-    records = Array.isArray(parsed) ? parsed : [parsed];
+    records = parseResilientJson(text);
   } else if (src === "geojson") {
     records = parseGeoJson(text);
   } else if (src === "jsonl" || src === "ndjson") {
@@ -2432,8 +2497,7 @@ async function convertUtilityFormat(
   } else if (src === "m3u" || src === "m3u8") {
     records = parseM3u(text);
   } else if (src === "json") {
-    const parsed = JSON.parse(text);
-    records = Array.isArray(parsed) ? parsed : [parsed];
+    records = parseResilientJson(text);
   } else if (src === "csv") {
     records = parseCsv(text, ",");
   } else if (src === "tsv") {

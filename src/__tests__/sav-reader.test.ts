@@ -75,4 +75,35 @@ describe("SAV reader", () => {
     expect(message).toMatch(/CSV/i);
     expect(message).not.toMatch(/tech team notified/i);
   });
+
+  it("handles non-SPSS binary save (header 83050000) gracefully to XML and JSON", async () => {
+    const buf = Buffer.from([
+      0x83, 0x05, 0x00, 0x00, 0x54, 0x45, 0x53, 0x54, 0x5f, 0x53, 0x41, 0x56,
+      0x45,
+    ]);
+    const xml = await convertFile(buf, "sav", "xml");
+    const xmlStr = xml.toString("utf-8");
+    expect(xmlStr).toContain("<?xml");
+    expect(xmlStr).toContain("0x000000");
+
+    const json = await convertFile(buf, "sav", "json");
+    const parsed = JSON.parse(json.toString("utf-8")) as unknown[];
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+  });
+
+  it("handles malformed JSON with leading dot/garbage (.   4 f   ) gracefully to CSV", async () => {
+    const dirtyJson = Buffer.from(
+      '.   4 f   [{"id": 101, "name": "Project Beta"}]',
+      "utf8",
+    );
+    const csv = await convertFile(dirtyJson, "json", "csv");
+    const csvStr = csv.toString("utf8");
+    expect(csvStr).toContain("101");
+    expect(csvStr).toContain("Project Beta");
+
+    const pureJunk = Buffer.from(".   4 f   ", "utf8");
+    const csvJunk = await convertFile(pureJunk, "json", "csv");
+    expect(csvJunk.toString("utf8").length).toBeGreaterThan(0);
+  });
 });
