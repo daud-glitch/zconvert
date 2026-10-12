@@ -17,11 +17,13 @@ export function BookmarksView() {
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const userId = currentUser?.id;
 
   useEffect(() => {
     let cancelled = false;
     const fetchBookmarks = async () => {
-      if (!currentUser) {
+      if (!userId) {
         if (!cancelled) {
           setIsLoading(false);
           setBookmarks([]);
@@ -56,9 +58,10 @@ export function BookmarksView() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id]);
+  }, [userId]);
 
   const handleDelete = async (id: string) => {
+    setDeletingId(id);
     try {
       const res = await fetch("/api/bookmarks", {
         method: "DELETE",
@@ -70,6 +73,8 @@ export function BookmarksView() {
       }
     } catch (err) {
       console.error("Failed to delete bookmark:", err);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -89,9 +94,10 @@ export function BookmarksView() {
           </h1>
           <p className="text-muted-foreground">Save your favorite conversion pairs for quick access.</p>
         </div>
-        <div className="relative w-full sm:w-64">
+        <div className={`relative w-full sm:w-64 ${!currentUser ? "hidden" : ""}`}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
+            aria-label="Search bookmarks"
             placeholder="Search bookmarks..." 
             className="pl-10"
             value={searchTerm}
@@ -130,14 +136,23 @@ export function BookmarksView() {
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
             <Bookmark className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold">No bookmarks yet</h3>
-          <p className="text-muted-foreground">Save conversion pairs from the converter to see them here.</p>
-          <Button 
+          <h3 className="text-lg font-semibold">
+            {bookmarks.length === 0 ? "No bookmarks yet" : "No matching bookmarks"}
+          </h3>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            {bookmarks.length === 0
+              ? "Save conversion pairs from the converter to see them here."
+              : "Try another format or clear the search to see your saved pairs."}
+          </p>
+          <Button
             variant="outline" 
             className="mt-4"
-            onClick={() => setCurrentView("converter")}
+            onClick={() => {
+              if (bookmarks.length === 0) setCurrentView("converter");
+              else setSearchTerm("");
+            }}
           >
-            Go to Converter
+            {bookmarks.length === 0 ? "Go to Converter" : "Clear search"}
           </Button>
         </div>
       ) : (
@@ -149,10 +164,12 @@ export function BookmarksView() {
                   <div className={`p-2.5 rounded-xl ${categoryLightBg[bookmark.category] || 'bg-muted'} ${categoryTextColors[bookmark.category] || 'text-foreground'}`}>
                     {getCategoryIcon(bookmark.category, "w-6 h-6")}
                   </div>
-                  <Button 
+                  <Button
                     size="icon" 
                     variant="ghost" 
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    aria-label={`Delete ${bookmark.name} bookmark`}
+                    disabled={deletingId === bookmark.id}
                     onClick={() => handleDelete(bookmark.id)}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -169,6 +186,7 @@ export function BookmarksView() {
                 <Button 
                   className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
                   onClick={() => setCurrentView("converter")}
+                  aria-label={`Use ${bookmark.name} conversion pair`}
                 >
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Use this pair

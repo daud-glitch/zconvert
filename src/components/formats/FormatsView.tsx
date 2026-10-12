@@ -70,6 +70,7 @@ export function FormatsView() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
+          aria-label="Search supported formats"
           placeholder="Search formats..."
           className="pl-10"
           value={searchQuery}
@@ -83,6 +84,7 @@ export function FormatsView() {
           variant={activeCategory === "all" ? "default" : "outline"}
           size="sm"
           onClick={() => setActiveCategory("all")}
+          aria-pressed={activeCategory === "all"}
         >
           All ({data.totalFormats})
         </Button>
@@ -94,6 +96,7 @@ export function FormatsView() {
               variant={activeCategory === key ? "default" : "outline"}
               size="sm"
               onClick={() => setActiveCategory(key)}
+              aria-pressed={activeCategory === key}
               className={
                 activeCategory === key
                   ? `${categoryColors[key]} text-white hover:${categoryColors[key]} border-0`
@@ -173,6 +176,7 @@ export function FormatsView() {
                             <a
                               key={t}
                               href={`/conversions/${t}`}
+                              aria-label={`View ${t.toUpperCase()} conversion options`}
                               className={`text-xs px-1.5 py-0.5 rounded font-mono uppercase cursor-pointer transition-opacity hover:opacity-80 ${
                                 categoryColors[tCat]
                                   ? `${categoryColors[tCat]} text-white`

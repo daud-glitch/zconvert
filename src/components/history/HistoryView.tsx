@@ -42,9 +42,10 @@ export function HistoryView() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const accountKey = currentUser?.id;
 
   const loadHistory = useCallback(async () => {
-    if (!currentUser?.id) {
+    if (!accountKey) {
       setConversions([]);
       setStats(null);
       setIsLoading(false);
@@ -52,7 +53,6 @@ export function HistoryView() {
     }
     setIsLoading(true);
     try {
-      const accountKey = currentUser.id;
       const [records, localStats] = await Promise.all([
         getLocalHistory(200, accountKey),
         getLocalStats(accountKey),
@@ -66,7 +66,7 @@ export function HistoryView() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.id]);
+  }, [accountKey]);
 
   useEffect(() => {
     void loadHistory();
@@ -178,6 +178,7 @@ export function HistoryView() {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
+              aria-label="Search conversion history"
               placeholder="Search conversions..."
               className="pl-10"
               value={searchTerm}
@@ -231,10 +232,19 @@ export function HistoryView() {
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
             <History className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold">No conversions yet</h3>
-          <p className="text-muted-foreground">
-            Convert a file while signed in and it will appear here on this device.
+          <h3 className="text-lg font-semibold">
+            {conversions.length === 0 ? "No conversions yet" : "No matching conversions"}
+          </h3>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            {conversions.length === 0
+              ? "Convert a file while signed in and it will appear here on this device."
+              : "Try a different file name or format, or clear the search to see your full history."}
           </p>
+          {conversions.length > 0 ? (
+            <Button variant="outline" size="sm" onClick={() => setSearchTerm("")}>
+              Clear search
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -310,6 +320,7 @@ export function HistoryView() {
                           size="sm"
                           variant="outline"
                           onClick={() => void handleDownload(record)}
+                          aria-label={`Download ${record.fileName}`}
                           title="Download from browser storage"
                         >
                           <Download className="w-4 h-4" />
@@ -321,6 +332,7 @@ export function HistoryView() {
                           variant="ghost"
                           disabled={deletingId === record.id}
                           onClick={() => void handleRemoveFileOnly(record.id)}
+                          aria-label={`Remove stored file for ${record.fileName}`}
                           title="Free space — keep history"
                         >
                           <FileX className="w-4 h-4" />
@@ -332,6 +344,7 @@ export function HistoryView() {
                         className="text-red-600 hover:text-red-700"
                         disabled={deletingId === record.id}
                         onClick={() => void handleDeleteRecord(record.id)}
+                        aria-label={`Delete ${record.fileName} from history`}
                         title="Delete history + file"
                       >
                         <Trash2 className="w-4 h-4" />
