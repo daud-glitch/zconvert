@@ -58,7 +58,7 @@ import {
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterHero } from "@/components/converter/ConverterHero";
 import { PopularPairsSection } from "@/components/converter/PopularPairsSection";
-import { useConverterToasts } from "@/components/converter/useConverterToasts";
+import { toast } from "@/hooks/use-toast";
 import { useResultPreview } from "@/components/converter/useResultPreview";
 import {
   AUDIO_CONVERSION_ENABLED,
@@ -74,7 +74,14 @@ import {
   targetsForExt,
   uniqueZipEntryName,
 } from "@/lib/converter-helpers";
-import { saveLocalConversion, getLocalHistory } from "@/lib/storage";
+import {
+  saveLocalConversion,
+  getLocalHistory,
+  saveConversionQueue,
+  getConversionQueue,
+  QUEUE_ACCOUNT_GUEST,
+  type StoredQueueItem,
+} from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
 import {
   uploadAndConvert,
@@ -131,7 +138,13 @@ export function ConverterView({
   const [targetFormatsMap, setTargetFormatsMap] = useState<
     Record<string, string[]>
   >({});
-  const { showToast } = useConverterToasts();
+  // Messages go to the app's mounted <Toaster /> (layout.tsx) so they are visible.
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    toast({
+      description: message,
+      variant: type === "error" ? "destructive" : "default",
+    });
+  };
   const [recentConversions, setRecentConversions] = useState<
     ConversionRecord[]
   >([]);
@@ -227,6 +240,29 @@ export function ConverterView({
     abortControllersRef.current.clear();
     uploadJobsRef.current.clear();
   };
+
+  /**
+   * The one queue reset action. Everything that means "drop the whole queue" goes
+   * through here — Clear-all button, Logo/Converter nav, and account switch — so
+   * no path can forget to stop in-flight work or leave stale batch/preview state.
+   * Chosen format pair and recent-conversions are deliberately NOT reset here:
+   * a preset survives clearing files, and recent rows are account-scoped.
+   */
+  const resetQueue = useCallback(() => {
+    cancelAllFileWork();
+    // Bump so any in-flight Convert All loop sees a dead run id and stops.
+    batchRunRef.current += 1;
+    batchIdsRef.current = null;
+    autoUploadChainRef.current = Promise.resolve();
+    filesRef.current = [];
+    setFiles([]);
+    setBatchProgress(null);
+    closePreview();
+  }, [closePreview]);
+
+  /** Rows a partial reset keeps: anything not finished or failed. */
+  const isActiveItem = (f: FileItem) =>
+    f.status === "pending" || f.status === "converting";
 
   /** Recompute batch bar from files still in the queue. */
   const syncBatchProgress = () => {
@@ -363,13 +399,7 @@ export function ConverterView({
     let cancelled = false;
     const accountKey = currentUser?.id ?? null;
 
-    setFiles([]);
-    cancelAllFileWork();
-    batchRunRef.current += 1;
-    batchIdsRef.current = null;
-    autoUploadChainRef.current = Promise.resolve();
-    setBatchProgress(null);
-    closePreview();
+    resetQueue();
     setRecentConversions([]);
 
     // Recent list only for signed-in accounts (bookmarks live in Bookmarks section only).
@@ -398,7 +428,7 @@ export function ConverterView({
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, closePreview]);
+  }, [currentUser?.id, resetQueue]);
 
   const fetchRemoteFile = async (url: string) => {
     if (urlFetching) return;
@@ -552,15 +582,35 @@ export function ConverterView({
       });
   };
 
+  /**
+   * The one partial-removal path. Every place that drops a subset of the queue —
+   * remove-one, Clear Done, and the finished-row sweep when new files land — goes
+   * through here, so none of them can forget to stop in-flight work or leave the
+   * refs and batch bar pointing at rows that are gone.
+   */
+  const dropQueueItems = (keep: (f: FileItem) => boolean) => {
+    const dropped = filesRef.current.filter((f) => !keep(f));
+    if (dropped.length === 0) return;
+    for (const f of dropped) cancelFileWork(f.id);
+    // Refs first: in-flight convert/upload loops must skip these ids immediately.
+    filesRef.current = filesRef.current.filter(keep);
+    if (batchIdsRef.current) {
+      const gone = new Set(dropped.map((f) => f.id));
+      batchIdsRef.current = batchIdsRef.current.filter((id) => !gone.has(id));
+    }
+    setFiles((prev) => prev.filter(keep));
+    syncBatchProgress();
+  };
+
   const addFiles = (newFiles: FileList | File[]) => {
     const fileArray = Array.from(newFiles);
     let added: FileItem[] = [];
 
+    // Finished/failed rows leave when a new upload starts; in-flight work stays.
+    dropQueueItems(isActiveItem);
+
     setFiles((prev) => {
-      // Drop finished/failed items when a new upload starts; keep in-flight work.
-      const activePrev = prev.filter(
-        (f) => f.status === "pending" || f.status === "converting",
-      );
+      const activePrev = prev;
       const activeVideos = activePrev.filter((f) => isVideoItem(f.ext)).length;
       const nonVideoSpace = Math.max(
         0,
@@ -848,24 +898,157 @@ export function ConverterView({
   };
 
   const removeFile = (id: string) => {
-    cancelFileWork(id);
-    // Keep ref in sync immediately so convertAll / upload check skip this id
-    filesRef.current = filesRef.current.filter((f) => f.id !== id);
-    if (batchIdsRef.current) {
-      batchIdsRef.current = batchIdsRef.current.filter((x) => x !== id);
-    }
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-    syncBatchProgress();
+    dropQueueItems((f) => f.id !== id);
   };
 
-  const clearAll = () => {
-    cancelAllFileWork();
-    batchRunRef.current += 1;
-    batchIdsRef.current = null;
-    filesRef.current = [];
-    setFiles([]);
-    setBatchProgress(null);
-  };
+  // ─── Queue survival across reloads ────────────────────────────────────────
+  // Persist the queue (input blobs + convert settings + staged uploadId) so a
+  // reload mid-batch does not lose it. `embedded` pair pages share this component
+  // but must not clobber the main queue.
+  const queueRestoredRef = useRef(false);
+  const queueRestorePendingRef = useRef(false);
+  const queueSignatureRef = useRef<string | null>(null);
+  // Queues are device-local but account-scoped: signed-in users only ever see
+  // their own rows, a signed-out visitor sees the guest rows.
+  const queueAccountKey = currentUser?.id ?? QUEUE_ACCOUNT_GUEST;
+  // Render-scoped helpers read through a ref so the mount effect below stays
+  // dependency-free without an exhaustive-deps suppression.
+  const queueHelpersRef = useRef({ enqueueAutoUpload, showToast });
+  useEffect(() => {
+    queueHelpersRef.current = { enqueueAutoUpload, showToast };
+  });
+
+  useEffect(() => {
+    if (embedded) {
+      queueRestoredRef.current = true;
+      return;
+    }
+    let cancelled = false;
+    queueRestorePendingRef.current = true;
+    void getConversionQueue(queueAccountKey).then((rows) => {
+      if (cancelled) return;
+      queueRestorePendingRef.current = false;
+      queueRestoredRef.current = true;
+      if (rows.length === 0 || filesRef.current.length > 0) return;
+
+      const restored: FileItem[] = rows.map((row) => {
+        const blob = row.file;
+        const file =
+          blob instanceof File
+            ? blob
+            : new File([blob], row.name, { type: blob.type });
+        // A conversion running when the page unloaded lost its response — re-arm it.
+        const status = row.status === "converting" ? "pending" : row.status;
+        return {
+          id: row.id,
+          file,
+          name: row.name,
+          size: file.size,
+          ext: row.ext,
+          status,
+          targetFormat: row.targetFormat,
+          quality: row.quality ?? 85,
+          resizeWidth: row.resizeWidth ?? null,
+          resizeHeight: row.resizeHeight ?? null,
+          outputSize: row.outputSize,
+          result: row.result,
+          error: status === "error" ? row.error : undefined,
+          // Staged upload survives; otherwise large files re-stage, small ones ride along.
+          uploadId: row.uploadId,
+          uploadReady: Boolean(row.uploadId) || file.size <= INLINE_UPLOAD_MAX_BYTES,
+          uploading: false,
+          uploadError: undefined,
+          progress: undefined,
+          progressPhase: undefined,
+          queueMessage: undefined,
+        };
+      });
+
+      setFiles(restored);
+      const { enqueueAutoUpload: enqueue, showToast: toast } =
+        queueHelpersRef.current;
+      const toStage = restored.filter((f) => !f.uploadReady);
+      if (toStage.length > 0) setTimeout(() => enqueue(toStage), 0);
+      toast(
+        `Restored ${restored.length} file${restored.length > 1 ? "s" : ""} from your last session.`,
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Re-runs on account change so the new account restores only its own queue.
+  }, [embedded, queueAccountKey]);
+
+  useEffect(() => {
+    // Never write an empty queue while a restore is in flight: that transient
+    // gap would wipe the rows the restore is about to load.
+    if (embedded || !queueRestoredRef.current || queueRestorePendingRef.current) {
+      return;
+    }
+    // Only durable fields — progress ticks during upload/convert must not re-write blobs.
+    const signature = files
+      .map((f) =>
+        [
+          f.id,
+          f.name,
+          f.size,
+          f.targetFormat,
+          f.quality,
+          f.resizeWidth,
+          f.resizeHeight,
+          f.status,
+          f.uploadId ?? "",
+          f.result?.size ?? 0,
+          f.error ?? "",
+        ].join(":"),
+      )
+      .join("|");
+    if (signature === queueSignatureRef.current) return;
+    queueSignatureRef.current = signature;
+
+    const id = window.setTimeout(() => {
+      void saveConversionQueue(
+        files.map(
+          (f, index): StoredQueueItem => ({
+            id: f.id,
+            accountKey: queueAccountKey,
+            name: f.name,
+            ext: f.ext,
+            size: f.size,
+            targetFormat: f.targetFormat,
+            quality: f.quality,
+            resizeWidth: f.resizeWidth,
+            resizeHeight: f.resizeHeight,
+            status: f.status,
+            error: f.error,
+            outputSize: f.outputSize,
+            uploadId: f.uploadId,
+            file: f.file,
+            ...(f.result ? { result: f.result } : {}),
+            order: index,
+          }),
+        ),
+      );
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [files, embedded, queueAccountKey]);
+
+  // Logo / Converter nav fires this from HomeClient. Empty queue brings the hero back.
+  // Latest handler kept in a ref so the listener subscribes once, not per render.
+  const resetQueueRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    resetQueueRef.current = () => {
+      resetQueue();
+      // "Start over" is the only reset that also drops the chosen format pair.
+      applyPreferredPair(null);
+    };
+  });
+  useEffect(() => {
+    const handleResetQueue = () => resetQueueRef.current();
+    window.addEventListener("convertek:reset-queue", handleResetQueue);
+    return () =>
+      window.removeEventListener("convertek:reset-queue", handleResetQueue);
+  }, []);
 
   const convertFile = async (raw: FileItem): Promise<boolean> => {
     // Latest queue row only — never continue work for deleted items
@@ -1487,6 +1670,7 @@ export function ConverterView({
           }
           onUploadClick={() => fileInputRef.current?.click()}
           onDropFiles={(files) => addFiles(files)}
+          onSelectPair={handlePopularPairSelect}
         />
       )}
 
@@ -2497,14 +2681,7 @@ export function ConverterView({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    setFiles((prev) =>
-                      prev.filter(
-                        (f) =>
-                          f.status === "pending" || f.status === "converting",
-                      ),
-                    )
-                  }
+                  onClick={() => dropQueueItems(isActiveItem)}
                   disabled={doneCount + errorCount === 0 || isQueueBusy}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" />
@@ -2514,7 +2691,7 @@ export function ConverterView({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={clearAll}
+                  onClick={resetQueue}
                   disabled={files.length === 0}
                   aria-label="Clear all files"
                   title="Clear queue and cancel active uploads/conversions"

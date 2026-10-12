@@ -176,6 +176,9 @@ function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
   React.useEffect(() => {
+    // Replay anything dispatched before we subscribed (toasts fired during mount,
+    // e.g. the converter restoring a queue) — otherwise those are lost.
+    setState(memoryState)
     listeners.push(setState)
     return () => {
       const index = listeners.indexOf(setState)
@@ -183,7 +186,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,

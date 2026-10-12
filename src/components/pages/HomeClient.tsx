@@ -280,6 +280,11 @@ export default function HomeClient({
   const goHomeClean = () => {
     setCurrentView("converter");
     setMobileNavOpen(false);
+    // Logo / Converter nav = "start over": clear the queue and bring the hero back.
+    // Needed because router.push("/") is a no-op when we're already on `/`.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("convertek:reset-queue"));
+    }
     // Always land on clean `/` so ?from=&to= (and other tool query) don't stick —
     // otherwise logo / Converter look "broken" and users mash Back.
     const params =
