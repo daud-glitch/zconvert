@@ -1,13 +1,11 @@
 "use client";
 
 import { openDB, IDBPDatabase } from "idb";
-import { type FileItem } from "@/lib/app-types";
 
 const DB_NAME = "zconvert-storage";
 const FILES_STORE = "files";
 const HISTORY_STORE = "history";
-const QUEUE_STORE = "queue";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const MAX_HISTORY_ENTRIES = 200;
 
 /** Local conversion history + optional result blob (browser-only). */
@@ -40,44 +38,6 @@ interface StoredFileV1 {
   createdAt: number;
 }
 
-/** Account key used for rows queued while signed out. */
-export const QUEUE_ACCOUNT_GUEST = "guest";
-
-/**
- * One persisted conversion-queue row. The input file itself is kept on-device so a
- * reload restores the queue; `uploadId` lets Convert reuse the server staging
- * session instead of re-uploading.
- *
- * ponytail: a conversion that was mid-flight at reload is unknowable — its HTTP
- * response died with the page. Those rows come back as `pending` and re-convert
- * on the next explicit click. Add server job polling if resuming encodes matters.
- */
-export interface StoredQueueItem {
-  id: string;
-  /**
-   * Owner of this row: the signed-in account id, or `guest` when signed out.
-   * Rows are device-local, so without this a second account on a shared device
-   * would restore the first account's queue (and vice versa).
-   */
-  accountKey: string;
-  name: string;
-  ext: string;
-  size: number;
-  targetFormat: string;
-  quality: number;
-  resizeWidth: number | null;
-  resizeHeight: number | null;
-  status: FileItem["status"];
-  error?: string;
-  outputSize?: number;
-  uploadId?: string;
-  file: Blob;
-  /** Converted output, so a finished row keeps its download after a reload. */
-  result?: Blob;
-  /** Queue position — restored in this order. */
-  order: number;
-}
-
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 /**
@@ -90,6 +50,12 @@ export function matchesAccountKey(
 ): boolean {
   if (!accountKey) return false;
   return entryKey === accountKey;
+}
+
+/** Open the DB once so schema migrations (e.g. dropping the queue store) run. */
+export async function primeStorage(): Promise<void> {
+  const db = await getDB();
+  await db?.close();
 }
 
 function getDB() {
@@ -105,11 +71,9 @@ function getDB() {
           const history = db.createObjectStore(HISTORY_STORE, { keyPath: "id" });
           history.createIndex("createdAt", "createdAt");
         }
-        if (!db.objectStoreNames.contains(QUEUE_STORE)) {
-          const queue = db.createObjectStore(QUEUE_STORE, { keyPath: "id" });
-          queue.createIndex("order", "order");
-        }
-        // oldVersion 0→1 files only; 1→2 adds history; 2→3 adds the queue
+        // oldVersion 0→1 files only; 1→2 adds history; 3→4 drops the removed
+        // queue store — its rows are never read again, so drop the blobs.
+        if (db.objectStoreNames.contains("queue")) db.deleteObjectStore("queue");
         void oldVersion;
       },
     });
@@ -307,69 +271,7 @@ export async function clearAllFilesLocally() {
   await db.clear(FILES_STORE);
 }
 
-/**
- * Replace the persisted queue for the rows' own account only. Other accounts'
- * rows on the same device are left untouched.
- */
-export async function saveConversionQueue(
-  items: StoredQueueItem[],
-): Promise<void> {
-  // A blocked upgrade, quota, or private-mode failure must never break a conversion.
-  try {
-    const db = await getDB();
-    if (!db) return;
-    const accountKey = items[0]?.accountKey;
-    if (!accountKey) return;
-    const tx = db.transaction(QUEUE_STORE, "readwrite");
-    const existing = (await tx.store.getAll()) as StoredQueueItem[];
-    const keep = new Set(items.map((i) => i.id));
-    for (const row of existing) {
-      if (row.accountKey === accountKey && !keep.has(row.id)) {
-        await tx.store.delete(row.id);
-      }
-    }
-    for (const item of items) await tx.store.put(item);
-    await tx.done;
-  } catch {
-    /* queue persistence is best-effort */
-  }
-}
 
-/** Rows from the last session for this account, in queue order. */
-/**
- * The rows this account may see, in queue order. Storage is device-local and
- * shared by every account using the browser, so this filter is the whole
- * isolation rule: a guest or a different account must never inherit rows.
- */
-export function queueRowsForAccount(
-  rows: StoredQueueItem[],
-  accountKey: string,
-): StoredQueueItem[] {
-  return rows
-    .filter(
-      (r) =>
-        r?.accountKey === accountKey &&
-        r.file instanceof Blob &&
-        r.file.size > 0,
-    )
-    .sort((a, b) => a.order - b.order);
-}
-
-export async function getConversionQueue(
-  accountKey: string,
-): Promise<StoredQueueItem[]> {
-  try {
-    const db = await getDB();
-    if (!db) return [];
-    const rows = (await db.getAllFromIndex(
-      QUEUE_STORE,
-      "order",
-    )) as StoredQueueItem[];
-    return queueRowsForAccount(rows, accountKey);
-  } catch {
-    return [];
-  }
-}
 
 
 

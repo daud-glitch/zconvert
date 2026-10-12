@@ -5,6 +5,7 @@ import {
   canPreviewResult,
   formatSizeChangeLabel,
   getMergeSourceBlob,
+  hasUnfinishedWork,
   mergeOutputFileName,
   normalizeExtParam,
   resolveDefaultTargetFormat,
@@ -96,6 +97,23 @@ describe("converter helpers", () => {
     expect(uniqueZipEntryName(used, "a.pdf")).toBe("a-3.pdf");
     expect(uniqueZipEntryName(used, "noext")).toBe("noext");
     expect(uniqueZipEntryName(used, "noext")).toBe("noext-2");
+  });
+
+  it("flags queue work that a reload or close would destroy", () => {
+    expect(hasUnfinishedWork([])).toBe(false);
+    expect(hasUnfinishedWork([item({ status: "done" })])).toBe(false);
+    expect(hasUnfinishedWork([item({ status: "error" })])).toBe(false);
+    expect(
+      hasUnfinishedWork([item({ status: "done" }), item({ status: "error" })]),
+    ).toBe(false);
+    expect(
+      hasUnfinishedWork([item({ status: "done" }), item({ status: "pending" })]),
+    ).toBe(true);
+    expect(hasUnfinishedWork([item({ status: "converting" })])).toBe(true);
+    // Still staging/uploading counts as unfinished even before convert starts.
+    expect(
+      hasUnfinishedWork([item({ status: "pending", uploading: true })]),
+    ).toBe(true);
   });
 
   it("normalizes ext params", () => {

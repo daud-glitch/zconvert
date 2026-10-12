@@ -544,6 +544,18 @@ header::after {
 }
 
 /* ============================================================
+   HEADER NAV LINK — tighter side padding than the button variant
+   ============================================================
+   Nav labels are text-sm (matching Login). The button's size="sm"
+   variant applies `has-[>svg]:px-2.5`, whose :has() selector beats
+   any plain px-* utility, and the header row is capped by max-w-7xl
+   — so at 14px the last item (Changelog) overflows the header and is
+   clipped. This reclaims the width without shrinking the label. */
+.site-nav-link {
+  padding-inline: 6px !important;
+}
+
+/* ============================================================
    SECTION HEADER — decorative dot + line
    ============================================================ */
 .section-header {

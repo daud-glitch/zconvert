@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useSearchParams } from "next/navigation";
 import {
   Download, RefreshCw, Plus, Settings,
-  History, Layers, Check, AlertCircle,
+  History, Layers, Check,
   File as FileIcon, FileText, Globe, Shield, Clock, HardDrive,
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
   RotateCcw, Sparkles,
@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/tooltip";
 
 import { type FileItem, type ConversionRecord } from "@/lib/app-types";
-import { readJsonResponse } from "@/lib/http-json";
 import { readApiError } from "@/lib/api-errors";
 import { useFormats } from "@/hooks/use-formats";
 import {
@@ -66,6 +65,7 @@ import {
   acceptForPreferredFrom,
   canPreviewResult,
   formatSizeChangeLabel,
+  hasUnfinishedWork,
   getMergeSourceBlob,
   mergeOutputFileName,
   normalizeExtParam,
@@ -75,12 +75,9 @@ import {
   uniqueZipEntryName,
 } from "@/lib/converter-helpers";
 import {
+  primeStorage,
   saveLocalConversion,
   getLocalHistory,
-  saveConversionQueue,
-  getConversionQueue,
-  QUEUE_ACCOUNT_GUEST,
-  type StoredQueueItem,
 } from "@/lib/storage";
 import { useApp } from "@/lib/app-context";
 import {
@@ -179,8 +176,6 @@ export function ConverterView({
   const batchRunRef = useRef(0);
   /** Ordered ids for the active Convert All batch (for live progress totals) */
   const batchIdsRef = useRef<string[] | null>(null);
-
-  filesRef.current = files;
 
   // When files just landed in an otherwise-empty queue, gently point the user at it.
   // This is the “uploaded files are now in the Conversion Queue” moment for task 1.
@@ -399,6 +394,10 @@ export function ConverterView({
     let cancelled = false;
     const accountKey = currentUser?.id ?? null;
 
+    // Open IndexedDB once so the schema migration that drops the removed
+    // queue store runs even for signed-out visitors. A stale dev chunk can hand
+    // us an older storage module, so never let that take down the mount effect.
+    if (typeof primeStorage === "function") void primeStorage();
     resetQueue();
     setRecentConversions([]);
 
@@ -901,137 +900,24 @@ export function ConverterView({
     dropQueueItems((f) => f.id !== id);
   };
 
-  // ─── Queue survival across reloads ────────────────────────────────────────
-  // Persist the queue (input blobs + convert settings + staged uploadId) so a
-  // reload mid-batch does not lose it. `embedded` pair pages share this component
-  // but must not clobber the main queue.
-  const queueRestoredRef = useRef(false);
-  const queueRestorePendingRef = useRef(false);
-  const queueSignatureRef = useRef<string | null>(null);
-  // Queues are device-local but account-scoped: signed-in users only ever see
-  // their own rows, a signed-out visitor sees the guest rows.
-  const queueAccountKey = currentUser?.id ?? QUEUE_ACCOUNT_GUEST;
-  // Render-scoped helpers read through a ref so the mount effect below stays
-  // dependency-free without an exhaustive-deps suppression.
-  const queueHelpersRef = useRef({ enqueueAutoUpload, showToast });
+  // ─── Leave-page guard ─────────────────────────────────────────────────────
+  // The queue is in-memory only, so a reload or tab close destroys unfinished
+  // work. Browsers only show their confirmation when a beforeunload listener
+  // cancels the event, and they show their own dialog text (cannot be styled).
+  const unfinishedRef = useRef(false);
   useEffect(() => {
-    queueHelpersRef.current = { enqueueAutoUpload, showToast };
-  });
-
+    unfinishedRef.current = hasUnfinishedWork(files);
+  }, [files]);
   useEffect(() => {
-    if (embedded) {
-      queueRestoredRef.current = true;
-      return;
-    }
-    let cancelled = false;
-    queueRestorePendingRef.current = true;
-    void getConversionQueue(queueAccountKey).then((rows) => {
-      if (cancelled) return;
-      queueRestorePendingRef.current = false;
-      queueRestoredRef.current = true;
-      if (rows.length === 0 || filesRef.current.length > 0) return;
-
-      const restored: FileItem[] = rows.map((row) => {
-        const blob = row.file;
-        const file =
-          blob instanceof File
-            ? blob
-            : new File([blob], row.name, { type: blob.type });
-        // A conversion running when the page unloaded lost its response — re-arm it.
-        const status = row.status === "converting" ? "pending" : row.status;
-        return {
-          id: row.id,
-          file,
-          name: row.name,
-          size: file.size,
-          ext: row.ext,
-          status,
-          targetFormat: row.targetFormat,
-          quality: row.quality ?? 85,
-          resizeWidth: row.resizeWidth ?? null,
-          resizeHeight: row.resizeHeight ?? null,
-          outputSize: row.outputSize,
-          result: row.result,
-          error: status === "error" ? row.error : undefined,
-          // Staged upload survives; otherwise large files re-stage, small ones ride along.
-          uploadId: row.uploadId,
-          uploadReady: Boolean(row.uploadId) || file.size <= INLINE_UPLOAD_MAX_BYTES,
-          uploading: false,
-          uploadError: undefined,
-          progress: undefined,
-          progressPhase: undefined,
-          queueMessage: undefined,
-        };
-      });
-
-      setFiles(restored);
-      const { enqueueAutoUpload: enqueue, showToast: toast } =
-        queueHelpersRef.current;
-      const toStage = restored.filter((f) => !f.uploadReady);
-      if (toStage.length > 0) setTimeout(() => enqueue(toStage), 0);
-      toast(
-        `Restored ${restored.length} file${restored.length > 1 ? "s" : ""} from your last session.`,
-      );
-    });
-    return () => {
-      cancelled = true;
+    const warnOnLeave = (e: BeforeUnloadEvent) => {
+      if (!unfinishedRef.current) return;
+      e.preventDefault();
+      // Legacy browsers need an explicit returnValue to show the prompt.
+      e.returnValue = "";
     };
-    // Re-runs on account change so the new account restores only its own queue.
-  }, [embedded, queueAccountKey]);
-
-  useEffect(() => {
-    // Never write an empty queue while a restore is in flight: that transient
-    // gap would wipe the rows the restore is about to load.
-    if (embedded || !queueRestoredRef.current || queueRestorePendingRef.current) {
-      return;
-    }
-    // Only durable fields — progress ticks during upload/convert must not re-write blobs.
-    const signature = files
-      .map((f) =>
-        [
-          f.id,
-          f.name,
-          f.size,
-          f.targetFormat,
-          f.quality,
-          f.resizeWidth,
-          f.resizeHeight,
-          f.status,
-          f.uploadId ?? "",
-          f.result?.size ?? 0,
-          f.error ?? "",
-        ].join(":"),
-      )
-      .join("|");
-    if (signature === queueSignatureRef.current) return;
-    queueSignatureRef.current = signature;
-
-    const id = window.setTimeout(() => {
-      void saveConversionQueue(
-        files.map(
-          (f, index): StoredQueueItem => ({
-            id: f.id,
-            accountKey: queueAccountKey,
-            name: f.name,
-            ext: f.ext,
-            size: f.size,
-            targetFormat: f.targetFormat,
-            quality: f.quality,
-            resizeWidth: f.resizeWidth,
-            resizeHeight: f.resizeHeight,
-            status: f.status,
-            error: f.error,
-            outputSize: f.outputSize,
-            uploadId: f.uploadId,
-            file: f.file,
-            ...(f.result ? { result: f.result } : {}),
-            order: index,
-          }),
-        ),
-      );
-    }, 400);
-    return () => window.clearTimeout(id);
-  }, [files, embedded, queueAccountKey]);
+    window.addEventListener("beforeunload", warnOnLeave);
+    return () => window.removeEventListener("beforeunload", warnOnLeave);
+  }, []);
 
   // Logo / Converter nav fires this from HomeClient. Empty queue brings the hero back.
   // Latest handler kept in a ref so the listener subscribes once, not per render.
@@ -2502,8 +2388,36 @@ export function ConverterView({
                 <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
                   Mix any file types in one batch — pick a different output format for each file.
                 </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]" aria-live="polite">
+                  {pendingCount > 0 && (
+                    <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                      {pendingCount} awaiting conversion
+                    </Badge>
+                  )}
+                  {convertingCount > 0 && (
+                    <Badge variant="outline" className="border-sky-300 text-sky-700 dark:text-sky-300">
+                      {convertingCount} processing
+                    </Badge>
+                  )}
+                  {doneCount > 0 && (
+                    <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                      {doneCount} ready to download
+                    </Badge>
+                  )}
+                  {errorCount > 0 && (
+                    <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-300">
+                      {errorCount} needs attention
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Limits: {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video · {MAX_NONVIDEO_BATCH} files per batch.
+                  <span className="ml-1 inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+                    <Shield className="h-3 w-3" aria-hidden /> Temporary processing; downloads stay in your browser.
+                  </span>
+                </p>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex w-full items-center gap-2 flex-wrap sm:w-auto sm:justify-end">
                 {pendingCount > 1 && !isConverting && (
                   <div className="flex items-center gap-1.5">
                     <FileStack className="w-3.5 h-3.5 text-violet-500" />
@@ -2552,6 +2466,7 @@ export function ConverterView({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={downloadAll}
                   disabled={!canBulkExport}
                   title={
@@ -2566,6 +2481,7 @@ export function ConverterView({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={async () => {
                     if (!canBulkExport) return;
                     const doneFiles = files.filter(
@@ -2681,6 +2597,7 @@ export function ConverterView({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={() => dropQueueItems(isActiveItem)}
                   disabled={doneCount + errorCount === 0 || isQueueBusy}
                 >
@@ -2691,6 +2608,7 @@ export function ConverterView({
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="sm:flex-none"
                   onClick={resetQueue}
                   disabled={files.length === 0}
                   aria-label="Clear all files"
@@ -2878,8 +2796,11 @@ export function ConverterView({
                                 <span>{formatBytes(item.size)}</span>
                               )}
                               {item.status === "error" && (
-                                <span className="text-red-600 dark:text-red-400 font-medium break-words w-full max-w-md">
-                                  {item.error || "Conversion failed"}
+                                <span className="flex w-full max-w-md flex-wrap items-center gap-x-2 gap-y-1 text-red-600 dark:text-red-400 font-medium break-words">
+                                  <span>{item.error || "Conversion failed"}</span>
+                                  <span className="font-normal text-[10px] text-muted-foreground">
+                                    Choose another format or retry.
+                                  </span>
                                 </span>
                               )}
                               {item.status === "pending" && item.uploading && (
@@ -3199,6 +3120,7 @@ export function ConverterView({
                                   className="h-8 w-8"
                                   onClick={() => downloadFile(item)}
                                   title="Download"
+                                  aria-label={`Download ${item.name}`}
                                 >
                                   <Download className="w-4 h-4 text-emerald-600" />
                                 </Button>
@@ -3221,6 +3143,7 @@ export function ConverterView({
                                     }
                                   }}
                                   title="Preview"
+                                  aria-label={`Preview ${item.name}`}
                                   >
                                     <Eye className="w-4 h-4 text-sky-500" />
                                   </Button>
@@ -3261,12 +3184,14 @@ export function ConverterView({
                             {item.status === "error" && !isQueueBusy && (
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
+                                size="sm"
+                                className="h-8 px-2 text-xs text-amber-700 hover:text-amber-800 dark:text-amber-300"
                                 onClick={() => convertFile(item)}
                                 title="Retry conversion"
+                                aria-label={`Retry conversion for ${item.name}`}
                               >
-                                <RotateCcw className="w-4 h-4 text-amber-500" />
+                                <RotateCcw className="mr-1 h-3.5 w-3.5 text-amber-500" />
+                                Retry
                               </Button>
                             )}
                             <Button

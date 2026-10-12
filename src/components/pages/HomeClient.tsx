@@ -371,7 +371,7 @@ export default function HomeClient({
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden xl:flex items-center gap-1 shrink-0">
+            <nav className="hidden xl:flex items-center gap-0.5 shrink-0">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isDonate = item.id === "donate";
@@ -383,8 +383,8 @@ export default function HomeClient({
                       size="sm"
                       className={
                         isDonate
-                          ? "gap-1.5 h-8.5 px-3 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-xs text-xs font-semibold"
-                          : "gap-1.5 h-8.5 px-2.5 xl:px-3 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-medium"
+                          ? "site-nav-link gap-1 h-8.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-xs text-sm font-semibold"
+                          : "site-nav-link gap-1 h-8.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted text-sm font-medium"
                       }
                       asChild
                     >
@@ -401,7 +401,7 @@ export default function HomeClient({
                     key={item.id}
                     variant={isActive ? "secondary" : "ghost"}
                     size="sm"
-                    className={`gap-1.5 h-8.5 px-2.5 xl:px-3 rounded-full text-xs font-medium ${
+                    className={`site-nav-link gap-1 h-8.5 rounded-full text-sm font-medium ${
                       isActive
                         ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shadow-xs ring-1 ring-emerald-500/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -507,7 +507,7 @@ export default function HomeClient({
               <Button
                 variant="ghost"
                 size="sm"
-                className="hidden xl:inline-flex gap-1.5 h-8.5 px-2.5 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="site-nav-link hidden xl:inline-flex gap-1 h-8.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
                 asChild
               >
                 <Link href={changelogNavItem.href!}>

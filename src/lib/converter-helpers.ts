@@ -93,6 +93,15 @@ export function uniqueZipEntryName(
   return name;
 }
 
+/**
+ * True when the queue holds work that a reload or close would destroy: files
+ * still waiting to convert (including those staging) or mid-conversion. Done and
+ * failed rows are already settled, so they never warrant a warning.
+ */
+export function hasUnfinishedWork(items: FileItem[]): boolean {
+  return items.some((f) => f.status === "pending" || f.status === "converting");
+}
+
 export function normalizeExtParam(value: string | null): string {
   return (value || "").toLowerCase().replace(/^\./, "");
 }
