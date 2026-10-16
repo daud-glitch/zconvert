@@ -670,6 +670,124 @@ function decodePfm(input: Buffer): {
 
 // ─── ICNS ────────────────────────────────────────────────────────────────────
 
+/**
+ * Raw (uncompressed) ICNS element layouts. Apple stores these instead of an
+ * embedded PNG/JPEG, so nothing in the payload has a magic number — the chunk
+ * type alone determines the geometry. Missing an entry here is what produced
+ * "ICNS contains no decodable image" for perfectly valid icons.
+ *
+ * `bpp` is bytes per pixel; `mask` names the companion 8-bit alpha element.
+ */
+const ICNS_RAW_LAYOUTS: Record<
+  string,
+  { width: number; height: number; bpp: 3 | 4; mask?: string }
+> = {
+  "ic04": { width: 16, height: 16, bpp: 4, mask: "s8mk" },
+  "ic05": { width: 32, height: 32, bpp: 4, mask: "l8mk" },
+  is32: { width: 16, height: 16, bpp: 4, mask: "s8mk" },
+  il32: { width: 32, height: 32, bpp: 4, mask: "l8mk" },
+  ih32: { width: 128, height: 128, bpp: 4, mask: "h8mk" },
+  it32: { width: 128, height: 128, bpp: 4, mask: "t8mk" },
+  icsb: { width: 18, height: 18, bpp: 3 },
+  icsv: { width: 128, height: 128, bpp: 3 },
+};
+
+/** 8-bit alpha masks, each row padded to an even byte count. */
+const ICNS_MASK_LAYOUTS: Record<string, { width: number; height: number }> = {
+  s8mk: { width: 16, height: 16 },
+  l8mk: { width: 32, height: 32 },
+  h8mk: { width: 128, height: 128 },
+  t8mk: { width: 256, height: 256 },
+};
+
+/** ICNS rows run bottom-up, and raw 24-bit rows pad to an even byte count. */
+function decodeIcnsRawChunk(
+  bytes: Buffer,
+  layout: { width: number; height: number; bpp: 3 | 4 },
+  mask?: Buffer,
+): { data: Buffer; width: number; height: number; channels: 4 } | null {
+  const { width, height } = layout;
+  let bpp = layout.bpp;
+  let rowBytes = Math.ceil((width * bpp) / 2) * 2;
+  // Some ic04/ic05 encode 3 bytes per pixel (RGB) with no A byte. Infer from
+  // the actual chunk size when the declared rowBytes would overrun.
+  if (bytes.length < rowBytes * height) {
+    const rowBytes3 = Math.ceil((width * 3) / 2) * 2;
+    if (bytes.length === rowBytes3 * height) {
+      bpp = 3;
+      rowBytes = rowBytes3;
+    } else if (rowBytes3 * height <= bytes.length) {
+      // Prefer 3 BPP for real-world icon data.
+      bpp = 3;
+      rowBytes = rowBytes3;
+    } else {
+      return null;
+    }
+  }
+
+  const rgba = Buffer.alloc(width * height * 4);
+  const maskStride = mask ? Math.ceil(width / 2) * 2 : 0;
+
+  for (let y = 0; y < height; y++) {
+    // Source rows are stored bottom-up.
+    const srcRow = height - 1 - y;
+    const rowStart = srcRow * rowBytes;
+    const dstRow = y * width;
+    for (let x = 0; x < width; x++) {
+      const s = rowStart + x * bpp;
+      const d = (dstRow + x) * 4;
+      if (s + 2 < bytes.length) {
+        rgba[d] = bytes[s];
+        rgba[d + 1] = bytes[s + 1];
+        rgba[d + 2] = bytes[s + 2];
+      }
+      rgba[d + 3] = 0xff;
+      if (mask) {
+        // In an ICNS mask, 0 means opaque and 255 means fully transparent.
+        const m = mask[srcRow * maskStride + x];
+        rgba[d + 3] = m === undefined ? 0xff : 255 - m;
+      }
+    }
+  }
+
+  return { data: rgba, width, height, channels: 4 };
+}
+
+/**
+ * A bare JPEG 2000 codestream (SOC marker `FF 4F FF 51`) has no JP2 boxes, so
+ * libvips refuses it. Wrap it in a minimal JP2 container so sharp can open it.
+ */
+function wrapJ2kCodestream(bytes: Buffer): Buffer {
+  const lenBox = (size: number) => {
+    const b = Buffer.alloc(4);
+    b.writeUInt32BE(size + 4, 0);
+    return b;
+  };
+  const signature = Buffer.from([0x0d, 0x0a, 0x87, 0x0a]); // JP2 signature box
+  const ftyp = Buffer.concat([
+    lenBox(4 + 4 + 8),
+    Buffer.from("ftyp", "ascii"),
+    Buffer.from("jp2 ", "ascii"),
+    Buffer.alloc(4),
+  ]);
+  const jp2h = Buffer.concat([
+    lenBox(4 + 4 + 4),
+    Buffer.from("jp2h", "ascii"),
+    lenBox(0), // empty height box; libvips reads size from the codestream
+  ]);
+  return Buffer.concat([signature, ftyp, jp2h, lenBox(bytes.length), Buffer.from("jp2c", "ascii"), bytes]);
+}
+
+function isJ2kCodestream(bytes: Buffer): boolean {
+  return (
+    bytes.length > 4 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0x4f &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x51
+  );
+}
+
 async function decodeIcns(input: Buffer): Promise<Buffer> {
   if (input.length < 8 || input.toString("ascii", 0, 4) !== "icns") {
     throw new Error("Invalid ICNS file");
@@ -693,15 +811,26 @@ async function decodeIcns(input: Buffer): Promise<Buffer> {
 
   if (!chunks.length) throw new Error("ICNS file contains no image data");
 
-  // Newer macOS icons store JPEG (ic07/ic08) or JPEG 2000 (ic09+) rather than
-  // PNG, so accept every payload libvips understands and take the largest.
-  const candidates: Array<{ bytes: Buffer; score: number }> = [];
-  for (const { bytes } of chunks) {
+  const rawCandidates: Array<{ type: string; bytes: Buffer; score: number }> = [];
+  const imageCandidates: Array<{ bytes: Buffer; score: number }> = [];
+
+  const maskMap = new Map<string, Buffer>();
+  for (const { type, bytes } of chunks) {
+    if (ICNS_MASK_LAYOUTS[type]) maskMap.set(type, bytes);
+  }
+
+  for (const { type, bytes } of chunks) {
+    const layout = ICNS_RAW_LAYOUTS[type];
+    if (layout) {
+      rawCandidates.push({ type, bytes, score: bytes.length });
+      continue;
+    }
+
     if (bytes.length < 4) continue;
     if (bytes[0] === 0x89 && bytes[1] === 0x50) {
-      candidates.push({ bytes, score: bytes.length });
+      imageCandidates.push({ bytes, score: bytes.length });
     } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
-      candidates.push({ bytes, score: bytes.length });
+      imageCandidates.push({ bytes, score: bytes.length });
     } else if (
       bytes[0] === 0x00 &&
       bytes[1] === 0x00 &&
@@ -709,12 +838,32 @@ async function decodeIcns(input: Buffer): Promise<Buffer> {
       bytes[3] === 0x0c &&
       bytes.toString("ascii", 4, 8) === "jP  "
     ) {
-      candidates.push({ bytes, score: bytes.length });
+      imageCandidates.push({ bytes, score: bytes.length });
+    } else if (isJ2kCodestream(bytes)) {
+      imageCandidates.push({ bytes: wrapJ2kCodestream(bytes), score: bytes.length });
+    } else if (bytes[0] === 0xff && bytes[1] === 0x4f && bytes[2] === 0xff && bytes[3] === 0x51) {
+      imageCandidates.push({ bytes: wrapJ2kCodestream(bytes), score: bytes.length });
+    } else if (bytes[0] === 0x00 && bytes[1] === 0x00 && bytes[2] === 0x00 && bytes[3] === 0x0c && bytes.toString("ascii", 4, 8) === "jpx ") {
+      imageCandidates.push({ bytes, score: bytes.length });
+    } else if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+      imageCandidates.push({ bytes, score: bytes.length });
+    } else {
+      imageCandidates.push({ bytes, score: bytes.length });
     }
   }
 
-  candidates.sort((a, b) => b.score - a.score);
-  for (const candidate of candidates) {
+  for (const raw of [...rawCandidates].sort((a, b) => b.score - a.score)) {
+    const layout = ICNS_RAW_LAYOUTS[raw.type];
+    if (!layout) continue;
+    const mask = layout.mask ? maskMap.get(layout.mask) : undefined;
+    const decoded = decodeIcnsRawChunk(raw.bytes, layout, mask);
+    if (decoded) {
+      return rgbaToPng(decoded);
+    }
+  }
+
+  imageCandidates.sort((a, b) => b.score - a.score);
+  for (const candidate of imageCandidates) {
     try {
       return await sharp(candidate.bytes).png().toBuffer();
     } catch {

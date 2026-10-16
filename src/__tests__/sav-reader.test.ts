@@ -3,14 +3,24 @@ import { describe, it, expect } from "vitest";
 import { readSavRecords } from "@/lib/format-readers";
 import { convertFile } from "@/lib/converter";
 import { humanizeConversionError } from "@/lib/upload-limits";
+import fs from "fs";
+import path from "path";
+
+const FIXTURE_DIR = path.join(__dirname, "fixtures");
+
+function readFixture(name: string): Buffer {
+  try {
+    return fs.readFileSync(path.join(FIXTURE_DIR, name));
+  } catch {
+    return fs.readFileSync(
+      path.join(__dirname, "..", "..", "tmp-savprobe", name),
+    );
+  }
+}
 
 describe("SAV reader", () => {
   it("reads basic SPSS fixture and converts to JSON", async () => {
-    const url =
-      "https://raw.githubusercontent.com/everydaydesign/datareader-spss/main/oracle/fixtures/basic.sav";
-    const res = await fetch(url);
-    expect(res.ok).toBe(true);
-    const buf = Buffer.from(await res.arrayBuffer());
+    const buf = readFixture("basic.sav");
 
     const rows = await readSavRecords(buf);
     expect(rows.length).toBeGreaterThan(0);
@@ -26,11 +36,7 @@ describe("SAV reader", () => {
   });
 
   it("reads SAV with UTF-8 BOM prefix", async () => {
-    const url =
-      "https://raw.githubusercontent.com/everydaydesign/datareader-spss/main/oracle/fixtures/basic.sav";
-    const res = await fetch(url);
-    expect(res.ok).toBe(true);
-    const raw = new Uint8Array(await res.arrayBuffer());
+    const raw = new Uint8Array(readFixture("basic.sav"));
     const withBom = new Uint8Array(raw.length + 3);
     withBom.set([0xef, 0xbb, 0xbf], 0);
     withBom.set(raw, 3);
@@ -39,11 +45,7 @@ describe("SAV reader", () => {
   });
 
   it("reads ZSAV (zlib) fixture", async () => {
-    const url =
-      "https://raw.githubusercontent.com/everydaydesign/datareader-spss/main/oracle/fixtures/zsav.sav";
-    const res = await fetch(url);
-    expect(res.ok).toBe(true);
-    const buf = Buffer.from(await res.arrayBuffer());
+    const buf = readFixture("zsav.sav");
     const rows = await readSavRecords(buf);
     expect(rows.length).toBeGreaterThan(0);
   });

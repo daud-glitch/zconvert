@@ -238,13 +238,14 @@ function describeUnknownSavBuffer(bytes: Uint8Array): string {
 
 async function readSavWithStatfmt(
   bytes: Uint8Array,
+  rowLimit?: number,
 ): Promise<Record<string, unknown>[]> {
   const { detectFormat, readData } = await import("@irbisadm/statfmt");
   const format = detectFormat(bytes);
   if (!format) {
     throw new Error(describeUnknownSavBuffer(bytes));
   }
-  const ds = readData(format, bytes);
+  const ds = readData(format, bytes, rowLimit === undefined ? undefined : { rowLimit });
   const objects = ds.toObjects() as Record<string, unknown>[];
   return objects.map((row) => {
     const rec = Object.create(null) as Record<string, unknown>;
@@ -282,8 +283,7 @@ export async function readSavRecords(
       bytes.byteOffset + bytes.byteLength,
     ) as ArrayBuffer;
     const records = await readSavWithDatareader(ab);
-    if (records.length > 0) return records;
-    primaryError = "SAV file contains no data rows";
+    return records;
   } catch (err) {
     primaryError = err instanceof Error ? err.message : String(err);
     console.warn("[sav] datareader-spss failed:", primaryError);
@@ -291,9 +291,23 @@ export async function readSavRecords(
 
   try {
     const records = await readSavWithStatfmt(bytes);
-    if (records.length > 0) return records;
-    throw new Error("SAV file contains no data rows");
+    return records;
   } catch (fallbackErr) {
+    // A truncated upload fails with a row-count or short-read error even though
+    // the header parsed fine. statfmt's `rowLimit` stops before the missing
+    // tail, so retry with the largest limit that still succeeds.
+    const msg =
+      fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+    if (/expected number of rows|Unable to read|exceeds the/i.test(msg)) {
+      for (const limit of [10000, 1000, 100, 10, 1]) {
+        try {
+          const salvaged = await readSavWithStatfmt(bytes, limit);
+          if (salvaged.length > 0) return salvaged;
+        } catch {
+          // Limit still too high for this truncated file â try fewer.
+        }
+      }
+    }
     const fallbackMsg =
       fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
     const detail = fallbackMsg || primaryError || "unknown error";

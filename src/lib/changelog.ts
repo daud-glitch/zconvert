@@ -9,6 +9,16 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-10-16-icns-sav-fixes",
+    date: "2026-10-16",
+    title: "Conversion fixes",
+    items: [
+      "macOS .icns icons now convert instead of failing with \u201ccontains no decodable image\u201d. Icons stored as raw pixels (ic04/ic05 and the 32-bit variants), icons with 8-bit alpha masks, and icons whose only image is a bare JPEG 2000 codestream are all decoded now.",
+      "SPSS .sav datasets that contain column headers but no data rows convert successfully \u2014 they are valid datasets, so they no longer report \u201ccontains no data rows\u201d.",
+      "Interrupted SPSS .sav uploads now salvage the records that were fully received instead of failing outright. Files truncated before their header is readable still report a clear error.",
+    ],
+  },
+  {
     id: "2026-08-30-conversion-fixes",
     date: "2026-08-30",
     title: "Conversion fixes",
