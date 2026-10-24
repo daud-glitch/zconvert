@@ -9,6 +9,16 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-10-24-eps-icns-and-failure-counts",
+    date: "2026-10-24",
+    title: "Conversion fixes",
+    items: [
+      "EPS files now convert instead of failing with \u201cvector content cannot be rasterized\u201d. Previews stored behind a DOS EPS binary header, behind a corrupt element length, as JPEG thumbnails, and as hex \u201c%%BeginPreview\u201d bitmaps are all decoded. An EPS that truly holds vector artwork only now says so and explains how to convert it, rather than blaming a missing toolkit.",
+      "macOS .icns icons whose internal element lengths are wrong now convert \u2014 the embedded PNG, JPEG or JPEG 2000 payload is located even when the icon's element table is damaged.",
+      "The admin \u201cFailed conversions\u201d panel no longer shows \u201cNaN failures\u201d with blank Fails, Attempts and Rate cells; those columns now report the real per-pair numbers and totals.",
+    ],
+  },
+  {
     id: "2026-10-16-icns-sav-fixes",
     date: "2026-10-16",
     title: "Conversion fixes",

@@ -38,6 +38,16 @@ const RANGES = [
 const TOP_ROWS = 10;
 
 /**
+ * Numbers arrive from an API that has changed shape before, and a missing
+ * field used to render as "NaN failures". Coerce anything unusable to 0 so
+ * the panel always shows a real count.
+ */
+function count(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
  * "Which formats are broken" panel.
  *
  * Sorted by failure count so the worst offenders are visible without opening
@@ -78,7 +88,10 @@ export function AdminFailedConversions() {
     window.location.href = url;
   };
 
-  const totalFailures = (rows ?? []).reduce((sum, r) => sum + r.failures, 0);
+  const totalFailures = (rows ?? []).reduce(
+    (sum, r) => sum + count(r.failures),
+    0,
+  );
   const visible = (rows ?? []).slice(0, TOP_ROWS);
 
   return (
@@ -199,23 +212,25 @@ export function AdminFailedConversions() {
                         {r.originalExt} → {r.targetExt}
                       </td>
                       <td className="py-2 pr-3 text-right tabular-nums font-semibold text-red-600">
-                        {r.failures}
+                        {count(r.failures).toLocaleString()}
                       </td>
                       <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
-                        {r.attempts}
+                        {count(r.attempts).toLocaleString()}
                       </td>
                       <td className="py-2 pr-3 text-right tabular-nums">
                         <Badge
-                          variant={r.failureRate >= 50 ? "destructive" : "secondary"}
+                          variant={
+                            count(r.failureRate) >= 50 ? "destructive" : "secondary"
+                          }
                         >
-                          {r.failureRate}%
+                          {count(r.failureRate)}%
                         </Badge>
                       </td>
                       <td className="py-2 text-muted-foreground">
                         {r.topError}
-                        {r.topErrorCount < r.failures && (
+                        {count(r.topErrorCount) < count(r.failures) && (
                           <span className="ml-1 text-xs text-muted-foreground/70">
-                            ({r.topErrorCount} of {r.failures})
+                            ({count(r.topErrorCount)} of {count(r.failures)})
                           </span>
                         )}
                       </td>

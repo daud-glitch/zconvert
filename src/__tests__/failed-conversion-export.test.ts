@@ -42,16 +42,18 @@ describe("failed conversion export", () => {
     groupBy.mockReset();
     findMany.mockReset();
 
-    // attempt counts and failure counts, in the order the route calls them
+    // Attempt counts and failure counts, in the order the route calls them.
+    // These mirror what Prisma actually returns: the tally lives in
+    // `_count._all`, never in a flat `count` field.
     groupBy
       .mockResolvedValueOnce([
-        { originalExt: "mp4", targetExt: "webm", count: 100 },
-        { originalExt: "pdf", targetExt: "docx", count: 50 },
-        { originalExt: "docx", targetExt: "pdf", count: 8 },
+        { originalExt: "mp4", targetExt: "webm", _count: { _all: 100 } },
+        { originalExt: "pdf", targetExt: "docx", _count: { _all: 50 } },
+        { originalExt: "docx", targetExt: "pdf", _count: { _all: 8 } },
       ])
       .mockResolvedValueOnce([
-        { originalExt: "mp4", targetExt: "webm", count: 40 },
-        { originalExt: "docx", targetExt: "pdf", count: 5 },
+        { originalExt: "mp4", targetExt: "webm", _count: { _all: 40 } },
+        { originalExt: "docx", targetExt: "pdf", _count: { _all: 5 } },
       ]);
 
     findMany.mockResolvedValue([
@@ -72,6 +74,23 @@ describe("failed conversion export", () => {
     expect(body.summary[0].failureRate).toBe(40);
   });
 
+  it("never emits NaN when Prisma reports counts in _count._all", async () => {
+    // Regression: the route read `row.count`, which does not exist on a
+    // Prisma groupBy result, so the admin panel rendered "NaN failures" with
+    // blank Fails/Attempts/Rate cells.
+    const res = await EXPORT_GET(req("format=json"));
+    const body = await res.json();
+
+    expect(body.summary).toHaveLength(2);
+    for (const row of body.summary) {
+      expect(Number.isFinite(row.failures)).toBe(true);
+      expect(Number.isFinite(row.attempts)).toBe(true);
+      expect(Number.isFinite(row.failureRate)).toBe(true);
+      expect(row.failures).toBeGreaterThan(0);
+      expect(row.attempts).toBeGreaterThanOrEqual(row.failures);
+    }
+  });
+
   it("surfaces the dominant error rather than just a count", async () => {
     const res = await EXPORT_GET(req("format=json"));
     const body = await res.json();
@@ -87,7 +106,9 @@ describe("failed conversion export", () => {
     groupBy.mockReset();
     groupBy
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ originalExt: "rar", targetExt: "zip", count: 3 }]);
+      .mockResolvedValueOnce([
+        { originalExt: "rar", targetExt: "zip", _count: { _all: 3 } },
+      ]);
     findMany.mockResolvedValue([]);
 
     const res = await EXPORT_GET(req("format=json"));

@@ -38,7 +38,21 @@ function csvResponse(body: string, filename: string) {
   });
 }
 
-type PairRow = { originalExt: string; targetExt: string; count: number };
+/**
+ * Shape returned by `db.conversion.groupBy({ by, _count: { _all: true } })`.
+ * Prisma puts the tally in `_count._all` — reading a flat `count` produced
+ * `undefined` and the admin table rendered "NaN failures".
+ */
+type PairGroupRow = {
+  originalExt: string;
+  targetExt: string;
+  _count: { _all: number };
+};
+
+function groupCount(row: PairGroupRow): number {
+  const n = row._count?._all;
+  return typeof n === "number" && Number.isFinite(n) ? n : 0;
+}
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -77,8 +91,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     const attemptsByPair = new Map<string, number>();
-    for (const r of attempts as unknown as PairRow[]) {
-      attemptsByPair.set(`${r.originalExt}>${r.targetExt}`, r.count);
+    for (const r of attempts as unknown as PairGroupRow[]) {
+      attemptsByPair.set(`${r.originalExt}>${r.targetExt}`, groupCount(r));
     }
 
     // Tally the most frequent message per pair so the operator sees the cause,
@@ -168,10 +182,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Summary view — the "which formats are broken" answer.
-    const summary = (failures as unknown as PairRow[])
+    const summary = (failures as unknown as PairGroupRow[])
       .map((r) => {
         const key = `${r.originalExt}>${r.targetExt}`;
-        const total = attemptsByPair.get(key) ?? r.count;
+        const count = groupCount(r);
+        // A failure row always counts as at least one attempt, so a pair whose
+        // attempt rows aged out of the range still reports a real rate.
+        const total = Math.max(attemptsByPair.get(key) ?? 0, count);
         const bucket = topError.get(key);
         const top = bucket
           ? [...bucket.entries()].sort((a, b) => b[1] - a[1])[0]
@@ -180,9 +197,9 @@ export async function GET(request: NextRequest) {
           pair: `${r.originalExt}-to-${r.targetExt}`,
           originalExt: r.originalExt,
           targetExt: r.targetExt,
-          failures: r.count,
+          failures: count,
           attempts: total,
-          failureRate: total > 0 ? Math.round((r.count / total) * 100) : 100,
+          failureRate: total > 0 ? Math.round((count / total) * 100) : 100,
           topError: top?.[0] ?? "Unknown error",
           topErrorCount: top?.[1] ?? 0,
         };

@@ -864,15 +864,33 @@ async function decodeIcns(input: Buffer): Promise<Buffer> {
 
   imageCandidates.sort((a, b) => b.score - a.score);
   for (const candidate of imageCandidates) {
-    try {
-      return await sharp(candidate.bytes).png().toBuffer();
-    } catch {
-      // Try the next payload rather than failing the whole file.
-    }
+    // `failOn: none` matters here: icon files are often trimmed or merged by
+    // asset tools, and a preview with a bad tail should still decode.
+    const png = await pngFromBytes(candidate.bytes);
+    if (png) return png;
+  }
+
+  // Last resort: some icons declare broken element lengths, so the parser
+  // never sees the payload even though a complete PNG/JPEG sits in the file.
+  // Scan for the payloads themselves rather than failing the whole icon.
+  const scanTargets: Array<{ signature: number[]; wrap?: boolean }> = [
+    { signature: [0x89, 0x50, 0x4e, 0x47] },
+    { signature: [0xff, 0xd8, 0xff] },
+    { signature: [0x00, 0x00, 0x00, 0x0c, 0x6a, 0x50, 0x20, 0x20] },
+    { signature: [0xff, 0x4f, 0xff, 0x51], wrap: true },
+  ];
+  for (const target of scanTargets) {
+    const png = await pngFromFirstSignature(
+      input,
+      target.signature,
+      4,
+      target.wrap ? wrapJ2kCodestream : undefined,
+    );
+    if (png) return png;
   }
 
   throw new Error(
-    "ICNS contains no decodable image. Modern .icns icons should convert — please report this file.",
+    "ICNS contains no decodable image. Re-export the icon as PNG (for example from macOS Icon Composer or iconutil) and convert that file.",
   );
 }
 
@@ -1059,27 +1077,166 @@ async function decodeMpoFirstJpeg(input: Buffer): Promise<Buffer> {
   );
 }
 
-async function decodeEpsEmbedded(input: Buffer): Promise<Buffer> {
-  for (let i = 0; i < input.length - 3; i++) {
-    if (
-      input[i] === 0x49 &&
-      input[i + 1] === 0x49 &&
-      input[i + 2] === 0x2a
-    ) {
-      try {
-        return await sharp(input.subarray(i)).png().toBuffer();
-      } catch {
-        /* continue */
+// ─── EPS ─────────────────────────────────────────────────────────────────────
+
+/** "DOS EPS binary header" magic that Illustrator/CorelDRAW write on Windows. */
+const DOS_EPS_MAGIC = 0xc5d0d3c6;
+
+type RgbaImage = {
+  data: Buffer;
+  width: number;
+  height: number;
+  channels: 4;
+};
+
+async function pngFromBytes(bytes: Buffer): Promise<Buffer | null> {
+  if (bytes.length < 8) return null;
+  try {
+    return await sharp(bytes, { failOn: "none" }).png().toBuffer();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * DOS EPS files start with a 30-byte header pointing at the PostScript body,
+ * an optional WMF preview and an optional TIFF preview. Slicing the TIFF by
+ * its declared bounds opens previews that are otherwise followed by other
+ * sections — the reason a byte scan alone failed on these files.
+ */
+function dosEpsTiffPreview(input: Buffer): Buffer | null {
+  if (input.length < 30 || input.readUInt32BE(0) !== DOS_EPS_MAGIC) return null;
+  const start = input.readUInt32LE(20);
+  const length = input.readUInt32LE(24);
+  if (!start || !length || start >= input.length) return null;
+  const end = Math.min(start + length, input.length);
+  return input.subarray(start, end);
+}
+
+/**
+ * `%%BeginPreview: width height depth lines` carries a hex-encoded preview
+ * bitmap inside the PostScript comments. Depth 1 (monochrome) is what nearly
+ * every writer emits, and it is the only picture available in many EPS files.
+ * Without this, every preview-only EPS failed.
+ */
+function dscEpsPreview(input: Buffer): RgbaImage | null {
+  const text = input.toString("latin1");
+  const match = /%%BeginPreview:\s*(\d+)\s+(\d+)\s+(\d+)\s+\d+/.exec(text);
+  if (!match) return null;
+
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  const depth = Number(match[3]);
+  if (!width || !height || width > 8192 || height > 8192) return null;
+  if (depth !== 1 && depth !== 8) return null;
+
+  const bodyStart = match.index + match[0].length;
+  const bodyEnd = text.indexOf("%%EndPreview", bodyStart);
+  const body = text.slice(bodyStart, bodyEnd === -1 ? text.length : bodyEnd);
+
+  let hex = "";
+  for (const line of body.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // DSC keywords are comments; the payload lines may be prefixed with "%%".
+    if (trimmed.startsWith("%%")) {
+      if (/^%%(Begin|End)/i.test(trimmed)) continue;
+      hex += trimmed.replace(/^%+/, "").replace(/[^0-9a-fA-F]/g, "");
+      continue;
+    }
+    hex += trimmed.replace(/[^0-9a-fA-F]/g, "");
+  }
+
+  const rowBytes = Math.ceil((width * depth) / 8);
+  const needed = rowBytes * height * 2;
+  if (hex.length < needed) return null;
+
+  const bytes = Buffer.from(hex.slice(0, needed), "hex");
+  const rgba = Buffer.alloc(width * height * 4, 255);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const o = (y * width + x) * 4;
+      if (depth === 1) {
+        const on = (bytes[y * rowBytes + (x >> 3)] >> (7 - (x % 8))) & 1;
+        const v = on ? 0 : 255; // 1 is ink in a 1-bit EPS preview
+        rgba[o] = v;
+        rgba[o + 1] = v;
+        rgba[o + 2] = v;
+      } else {
+        const v = bytes[y * rowBytes + x];
+        rgba[o] = v;
+        rgba[o + 1] = v;
+        rgba[o + 2] = v;
       }
     }
   }
-  for (let i = 0; i < input.length - 1; i++) {
-    if (input[i] === 0xff && input[i + 1] === 0xd8) {
-      return sharp(input.subarray(i)).png().toBuffer();
+  return { data: rgba, width, height, channels: 4 };
+}
+
+/**
+ * Decode the first payload starting at `signature` that sharp accepts. A short
+ * signature can appear inside compressed data, so a handful of hits are tried
+ * before giving up.
+ */
+async function pngFromFirstSignature(
+  input: Buffer,
+  signature: number[],
+  attempts = 4,
+  transform?: (bytes: Buffer) => Buffer,
+): Promise<Buffer | null> {
+  let hits = 0;
+  const last = input.length - signature.length;
+  for (let i = 0; i <= last && hits < attempts; i++) {
+    if (input[i] !== signature[0]) continue;
+    let matched = true;
+    for (let k = 1; k < signature.length; k++) {
+      if (input[i + k] !== signature[k]) {
+        matched = false;
+        break;
+      }
     }
+    if (!matched) continue;
+    hits++;
+    const candidate = input.subarray(i);
+    const png = await pngFromBytes(
+      transform ? transform(candidate) : candidate,
+    );
+    if (png) return png;
   }
+  return null;
+}
+
+async function decodeEpsEmbedded(input: Buffer): Promise<Buffer> {
+  // 1. DOS EPS TIFF preview — full colour when the writer included it.
+  const dosPreview = dosEpsTiffPreview(input);
+  if (dosPreview) {
+    const png = await pngFromBytes(dosPreview);
+    if (png) return png;
+  }
+
+  // 2. TIFF preview stored directly in the PostScript stream.
+  for (const signature of [
+    [0x49, 0x49, 0x2a, 0x00],
+    [0x4d, 0x4d, 0x00, 0x2a],
+  ]) {
+    const png = await pngFromFirstSignature(input, signature);
+    if (png) return png;
+  }
+
+  // 3. JPEG preview (EPS with a JFIF thumbnail instead of TIFF).
+  const jpeg = await pngFromFirstSignature(input, [0xff, 0xd8, 0xff]);
+  if (jpeg) return jpeg;
+
+  // 4. DSC hex preview bitmap.
+  const preview = dscEpsPreview(input);
+  if (preview) return rgbaToPng(preview);
+
+  // 5. A raster file renamed to .eps.
+  const direct = await pngFromBytes(input);
+  if (direct) return direct;
+
   throw new Error(
-    "EPS vector content cannot be rasterized without Ghostscript/ImageMagick.",
+    "This EPS holds PostScript vector artwork with no embedded preview image, so there is nothing to rasterize. Open it in Illustrator, Inkscape or CorelDRAW and export as SVG or PDF (or save it with a TIFF preview), then convert that file.",
   );
 }
 

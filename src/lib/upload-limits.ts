@@ -310,6 +310,19 @@ export function humanizeConversionError(message: string): string {
   }
 
   if (
+    (lower.includes("eps") || lower.includes("postscript")) &&
+    (lower.includes("vector") || lower.includes("preview"))
+  ) {
+    // The raw error explains the cause but runs past the 180-char cut, which
+    // would hide the fix. Say it in one complete sentence instead.
+    return "This EPS file stores vector artwork only, with no preview image to rasterize. Open it in Illustrator, Inkscape or CorelDRAW and export as SVG or PDF, then convert that file.";
+  }
+
+  if (lower.includes("icns")) {
+    return "This .icns icon has no readable image inside it. Re-export it as PNG (on macOS: Icon Composer, or `iconutil -c iconset`) and convert that file.";
+  }
+
+  if (
     lower.includes("could not convert azw") ||
     lower.includes("could not convert mobi") ||
     (lower.includes("ebook conversion requires calibre") &&
