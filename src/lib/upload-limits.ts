@@ -250,6 +250,19 @@ export function normalizePayloadError(message: string): string {
   return message;
 }
 
+/**
+ * Longest error text relayed to the browser.
+ *
+ * These messages are written to be actionable — a P7M failure has to explain
+ * that the file is encrypted and what to ask the sender for — so the cap must
+ * fit a complete explanation. The old 180-character limit cut the P7M message
+ * mid-sentence at "Ask the sen…", hiding the one part that told the user what
+ * to do. 400 keeps the whole diagnostic and still refuses anything runaway;
+ * the stack/trace filters above are what keep internals out, and they still run
+ * first.
+ */
+const MAX_ERROR_TEXT = 400;
+
 /** Short, user-facing conversion errors (UI + toasts). Never expose stacks. */
 export function humanizeConversionError(message: string): string {
   const msg = normalizePayloadError(String(message || "Conversion failed"));
@@ -304,7 +317,9 @@ export function humanizeConversionError(message: string): string {
         .replace(/[A-Za-z]:\\[^\s]+/g, "")
         .replace(/\/app\/[^\s]+/g, "")
         .trim();
-      return cleaned.length > 220 ? `${cleaned.slice(0, 217)}…` : cleaned;
+      return cleaned.length > MAX_ERROR_TEXT
+        ? `${cleaned.slice(0, MAX_ERROR_TEXT - 3)}…`
+        : cleaned;
     }
     return "This file is not a valid SPSS statistics (.sav) dataset. The .sav extension is also used by game saves and other apps — open it in SPSS or export as CSV from your stats software, then try again.";
   }
@@ -355,7 +370,7 @@ export function humanizeConversionError(message: string): string {
     lower.includes("queue") ||
     lower.includes("about #")
   ) {
-    return msg.length > 180 ? msg.slice(0, 180) : msg;
+    return msg.length > MAX_ERROR_TEXT ? msg.slice(0, MAX_ERROR_TEXT) : msg;
   }
   if (
     lower.includes("timed out") ||
@@ -401,7 +416,9 @@ export function humanizeConversionError(message: string): string {
       .replace(/[A-Za-z]:\\[^\s]+/g, "")
       .replace(/\/app\/[^\s]+/g, "")
       .trim();
-    return cleaned.length > 180 ? `${cleaned.slice(0, 177)}…` : cleaned;
+    return cleaned.length > MAX_ERROR_TEXT
+      ? `${cleaned.slice(0, MAX_ERROR_TEXT - 3)}…`
+      : cleaned;
   }
 
   if (
@@ -455,7 +472,9 @@ export function humanizeConversionError(message: string): string {
     lower.includes("chunk") ||
     lower.includes("upload session")
   ) {
-    return msg.length > 200 ? `${msg.slice(0, 197)}…` : msg;
+    return msg.length > MAX_ERROR_TEXT
+      ? `${msg.slice(0, MAX_ERROR_TEXT - 3)}…`
+      : msg;
   }
   if (
     lower.includes("unexpected end of form") ||
@@ -468,7 +487,9 @@ export function humanizeConversionError(message: string): string {
     return "The uploaded file was empty. Choose another file.";
   }
   if (lower.includes("not supported") || lower.includes("unsupported")) {
-    return msg.length > 160 ? `${msg.slice(0, 157)}…` : msg;
+    return msg.length > MAX_ERROR_TEXT
+      ? `${msg.slice(0, MAX_ERROR_TEXT - 3)}…`
+      : msg;
   }
   if (lower.includes("exceeds maximum") || lower.includes("too large")) {
     return msg;
@@ -490,5 +511,7 @@ export function humanizeConversionError(message: string): string {
   // Strip accidental path prefixes
   const cleaned = msg.replace(/[A-Za-z]:\\[^\s]+/g, "").replace(/\/app\/[^\s]+/g, "").trim();
   const out = cleaned || "Conversion failed. Please try again.";
-  return out.length > 180 ? `${out.slice(0, 177)}…` : out;
+  return out.length > MAX_ERROR_TEXT
+    ? `${out.slice(0, MAX_ERROR_TEXT - 3)}…`
+    : out;
 }
