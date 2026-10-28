@@ -11,11 +11,12 @@ export const changelogEntries: ChangelogEntry[] = [
   {
     id: "2026-10-28-flc-feather-dta-fixes",
     date: "2026-10-28",
-    title: "Animation, Feather and Stata fixes",
+    title: "Animation, Feather, Stata and P7M fixes",
     items: [
       "FLI and FLC animations now convert instead of failing with \u201cInput image exceeds pixel limit\u201d. The frame header was being read at the wrong offset, so the image size came from unrelated bytes; the first frame is now decoded properly and coloured with the file's palette rather than in greyscale.",
       "Feather files saved with compressed record batches (LZ4 or ZSTD, the default in pandas and pyarrow when compression is requested) now convert. Previously every such file failed with \u201cRecord batch is compressed but codec not found\u201d.",
       "A Stata .dta file that cannot be read now reports the real reason \u2014 the release it declares and the byte where parsing stopped \u2014 instead of the contentless \u201cThe file structure is invalid or unsupported\u201d.",
+      "Signed .p7m files now open their contents instead of failing with \u201cCould not extract content from P7M signature\u201d. Signatures that store their document in BER form, in PEM armour, inside an S/MIME wrapper, split across several segments or nested in a second signature are all read now, and the document inside is converted normally. An encrypted .p7m, a detached signature that holds no document, and digest-only files each say which of those they are.",
     ],
   },
   {

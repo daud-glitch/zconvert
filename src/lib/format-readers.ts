@@ -9,6 +9,7 @@ import { XMLParser } from "fast-xml-parser";
 import * as tar from "tar-stream";
 import { extractRarWithToolchain } from "@/lib/external-toolchain";
 import { readDtaRows } from "@/lib/dta-reader";
+import { extractP7mContent as extractP7m } from "@/lib/p7m-reader";
 import { registerArrowCodecs } from "@/lib/arrow-codecs";
 
 export type ArchiveEntry = { name: string; data: Buffer };
@@ -948,21 +949,13 @@ export async function extractDrawioContent(input: Buffer): Promise<{
 }
 
 // ─── P7M (PKCS#7) ────────────────────────────────────────────────────────
-export async function extractP7mContent(input: Buffer): Promise<Buffer> {
-  const forge = await import("node-forge");
-  const f = forge.default;
-  const asn1 = f.asn1.fromDer(f.util.createBuffer(input.toString("binary")));
-  const p7 = f.pkcs7.messageFromAsn1(asn1) as {
-    content?: string | { getBytes?: () => string };
-  };
-  const content = p7.content;
-  if (typeof content === "string") {
-    return Buffer.from(content, "binary");
-  }
-  if (content && typeof content.getBytes === "function") {
-    return Buffer.from(content.getBytes(), "binary");
-  }
-  throw new Error("Could not extract content from P7M signature");
+/**
+ * The CMS walker lives in ./p7m-reader: node-forge's pkcs7 parser silently
+ * returned no content for BER-encoded, armoured, S/MIME-wrapped and nested
+ * signatures, which surfaced as an unexplained extraction failure.
+ */
+export function extractP7mContent(input: Buffer): Buffer {
+  return extractP7m(input);
 }
 
 // ─── Archives (7-Zip + tar) ───────────────────────────────────────────────
