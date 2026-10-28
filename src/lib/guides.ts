@@ -542,6 +542,473 @@ export const guides: Guide[] = [
       },
     ],
   },
+  {
+    slug: "heic-to-jpg-guide",
+    title: "HEIC to JPG: Why iPhone Photos Refuse to Open, and What Converting Changes",
+    description:
+      "Why HEIC photos from an iPhone fail to open on Windows, Android and older software, what a JPG conversion keeps or discards, and how to avoid quality loss.",
+    updated: "2026-10-28",
+    readingMinutes: 7,
+    keywords: [
+      "heic to jpg",
+      "iphone photos won't open",
+      "convert heic to jpeg",
+      "heif vs jpeg",
+    ],
+    lead:
+      "If you have ever tried to upload an iPhone photo to a website that answered with an error, or opened one on an older Windows machine and seen only a grey placeholder, you have met HEIC. The photo is fine. Almost every piece of software that is not Apple simply cannot decode it, and converting to JPG is the fix — with a few consequences worth knowing first.",
+    blocks: [
+      {
+        heading: "HEIC is a container, which is why one file can hide several things",
+        paragraphs: [
+          "HEIC stands for High Efficiency Image Container; the container format itself is HEIF, and the picture inside is compressed with HEVC — the same family of coding that H.265 video uses. HEVC is roughly twice as efficient as the JPEG standard it replaced, which is why Apple switched the iPhone camera default to it in iOS 11 and why the files are so much smaller for the same visual quality.",
+          "The word container is doing real work there. A single HEIC file can hold the still image, a depth map from the portrait camera, an HDR gain map that reconstructs highlights above standard white, the still frame and short video of a Live Photo, and thumbnail previews. That richness is invisible in most viewers but explains why a HEIC is not simply 'a photo' the way a JPG is: conversion has to decide what to keep.",
+        ],
+      },
+      {
+        heading: "Why the file will not open anywhere",
+        paragraphs: [
+          "Support is split by platform, not by file quality. Apple devices read HEIC natively — macOS previews it, Photos edits it, Safari displays it. Windows 10 and 11 need the HEIF Image Extensions from the Microsoft Store, and decoding HEVC video content can require the separate HEVC Video Extensions, which some machines must pay for. Android has read it since Android 9, but individual gallery and messaging apps vary. Browsers are the weakest link: a web page asking for an image upload usually accepts JPG and PNG and rejects HEIC outright.",
+          "The other half of the confusion is thumbnails. Because a HEIC carries its own embedded JPEG preview, some file browsers show a correct thumbnail and then fail when you actually open the file — the viewer was showing the thumbnail, not decoding the photo. If a file previews fine but opens blank, that is usually what happened.",
+        ],
+        list: [
+          {
+            term: "macOS, iOS, iPadOS",
+            text: "Native support everywhere, including editing.",
+          },
+          {
+            term: "Windows 10/11",
+            text: "Needs HEIF Image Extensions; older builds may also need the HEVC codec.",
+          },
+          {
+            term: "Android",
+            text: "Read from Android 9 onward; app support varies.",
+          },
+          {
+            term: "Web uploads",
+            text: "Usually rejected — most forms accept JPG, PNG and WebP only.",
+          },
+        ],
+      },
+      {
+        heading: "What a JPG conversion keeps, and what it throws away",
+        paragraphs: [
+          "The pixels survive, re-encoded once into JPEG. That is a second lossy generation only if the HEIC itself was lossy, which it almost always is — in practice the difference is invisible at normal viewing size, because the first encode was at high quality. What changes is everything around the pixels.",
+          "High dynamic range is the biggest casualty. Modern iPhones capture more range than a standard JPEG can hold, and store the extra highlights in a gain map. Converters that ignore the map produce a flatter, sometimes clipped image: skies that were smooth acquire white patches, backlit faces lose detail. Transparency, where present, is filled with a background colour because JPG has no alpha channel. Depth data and Live Photo motion are dropped. EXIF is usually carried across — including GPS coordinates, which is worth remembering before posting a photo of your home.",
+          "The file also gets bigger. HEVC is efficient enough that the equivalent-quality JPG is often around twice the size, which surprises people who assume conversion compresses.",
+        ],
+      },
+      {
+        heading: "Getting the best result out of the conversion",
+        paragraphs: [
+          "Convert from the original HEIC, never from a screenshot or a re-saved copy — those start from an already-recompressed image. If the photo is going to be edited further in an image editor, convert to PNG instead of JPG so the editing passes do not stack lossy generations; the file will be larger, but it stays clean until you export a final JPG.",
+          "Watch orientation. Phone photos are stored landscape with an EXIF rotation flag, and a converter that copies the flag without applying it produces a sideways image. If the result is rotated, the tool ignored the tag. And if the destination is a website rather than a person's desktop, consider WebP or AVIF instead of JPG — both are smaller at equal quality and are supported by every current browser.",
+        ],
+      },
+    ],
+    related: [
+      { from: "heic", to: "jpg" },
+      { from: "heic", to: "png" },
+      { from: "heic", to: "pdf" },
+      { from: "jpg", to: "png" },
+      { from: "png", to: "jpg" },
+      { from: "webp", to: "jpg" },
+    ],
+    relatedFormats: ["heic", "heif", "jpg", "png", "webp", "avif"],
+    faqs: [
+      {
+        question: "Does converting HEIC to JPG reduce quality?",
+        answer:
+          "Slightly, and usually imperceptibly: JPG is lossy, so the image is re-encoded once at high quality. Convert to PNG instead if the photo still needs editing, to avoid stacking a second lossy pass later.",
+      },
+      {
+        question: "Why is the JPG twice the size of the HEIC?",
+        answer:
+          "HEVC compresses roughly twice as efficiently as JPEG at the same visual quality, so storing the same picture as JPG needs more bytes. The trade is compatibility, not quality.",
+      },
+      {
+        question: "Can I keep the HDR look after converting?",
+        answer:
+          "Only if the converter reads Apple's gain map and tone-maps it. Most JPG output is standard dynamic range, so very bright highlights may look flatter or clipped compared with the phone's display.",
+      },
+      {
+        question: "Does the JPG still contain my location?",
+        answer:
+          "Usually yes — EXIF, including GPS, is preserved by most converters. Strip metadata before publishing a photo publicly if the location should stay private.",
+      },
+    ],
+  },
+  {
+    slug: "images-to-pdf-guide",
+    title: "Photos and Scans to PDF: Page Size, DPI and Ordering Done Right",
+    description:
+      "Turn phone photos, receipts and scans into one PDF that prints correctly — how page size, resolution, rotation and compression decide the result.",
+    updated: "2026-10-28",
+    readingMinutes: 6,
+    keywords: [
+      "jpg to pdf",
+      "images to pdf",
+      "combine photos into pdf",
+      "scan to pdf",
+    ],
+    lead:
+      "Combining images into a PDF looks like the simplest conversion there is, and it is — right up until you print it and find a photo cropped at the edge, a page the wrong way round, or a file too large to email. All three come from decisions the conversion makes on your behalf, and all three are controllable.",
+    blocks: [
+      {
+        heading: "A PDF page is a fixed box; a photo is whatever shape it is",
+        paragraphs: [
+          "Every PDF page has an explicit size in physical units — A4 is 210 by 297 millimetres, US Letter is 8.5 by 11 inches — and each image has to be placed inside that box. There are only two honest options: fit the whole image inside the page, leaving margins in the empty dimension, or fill the page and crop the overflow. A converter that silently stretches the image to fill the page distorts it, which is the failure people notice last and hate most.",
+          "Page size should follow the destination. A4 for most of the world, Letter for North America; both for a mixed audience is a bad idea because a document with alternating page sizes prints badly and looks unprofessional. If your images are a mixture of portrait and landscape, decide whether to keep each photo's orientation as its own page orientation, or to force one orientation and accept margins on half the pages.",
+        ],
+      },
+      {
+        heading: "Resolution: decide by destination, not by a number you remember",
+        paragraphs: [
+          "A PDF stores an image in pixels and scales it to a physical size, so the same photo can be 100 DPI or 400 DPI depending on the page it is placed on. Take a 4000-pixel-wide photo and put it across an A4 page: 4000 divided by 8.27 inches gives about 484 dots per inch. That is well above what any office printer resolves. Put the same photo across a 4-inch-wide region and it is 1000 DPI, which is pure waste.",
+          "For print, 300 DPI at the final placed size is the standard target, and 150 DPI is acceptable for internal documents. For screen-only PDFs, 100 to 150 DPI is enough and keeps the file small. The important asymmetry is that you cannot add resolution by asking for it: telling a converter to write a 2000-pixel image at 600 DPI enlarges it to a blurry 600 DPI, it does not create detail. Downsizing, on the other hand, genuinely saves space.",
+        ],
+      },
+      {
+        heading: "Ordering, rotation and the mistakes everyone makes",
+        paragraphs: [
+          "Page order comes from filename order, and filenames sort as text: page1, page10, page2. Zero-pad the numbers — page01, page02, page10 — or the PDF will be in an order that only makes sense to a computer. Sorting by modification date instead helps when the files came from a camera roll in sequence.",
+          "Rotation is the second trap. A photo taken sideways is stored with an EXIF orientation flag, and if the converter does not apply it, that page arrives rotated inside the PDF, where you can no longer fix it by rotating your viewer. Check the first and last page of the output before sending it anywhere. Also watch for blank or duplicated pages: sheet-feed scanners occasionally pull two sheets at once, and a phone scan of a two-sided document produces one page per side whether you wanted that or not.",
+        ],
+      },
+      {
+        heading: "Keeping it small enough to actually send",
+        paragraphs: [
+          "An image-only PDF is roughly the sum of the JPEGs inside it, so size is driven by pixel count and quality setting. Recompressing at around 85 percent quality is usually visually indistinguishable from the original photo and cuts the size substantially. Downsampling anything above 300 DPI to 300 DPI saves more, and converting text-only scans to grayscale can halve them again.",
+          "Never convert a PDF page back to an image and then into a new PDF to 'compress' it — that is two lossy generations for a file that will look worse and often end up larger. If the document needs to be searchable or selectable, note that a photo of text is just a picture: making the text real requires optical character recognition, which is a separate step from assembling the PDF.",
+        ],
+        list: [
+          {
+            term: "Email or upload",
+            text: "150 DPI, JPEG quality around 85 percent, grayscale for text pages.",
+          },
+          {
+            term: "Office printing",
+            text: "300 DPI at the final page size, sRGB, single page size throughout.",
+          },
+          {
+            term: "Archiving a scan",
+            text: "300 to 400 DPI, colour only if the original has colour; keep the originals too.",
+          },
+        ],
+      },
+    ],
+    related: [
+      { from: "jpg", to: "pdf" },
+      { from: "png", to: "pdf" },
+      { from: "heic", to: "pdf" },
+      { from: "tiff", to: "pdf" },
+      { from: "pdf", to: "jpg" },
+      { from: "webp", to: "pdf" },
+    ],
+    relatedFormats: ["jpg", "png", "pdf", "tiff", "heic", "gif"],
+    faqs: [
+      {
+        question: "Which page size should I choose for a photo PDF?",
+        answer:
+          "Match the paper you will print on: A4 outside North America, Letter inside it. Mixing sizes in one document prints badly, so pick one and let the other dimension take margins.",
+      },
+      {
+        question: "How do I make a photo PDF smaller?",
+        answer:
+          "Lower the JPEG quality to about 85 percent, downsample anything above 300 DPI, and use grayscale for text-only pages. Do not convert it to images and back — that adds loss without shrinking it.",
+      },
+      {
+        question: "Why are my pages rotated inside the PDF?",
+        answer:
+          "The EXIF orientation flag was copied but not applied. Rotate the source images first, or use a converter that bakes the rotation into the page.",
+      },
+      {
+        question: "Can I make the text in a scanned PDF searchable?",
+        answer:
+          "Only with OCR. A photo or scan is a picture of text, so the PDF carries no characters until an OCR step recognises them; converting the PDF to TXT or DOCX runs that recognition.",
+      },
+    ],
+  },
+  {
+    slug: "pdf-to-image-dpi-guide",
+    title: "PDF to JPG or PNG: Choosing a Resolution That Is Neither Blurry nor Huge",
+    description:
+      "What 72, 150 and 300 DPI actually mean for a PDF page, when PNG beats JPG, and why one page can produce a file larger than the document it came from.",
+    updated: "2026-10-28",
+    readingMinutes: 6,
+    keywords: [
+      "pdf to jpg",
+      "pdf to png",
+      "pdf resolution dpi",
+      "convert pdf page to image",
+    ],
+    lead:
+      "A PDF has no pixels until you decide to give it some. That is why the same page can come out as a crisp poster or a blurred thumbnail from the same converter — the resolution setting is not a quality slider, it is a decision about how many pixels the page is worth. Get it wrong in one direction and the text is unreadable; wrong in the other and the file is enormous for no reason.",
+    blocks: [
+      {
+        heading: "A PDF describes a page; rendering decides its size in pixels",
+        paragraphs: [
+          "Text in a PDF is stored as glyphs at coordinates, and vectors are stored as paths. Nothing in the file says how many pixels wide the page is, because a PDF is meant to be sharp at any output size. Turning it into an image is a rendering step that picks a number of pixels per inch of paper, and every dimension follows from that.",
+          "For A4 the numbers are worth memorising: at 72 DPI a page is 595 by 842 pixels, at 150 DPI it is 1240 by 1754, at 300 DPI it is 2480 by 3508, and at 600 DPI it is 4961 by 7016. 72 DPI is the historical value one PDF unit is defined against, which is why converters that do not ask you for a resolution quietly produce something that looks soft on any modern screen.",
+        ],
+      },
+      {
+        heading: "Picking the number for what you will do with the image",
+        paragraphs: [
+          "For reading on screen, posting in a chat or dropping a page into a slide deck, 96 to 150 DPI is right: full-page legibility without waste. For printing, or for archiving a page whose fine print matters, 300 DPI is the standard. Go to 400 or 600 DPI only for line art, small technical text, or pages that will be OCRed — and accept that a 600 DPI render has four times the pixels of 300 DPI, so the file is roughly four times larger.",
+          "The cost curve is the thing people underestimate. Doubling the resolution quadruples the pixel count, and JPEG or PNG size follows pixel count closely. A 40-page document rendered at 600 DPI is not twice a 300 DPI version, it is four times, and a folder of them can run to gigabytes. If the goal is to look at a document, 150 DPI answers the question; render at 300 only the pages you actually need.",
+        ],
+        list: [
+          {
+            term: "72 to 96 DPI",
+            text: "Previews and thumbnails. Text is technically present but soft; do not read from it.",
+          },
+          {
+            term: "150 DPI",
+            text: "Comfortable on screen, fine for email attachments and slide decks.",
+          },
+          {
+            term: "300 DPI",
+            text: "Print quality and general archiving. The default worth choosing.",
+          },
+          {
+            term: "600 DPI",
+            text: "Line art, small technical text, OCR input. Four times the bytes of 300 DPI.",
+          },
+        ],
+      },
+      {
+        heading: "JPG or PNG is a question about what is on the page",
+        paragraphs: [
+          "A photograph rendered to JPG is a good trade: small file, no visible difference. A page of text or a diagram rendered to JPG is a bad one, because JPEG's compression works in 8 by 8 blocks and produces ringing around hard edges — the fuzz that appears around letters and thin lines at low quality settings. PNG stores those edges exactly, so text stays clean, at the cost of a larger file.",
+          "Pick PNG when the page is mostly text, line art, charts or screenshots; pick JPG when the page is mostly photographs or gradients. Two more details matter. Pages with no background colour are transparent in the PDF, and PNG keeps that transparency while JPG fills it with white — usually fine, occasionally a surprise on dark backgrounds. And if the source is a black-and-white scan, asking for grayscale rather than colour can cut the size dramatically with no loss of usefulness.",
+        ],
+      },
+      {
+        heading: "Multi-page documents, and what you are really producing",
+        paragraphs: [
+          "Rendering a 30-page PDF produces 30 images, and how they are delivered matters as much as their quality. One image per page is right when you need a specific page for a document or a slide; a single archive of all pages is right when you need the whole thing offline. Bundling them avoids 30 separate downloads, but it also means you cannot preview before committing to the transfer.",
+          "Finally, be clear about what you lose. An image of a page cannot be searched, copied or edited — if the goal was to work with the text, the useful conversion is PDF to TXT, DOCX or HTML, which extracts characters rather than pictures. Rasterising is for when the page itself is the thing you want: a preview image, a thumbnail, a page pasted into a design, or a signature block lifted out of a contract.",
+        ],
+      },
+    ],
+    related: [
+      { from: "pdf", to: "jpg" },
+      { from: "pdf", to: "png" },
+      { from: "pdf", to: "webp" },
+      { from: "pdf", to: "tiff" },
+      { from: "jpg", to: "pdf" },
+      { from: "png", to: "pdf" },
+    ],
+    relatedFormats: ["pdf", "jpg", "png", "webp", "tiff", "svg"],
+    faqs: [
+      {
+        question: "What DPI should I use to convert a PDF to an image?",
+        answer:
+          "150 DPI for screen use, 300 DPI for printing or archiving, 600 DPI only for fine line art and OCR input. Doubling the DPI quadruples the file size.",
+      },
+      {
+        question: "Why is my JPG of a PDF page blurry?",
+        answer:
+          "The page was rendered at 72 DPI, the default many tools use because PDF units are defined against it. Re-render at 150 or 300 DPI — the PDF itself has no resolution to lose.",
+      },
+      {
+        question: "Should I convert a PDF page to PNG or JPG?",
+        answer:
+          "PNG for text, diagrams and screenshots — JPEG adds visible fuzz around letters. JPG for photographic pages, where it is smaller with no visible difference.",
+      },
+      {
+        question: "Can I get the text out instead of a picture?",
+        answer:
+          "Yes, with a document conversion rather than an image one: PDF to TXT, DOCX or HTML extracts characters. Rendering to an image deliberately keeps only the visual result.",
+      },
+    ],
+  },
+  {
+    slug: "docx-to-pdf-fidelity-guide",
+    title: "DOCX to PDF: Why the Layout Moves, and the Checks That Catch It",
+    description:
+      "Fonts, fields and page breaks are what change when a Word file becomes a PDF — how to predict the damage and catch it in three minutes before sending.",
+    updated: "2026-10-28",
+    readingMinutes: 6,
+    keywords: [
+      "docx to pdf",
+      "word to pdf formatting changed",
+      "pdf layout shifted",
+      "convert word document to pdf",
+    ],
+    lead:
+      "Word-to-PDF is the conversion people trust most and check least, which is unfortunate, because it is a re-layout rather than a snapshot. The text is never the problem; the problem is a paragraph that now spills onto the next page, or a brand font that silently became a substitute. Both are predictable, and both are visible in a quick review.",
+    blocks: [
+      {
+        heading: "Two different programs are doing the layout",
+        paragraphs: [
+          "A DOCX does not contain pages. It contains text with styles, images anchored to paragraphs, and settings that say how to flow everything — and a program lays that out into pages each time it is opened or printed. Microsoft Word and the office engines used by converters and servers are different programs with different line-breaking rules, hyphenation dictionaries and font-metric tables, so identical input can paginate differently.",
+          "That difference is normal and usually small: the same paragraph count, the same fonts, one page break in a different place near the end. It becomes a problem only when a document is tuned to the last line of the last page, which is exactly what happens with a résumé, a two-page brief or a form that must not run to a third page. Convert early enough to see the overflow, not at the moment you send it.",
+        ],
+      },
+      {
+        heading: "Fonts are the single biggest cause of drift",
+        paragraphs: [
+          "If the converting machine does not have the font, it substitutes one. Office suites ship metric-compatible replacements — Calibri maps to Carlito, Arial to Liberation Sans, Times New Roman to Liberation Serif — which are designed to occupy the same space per character, so the layout mostly holds. Custom fonts have no such twin: a corporate typeface becomes whatever the fallback list says, character widths change, and every line on every page reflows.",
+          "If the document uses a brand font, either embed it in the DOCX before converting or accept that a local export from Word will look different from a conversion done elsewhere. And check the page count first thing: if it differs from the original, something reflowed, and the cause is almost always a font.",
+        ],
+      },
+      {
+        heading: "What else changes hands between the two formats",
+        paragraphs: [
+          "Tracked changes and comments are the quiet hazard. In Word they are visible as marks; a converted PDF may show them, may show only the accepted text, or may omit the comment margin entirely. Decide which you want — clean copy or review copy — and resolve the tracked changes before converting so the answer is not up to the tool.",
+          "Fields are the second category: a table of contents, page numbers, cross-references and date fields are computed by the editing program. If they were stale when you converted, they are frozen stale in the PDF. Update them first. Beyond that, the usual casualties are tables whose rows split across a page break, floating text boxes and shapes that anchor slightly differently, hyperlinks that survive or do not depending on the converter, form controls that become flat, embedded spreadsheets that need their host program, and images using transparency or blend modes that render differently on a non-Microsoft engine.",
+        ],
+      },
+      {
+        heading: "A three-minute pre-send check",
+        paragraphs: [
+          "Compare page counts first, then scan the bottom of each page for a paragraph that used to sit on the previous one. Look at any table that lands near a page break, because a header row separated from its rows is the most common visible defect. Confirm that headers, footers and page numbers are right, click two or three hyperlinks, and check that images have not gone soft — a re-compressed photograph is the one thing in the file that quietly loses quality.",
+          "If the PDF is for archival or legal purposes, ask for PDF/A rather than an ordinary PDF: it embeds the fonts and forbids the features that make a document render differently years later. The trade is that PDF/A is a final form — you cannot go back to editing it, so keep the DOCX as the master and treat every PDF as an export.",
+        ],
+        list: [
+          {
+            term: "Page count",
+            text: "Differs from the original? Suspect a font substitution first.",
+          },
+          {
+            term: "Page breaks",
+            text: "Check the last two lines of each page and any table split across pages.",
+          },
+          {
+            term: "Fields",
+            text: "Table of contents and page numbers must be updated before converting, not after.",
+          },
+          {
+            term: "Input PDF",
+            text: "Long-lived records may want PDF/A, which embeds fonts and pins the layout.",
+          },
+        ],
+      },
+    ],
+    related: [
+      { from: "docx", to: "pdf" },
+      { from: "doc", to: "pdf" },
+      { from: "pdf", to: "docx" },
+      { from: "docx", to: "odt" },
+      { from: "docx", to: "txt" },
+      { from: "md", to: "pdf" },
+    ],
+    relatedFormats: ["docx", "doc", "pdf", "odt", "rtf", "md"],
+    faqs: [
+      {
+        question: "Why did my page breaks change when converting DOCX to PDF?",
+        answer:
+          "A different layout engine re-flowed the text, usually because a font was substituted or line-breaking rules differ. Compare page counts and check the bottom of each page.",
+      },
+      {
+        question: "How do I keep my fonts in the PDF?",
+        answer:
+          "Use fonts that exist on the converting machine, or embed them in the DOCX first. Metric-compatible substitutes like Carlito for Calibri keep the layout close but are not identical.",
+      },
+      {
+        question: "Can I edit the PDF afterwards?",
+        answer:
+          "Treat a PDF as a final export. Editing it means converting back to DOCX, which reconstructs structure imperfectly — keep the original DOCX as the master instead.",
+      },
+    ],
+  },
+  {
+    slug: "video-formats-mp4-webm-mkv",
+    title: "MP4, WebM and MKV: Choosing a Video Format That Actually Plays",
+    description:
+      "Containers versus codecs, which format plays where, and what a video conversion really costs — a practical guide to MP4, WebM, MKV and MOV.",
+    updated: "2026-10-28",
+    readingMinutes: 7,
+    keywords: [
+      "mp4 vs webm",
+      "mkv to mp4",
+      "video format for web",
+      "convert video format",
+    ],
+    lead:
+      "Video format advice fails because people use one word for two different things. MP4 and MKV are containers — boxes that hold streams. H.264, HEVC, VP9 and AV1 are codecs — the ways those streams are compressed. Almost every playback problem is a codec problem wearing a container's name, and knowing which one you are changing tells you whether a conversion will take seconds or an hour.",
+    blocks: [
+      {
+        heading: "Container and codec are separate decisions",
+        paragraphs: [
+          "A container defines what can live inside the file: video tracks, audio tracks, subtitle tracks, chapter markers, metadata. A codec defines how the picture or sound is compressed. MP4 can hold H.264, HEVC or AV1 video with AAC or Opus audio; MKV can hold nearly anything; WebM is restricted to the open codecs, in practice VP8, VP9 or AV1 with Vorbis or Opus.",
+          "That split explains the two very different kinds of conversion. Repackaging — moving the same H.264 stream from an MKV into an MP4 — is a copy: fast, lossless, and only possible when the target container accepts the codec already inside. Re-encoding — turning HEVC into H.264 — decodes and re-compresses every frame: slow, lossy, and the only option when the device you are targeting cannot decode the original codec.",
+        ],
+      },
+      {
+        heading: "What plays where",
+        paragraphs: [
+          "MP4 with H.264 video and AAC audio is the closest thing to a universal format: every phone, television, editor, social platform and presentation tool accepts it, which is why it is the safe answer for anything you are sending to someone else. HEVC in an MP4 is roughly 30 to 50 percent smaller at the same quality, but playback depends on the device having a licensed HEVC decoder, and older Windows machines and browsers often do not.",
+          "WebM with VP9 or AV1 is for the web: browsers decode it natively and it is typically smaller than H.264 at equal quality, which is why video sites serve it first with an MP4 fallback. It is a poor choice for a file someone will open on a television or drop into a video editor. MKV is a container for keeping things — multiple audio tracks, many subtitle languages, chapters — with excellent desktop player support and patchy support on Apple devices, smart TVs and phones. MOV remains the working format of the Apple ecosystem, and AVI is legacy: large, old codecs and increasingly unsupported.",
+        ],
+        list: [
+          {
+            term: "MP4 (H.264 + AAC)",
+            text: "The universal default. Share it, upload it, put it in a slide deck.",
+          },
+          {
+            term: "MP4 (HEVC)",
+            text: "Smaller, but needs a modern device with the right decoder.",
+          },
+          {
+            term: "WebM (VP9 / AV1)",
+            text: "Best for web pages and progressive playback in browsers.",
+          },
+          {
+            term: "MKV",
+            text: "Multiple tracks and subtitles for archiving; weak on TVs and Apple devices.",
+          },
+        ],
+      },
+      {
+        heading: "What a video conversion costs you",
+        paragraphs: [
+          "A re-encode is one lossy generation. Do it once from the original and the result is usually indistinguishable; do it three times while chasing the right format and the artefacts compound — the second pass has to compress the smears created by the first, which makes the file both worse and, perversely, sometimes bigger.",
+          "Two settings dominate the result. Resolution is the biggest lever: 1080p downscaled to 720p at a sane bitrate looks better and is far smaller than 1080p squeezed to a low bitrate. And bitrate should match the content — a static talking-head needs a fraction of what fast motion does. Note also that converters optimised for turnaround, including most server-side ones, trade some encoding efficiency for speed; if you are producing a master or a file for broadcast, export from your own editor instead.",
+        ],
+      },
+      {
+        heading: "Tracks, subtitles and the web-specific details",
+        paragraphs: [
+          "Subtitles are the most common casualty of container conversion. MKV happily carries a dozen subtitle streams; MP4 supports them but many tools drop them silently during conversion, and burned-in subtitles are a different thing entirely from a selectable track. If subtitles matter, keep them as a separate SRT or WebVTT file — which is also the format a web player expects — or check explicitly that the output still lists its tracks.",
+          "For web delivery there is one more detail worth knowing: the index at the start of an MP4. A file written with its index at the end has to be fully downloaded before it starts playing, while one written with the index first can play progressively. If a video on a page sits at a spinner until it is completely fetched, the container is fine and the layout of the file is the problem. And if you only needed the sound, extracting to MP3 or WAV is faster than any video conversion and gives you a file that plays anywhere.",
+        ],
+      },
+    ],
+    related: [
+      { from: "mp4", to: "webm" },
+      { from: "webm", to: "mp4" },
+      { from: "mkv", to: "mp4" },
+      { from: "avi", to: "mp4" },
+      { from: "mov", to: "mp4" },
+      { from: "mp4", to: "mp3" },
+    ],
+    relatedFormats: ["mp4", "webm", "mkv", "avi", "mov", "mp3"],
+    faqs: [
+      {
+        question: "Which video format should I upload to a website?",
+        answer:
+          "MP4 with H.264 video and AAC audio plays everywhere. Offer WebM or AV1 as an additional source for browsers if you want smaller files, but keep MP4 as the fallback.",
+      },
+      {
+        question: "Does converting MKV to MP4 reduce quality?",
+        answer:
+          "Only if the codec inside is changed. If the video is already H.264, the streams can be copied into an MP4 with no loss at all; a real re-encode costs one generation.",
+      },
+      {
+        question: "Why is WebM smaller than MP4?",
+        answer:
+          "The codecs it allows — VP9 and AV1 — compress better than H.264 at the same visual quality. The trade is that older devices and editors cannot open it.",
+      },
+      {
+        question: "Where did my subtitles go after converting?",
+        answer:
+          "Many converters drop embedded subtitle tracks when changing container. Keep subtitles as a separate SRT or WebVTT file, or verify the output still lists its tracks.",
+      },
+    ],
+  },
 ];
 
 const bySlug = new Map(guides.map((g) => [g.slug, g]));

@@ -7,7 +7,7 @@ import { SITE_NAME, SITE_URL, OG_IMAGE_PATH } from "@/lib/seo";
 
 const title = `File Conversion Guides — ${SITE_NAME}`;
 const description =
-  "Practical, original guides to file formats: choosing between PNG, JPG, WebP and AVIF, converting PDF to DOCX, extracting audio from video, CSV vs JSON, shrinking files, and subtitle formats.";
+  "Practical, original guides to file formats: choosing between PNG, JPG, WebP and AVIF, converting iPhone HEIC photos, photos and scans to PDF, PDF to images at the right resolution, DOCX to PDF fidelity, extracting audio from video, CSV vs JSON, and subtitle formats.";
 
 export const metadata: Metadata = {
   title,
