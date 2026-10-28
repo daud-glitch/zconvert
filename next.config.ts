@@ -198,7 +198,6 @@ const nextConfig: NextConfig = {
     "@irbisadm/statfmt",
     "word-extractor",
     "@kenjiuno/msgreader",
-    "node-forge",
     "dta",
     "ag-psd",
   ],
