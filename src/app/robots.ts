@@ -25,7 +25,6 @@ export default function robots(): MetadataRoute.Robots {
     "/manifest.webmanifest",
     "/sw.js",
     "/service-worker",
-    "/ads.txt",
   ];
 
   return {
