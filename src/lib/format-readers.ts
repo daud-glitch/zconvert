@@ -9,6 +9,7 @@ import { XMLParser } from "fast-xml-parser";
 import * as tar from "tar-stream";
 import { extractRarWithToolchain } from "@/lib/external-toolchain";
 import { readDtaRows } from "@/lib/dta-reader";
+import { registerArrowCodecs } from "@/lib/arrow-codecs";
 
 export type ArchiveEntry = { name: string; data: Buffer };
 
@@ -330,7 +331,27 @@ export async function readFeatherRecords(
   input: Buffer,
 ): Promise<Record<string, unknown>[]> {
   const arrow = await import("apache-arrow");
-  const table = arrow.tableFromIPC(new Uint8Array(input));
+  // pyarrow and pandas write compressed record batches by default when asked
+  // for "lz4" or "zstd". apache-arrow ships the registry but no codecs, which
+  // surfaced as "Record batch is compressed but codec not found" on every such
+  // file. Register our decoders before touching the buffer.
+  registerArrowCodecs(
+    arrow as unknown as Parameters<typeof registerArrowCodecs>[0],
+  );
+
+  let table: import("apache-arrow").Table;
+  try {
+    table = arrow.tableFromIPC(new Uint8Array(input));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/codec not found/i.test(message)) {
+      throw new Error(
+        "This Feather file stores its record batches compressed with a codec this server cannot decode. Re-save it uncompressed (pyarrow: feather.write_feather(df, path, compression='uncompressed')) or upload CSV/Parquet instead.",
+      );
+    }
+    throw err;
+  }
+
   const records: Record<string, unknown>[] = [];
   for (let i = 0; i < table.numRows; i++) {
     const rec: Record<string, unknown> = {};
@@ -355,12 +376,34 @@ export async function readDtaRecords(
     // back to our own reader before reporting a failure.
     try {
       return readDtaRows(input);
-    } catch {
+    } catch (fallbackErr) {
+      // Our reader knows the release and the byte it stopped at, while the
+      // package usually throws a bare TypeError (or a non-Error at all).
+      // Reporting only the package's error hid the useful reason and produced
+      // the contentless "DTA Parse Error: The file structure is invalid or
+      // unsupported." seen in the admin panel. Lead with ours.
+      const detail = [
+        describeDtaError(fallbackErr),
+        describeDtaError(err),
+      ]
+        .filter(Boolean)
+        .join("; ");
       throw new Error(
-        `DTA Parse Error: ${err instanceof Error ? err.message : "The file structure is invalid or unsupported."}`,
+        `DTA Parse Error: ${detail || "The file structure is invalid or unsupported."}`,
       );
     }
   }
+}
+
+/** Message text for anything a parser may throw, including non-Errors. */
+function describeDtaError(err: unknown): string {
+  if (err instanceof Error) return err.message.trim();
+  if (typeof err === "string") return err.trim();
+  if (err && typeof err === "object" && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string") return message.trim();
+  }
+  return "";
 }
 
 async function readDtaWithSheetJs(

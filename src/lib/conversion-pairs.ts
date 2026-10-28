@@ -278,8 +278,33 @@ export function getConversionPairSlugs(): string[] {
 }
 
 /**
+ * The subset of pairs we ask search engines to index.
+ *
+ * The registry exposes ~2,300 valid pairs and they are near-identical
+ * templates, so indexing all of them reads as thin, auto-generated content to
+ * both Google and AdSense review. This curated set is `TOP_PAIRS` — the same
+ * list the homepage and /conversions feature — so anything a visitor is likely
+ * to search for stays indexable, while the long tail stays live and usable but
+ * carries `noindex, follow` (see `app/[slug]/page.tsx`).
+ *
+ * The sitemap and the page metadata both read this function, so they cannot
+ * drift into advertising a URL that renders noindex again.
+ */
+export function getIndexablePairSlugs(): string[] {
+  return getConversionPairSlugs();
+}
+
+const INDEXABLE_PAIR_SLUGS = new Set(getIndexablePairSlugs());
+
+/** True when `slug` is in the curated, indexable pair set. */
+export function isIndexablePair(slug: string): boolean {
+  return INDEXABLE_PAIR_SLUGS.has(slug);
+}
+
+/**
  * Returns ALL valid conversion pair slugs derived from the formats registry.
- * Used for sitemap generation — covers every from→to pair the backend supports.
+ * Used for static params and crawl-depth tests — covers every from→to pair the
+ * backend supports, indexable or not.
  */
 export function getAllConversionPairSlugs(): string[] {
   const seen = new Set<string>();

@@ -6,7 +6,7 @@
  *
  * Google does not participate in IndexNow; it still relies on the sitemap.
  */
-import { getAllConversionPairSlugs } from "../src/lib/conversion-pairs";
+import { getIndexablePairSlugs } from "../src/lib/conversion-pairs";
 import { formats } from "../src/lib/formats";
 import { SITE_URL } from "../src/lib/seo";
 
@@ -26,7 +26,9 @@ function collectUrls(): string[] {
     `${SITE_URL}/terms`,
   ]);
   for (const f of formats) urls.add(`${SITE_URL}/conversions/${f.ext}`);
-  for (const slug of getAllConversionPairSlugs()) urls.add(`${SITE_URL}/${slug}`);
+  // Only the curated pairs: the long tail renders `noindex, follow`, so asking
+  // Bing to crawl it would just spend crawl budget on pages we hide.
+  for (const slug of getIndexablePairSlugs()) urls.add(`${SITE_URL}/${slug}`);
   return [...urls];
 }
 

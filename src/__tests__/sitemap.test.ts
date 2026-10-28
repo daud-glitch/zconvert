@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import sitemap from "@/app/sitemap";
 import {
   getAllConversionPairSlugs,
+  getIndexablePairSlugs,
+  isIndexablePair,
   parseConversionSlug,
   pairToSlug,
 } from "@/lib/conversion-pairs";
@@ -38,17 +40,35 @@ describe("sitemap", () => {
     expect(bad).toEqual([]);
   });
 
-  it("lists every conversion pair at its canonical root URL", () => {
+  it("lists every indexable pair at its canonical root URL", () => {
     const pairUrls = new Set(
       urls.filter((u) => u.startsWith(`${CANONICAL_SITE_URL}/`)).map((u) =>
         u.slice(CANONICAL_SITE_URL.length + 1),
       ),
     );
-    const missing = getAllConversionPairSlugs().filter(
+    const missing = getIndexablePairSlugs().filter(
       (slug) => !pairUrls.has(slug),
     );
     expect(missing).toEqual([]);
   });
+
+  /**
+   * The curated split: ~2,300 pairs exist, but only the traffic-curated set is
+   * offered for indexing. Listing the rest would contradict the `noindex`
+   * those pages render, which is exactly the mismatch this file guards.
+   */
+  it("keeps the long tail out of the sitemap", () => {
+    const listed = new Set(getIndexablePairSlugs());
+    const leaked = getAllConversionPairSlugs().filter(
+      (slug) => !isIndexablePair(slug) && urls.includes(`${CANONICAL_SITE_URL}/${slug}`),
+    );
+    expect(leaked).toEqual([]);
+    // If these were equal the curation would be a no-op and the test vacuous.
+    expect(listed.size).toBeGreaterThan(100);
+    expect(getAllConversionPairSlugs().length).toBeGreaterThan(listed.size);
+  });
+
+
 
   it("lists only single-format pages under /conversions/", () => {
     const listed = urls
@@ -71,6 +91,34 @@ describe("sitemap", () => {
   it("gives the homepage top priority", () => {
     const home = entries.find((e) => e.url === `${CANONICAL_SITE_URL}/`);
     expect(home?.priority).toBe(1.0);
+  });
+});
+
+describe("pair page robots", () => {
+  /**
+   * The sitemap only advertises indexable pairs, so the page itself must render
+   * `index` for those and `noindex, follow` for the rest. This reads the real
+   * generateMetadata() rather than the helper, so the two cannot drift.
+   */
+  it("indexes curated pairs and noindexes the long tail", async () => {
+    const { generateMetadata } = await import("@/app/[slug]/page");
+    const robotsOf = (meta: { robots?: unknown }) =>
+      meta.robots as { index?: boolean; follow?: boolean } | undefined;
+
+    const core = getIndexablePairSlugs()[0];
+    expect(core, "expected at least one curated pair").toBeTruthy();
+    expect(robotsOf(await generateMetadata({ params: Promise.resolve({ slug: core }) }))?.index).toBe(
+      true,
+    );
+
+    const tail = getAllConversionPairSlugs().find((s) => !isIndexablePair(s));
+    expect(tail, "expected a long-tail pair to exist").toBeTruthy();
+    const tailRobots = robotsOf(
+      await generateMetadata({ params: Promise.resolve({ slug: tail! }) }),
+    );
+    expect(tailRobots?.index).toBe(false);
+    // Still followed: the long tail is how Google keeps discovering format pages.
+    expect(tailRobots?.follow).toBe(true);
   });
 });
 

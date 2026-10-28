@@ -9,6 +9,16 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-10-28-flc-feather-dta-fixes",
+    date: "2026-10-28",
+    title: "Animation, Feather and Stata fixes",
+    items: [
+      "FLI and FLC animations now convert instead of failing with \u201cInput image exceeds pixel limit\u201d. The frame header was being read at the wrong offset, so the image size came from unrelated bytes; the first frame is now decoded properly and coloured with the file's palette rather than in greyscale.",
+      "Feather files saved with compressed record batches (LZ4 or ZSTD, the default in pandas and pyarrow when compression is requested) now convert. Previously every such file failed with \u201cRecord batch is compressed but codec not found\u201d.",
+      "A Stata .dta file that cannot be read now reports the real reason \u2014 the release it declares and the byte where parsing stopped \u2014 instead of the contentless \u201cThe file structure is invalid or unsupported\u201d.",
+    ],
+  },
+  {
     id: "2026-10-28-cookie-and-ad-consent",
     date: "2026-10-28",
     title: "Cookie and ad consent",

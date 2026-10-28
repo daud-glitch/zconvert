@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import {
   parseConversionSlug,
   getAllConversionPairSlugs,
+  isIndexablePair,
 } from "@/lib/conversion-pairs";
 import {
   conversionPairTitle,
@@ -62,6 +63,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Conversion pair metadata
   const pair = parseConversionSlug(slug);
   if (pair) {
+    // Only the curated pair set is offered to search engines. The long tail
+    // stays reachable for users and keeps passing link equity (`follow`), but
+    // it is a templated near-duplicate of these pages, and indexing ~2,300 of
+    // them reads as thin content. It is also never listed in the sitemap.
+    const indexable = isIndexablePair(slug);
     const title = conversionPairTitle(pair.from.ext, pair.to.ext);
     const description = conversionPairDescription(pair.from, pair.to);
     const fromUpper = pair.from.ext.toUpperCase();
@@ -105,10 +111,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         images: [OG_IMAGE_PATH],
       },
       robots: {
-        index: true,
+        index: indexable,
         follow: true,
         googleBot: {
-          index: true,
+          index: indexable,
           follow: true,
           "max-image-preview": "large",
           "max-snippet": -1,

@@ -104,4 +104,21 @@ describe("DTA features the dta package could not read", () => {
       readDtaRecords(Buffer.from("<stata_dta><header><release>117")),
     ).rejects.toThrow(/DTA Parse Error/);
   });
+
+  /**
+   * The admin panel showed "DTA Parse Error: The file structure is invalid or
+   * unsupported." for every unreadable file: the fallback reader knew the
+   * release and the byte it stopped at, but its message was discarded in
+   * favour of the `dta` package's, which is often a bare TypeError.
+   */
+  it("reports what the reader knew instead of a contentless error", async () => {
+    const truncated = Buffer.from(
+      "<stata_dta><header><release>117</release><byteorder>LSF",
+    );
+    // The reader's "expected </byteorder> at byte 55" now leads the message,
+    // with the package's "Not a DTA file" kept as secondary detail.
+    await expect(readDtaRecords(truncated)).rejects.toThrow(
+      /expected <\/byteorder> at byte \d+/,
+    );
+  });
 });

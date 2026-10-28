@@ -1669,50 +1669,307 @@ function sliceBlpMip(input: Buffer, offset: number, size: number): Buffer {
   return input.subarray(offset, end);
 }
 
-// ─── FLI / FLC (first frame, 8-bit delta) ────────────────────────────────────
+// ─── FLI / FLC (first drawable frame, 8-bit palette) ─────────────────────────
 
+const FLI_FILE_MAGIC = new Set([0xaf11, 0xaf12, 0xaf13, 0xaf44]);
+const FLI_FRAME_MAGIC = 0xf1fa;
+/** FLC prefix frame (file metadata, no pixels) and the .flc thumbnail frame. */
+const FLI_PREFIX_MAGIC = 0x00a1;
+const FLI_POSTAGE_MAGIC = 0xf100;
+
+/** 4096x4096 is far past any real Animator Pro resolution (max 1280x1024). */
+const FLI_MAX_PIXELS = 4096 * 4096;
+
+const FLI_CHUNK = {
+  COLOR_256: 4,
+  FLI_COLOR: 11,
+  LC: 12,
+  BLACK: 13,
+  BRUN: 15,
+  COPY: 16,
+} as const;
+
+/**
+ * Rasterise the first frame that carries pixels from a FLI/FLC animation.
+ *
+ * The previous reader trusted `width`/`height` from an unvalidated header and
+ * read the frame header six bytes early, so it allocated whatever the garbage
+ * bytes implied and libvips rejected the raw buffer with "Input image exceeds
+ * pixel limit". It also wrote palette indexes into R/G/B, which would have
+ * produced a grey smear had it ever decoded.
+ *
+ * Layout and chunk semantics follow the FLIC specification as implemented by
+ * FFmpeg's decoder (flicvideo.c): 128-byte file header, then frames of
+ * `size(4) magic(2) chunks(2) padding(8)`, then 6-byte chunk headers.
+ */
 function decodeFliFirstFrame(input: Buffer): {
   data: Buffer;
   width: number;
   height: number;
   channels: 4;
 } {
+  if (input.length < 128) {
+    throw new Error(
+      "Not a FLI/FLC animation: the file is shorter than the 128-byte header.",
+    );
+  }
+  if (!FLI_FILE_MAGIC.has(input.readUInt16LE(4))) {
+    throw new Error(
+      "Not a FLI/FLC animation: the AF11/AF12 file signature is missing.",
+    );
+  }
+
   const width = input.readUInt16LE(8);
   const height = input.readUInt16LE(10);
-  const rgba = Buffer.alloc(width * height * 4, 0);
+  const depth = input.readUInt16LE(12) || 8;
+  if (!width || !height) {
+    throw new Error(
+      `The FLI/FLC header declares an empty frame (${width}x${height}).`,
+    );
+  }
+  if (width * height > FLI_MAX_PIXELS) {
+    throw new Error(
+      `The FLI/FLC header declares an implausible ${width}x${height} frame.`,
+    );
+  }
+  if (depth !== 8) {
+    throw new Error(
+      `FLI/FLC with ${depth}-bit pixels is not supported; only 8-bit palette animations can be converted.`,
+    );
+  }
+
+  const canvas = new Uint8Array(width * height);
+  const palette = new Uint8Array(256 * 3);
+
   let pos = 128;
-  const chunks = input.readUInt16LE(pos);
-  pos += 6;
-  for (let c = 0; c < chunks && pos + 6 < input.length; c++) {
-    const size = input.readUInt32LE(pos);
-    const type = input.readUInt16LE(pos + 4);
-    pos += 6;
-    if (type === 15 || type === 16) {
-      let p = pos;
-      const end = pos + size - 6;
-      const packets = input.readUInt16LE(p);
-      p += 2;
-      let y = 0;
-      for (let pk = 0; pk < packets && p < end; pk++) {
-        y += input.readUInt8(p++);
-        const lines = input.readUInt8(p++);
-        for (let ln = 0; ln < lines && p < end; ln++) {
-          const count = input.readUInt8(p++);
-          for (let i = 0; i < count && p + 1 < end; i++) {
-            const x = input.readUInt8(p++);
-            const px = input.readUInt8(p++);
-            const o = (y * width + x) * 4;
-            rgba[o] = px;
-            rgba[o + 1] = px;
-            rgba[o + 2] = px;
-            rgba[o + 3] = 255;
-          }
-          y++;
-        }
-      }
-      break;
+  let drewPixels = false;
+  while (pos + 16 <= input.length) {
+    const frameSize = input.readUInt32LE(pos);
+    const frameMagic = input.readUInt16LE(pos + 4);
+    if (frameSize < 16) break;
+    const frameEnd = Math.min(pos + frameSize, input.length);
+
+    // The prefix frame carries the file path and fonts, never pixels.
+    if (frameMagic === FLI_PREFIX_MAGIC || frameMagic === FLI_POSTAGE_MAGIC) {
+      pos = frameEnd;
+      continue;
     }
-    pos += size - 6;
+    if (frameMagic !== FLI_FRAME_MAGIC) break;
+
+    drewPixels = applyFliFrame(
+      input,
+      pos,
+      frameEnd,
+      width,
+      height,
+      canvas,
+      palette,
+    );
+    if (drewPixels) break;
+    pos = frameEnd;
+  }
+
+  if (!drewPixels) {
+    throw new Error(
+      "This FLI/FLC file contains no drawable frame (no BRUN, LC or COPY chunk was found).",
+    );
+  }
+
+  // Palette entries are RGB triples; untouched indexes stay black.
+  const rgba = Buffer.alloc(width * height * 4, 255);
+  for (let i = 0; i < canvas.length; i++) {
+    const p = canvas[i] * 3;
+    const o = i * 4;
+    rgba[o] = palette[p];
+    rgba[o + 1] = palette[p + 1];
+    rgba[o + 2] = palette[p + 2];
   }
   return { data: rgba, width, height, channels: 4 };
+}
+
+/** Apply one frame's chunks. Returns true when pixel data was drawn. */
+function applyFliFrame(
+  input: Buffer,
+  frameStart: number,
+  frameEnd: number,
+  width: number,
+  height: number,
+  canvas: Uint8Array,
+  palette: Uint8Array,
+): boolean {
+  const chunkCount = input.readUInt16LE(frameStart + 6);
+  let pos = frameStart + 16;
+  let drew = false;
+
+  for (let i = 0; i < chunkCount && pos + 6 <= frameEnd; i++) {
+    const chunkSize = input.readUInt32LE(pos);
+    if (chunkSize < 6) break;
+    const type = input.readUInt16LE(pos + 4);
+    const dataEnd = Math.min(pos + chunkSize, frameEnd);
+    const data = input.subarray(pos + 6, dataEnd);
+
+    switch (type) {
+      case FLI_CHUNK.COLOR_256:
+      case FLI_CHUNK.FLI_COLOR:
+        applyFliPalette(data, palette, type === FLI_CHUNK.COLOR_256 ? 0 : 2);
+        break;
+      case FLI_CHUNK.BRUN:
+        applyFliBrun(data, width, height, canvas);
+        drew = true;
+        break;
+      case FLI_CHUNK.LC:
+        applyFliLc(data, width, height, canvas);
+        drew = true;
+        break;
+      case FLI_CHUNK.COPY:
+        applyFliCopy(data, width, height, canvas);
+        drew = true;
+        break;
+      case FLI_CHUNK.BLACK:
+        canvas.fill(0);
+        drew = true;
+        break;
+      default:
+        break; // DELTA and the thumbnail chunk carry nothing we need.
+    }
+
+    pos += chunkSize;
+  }
+
+  return drew;
+}
+
+/**
+ * FLI_COLOR stores 6-bit channels, FLI_256_COLOR stores 8-bit ones. A run of
+ * `count === 0` means all 256 entries, per the specification.
+ */
+function applyFliPalette(
+  data: Buffer,
+  palette: Uint8Array,
+  shift: number,
+): void {
+  if (data.length < 2) return;
+  const packets = data.readUInt16LE(0);
+  let pos = 2;
+  let index = 0;
+
+  for (let i = 0; i < packets && pos + 2 <= data.length; i++) {
+    index += data[pos++];
+    let count = data[pos++];
+    if (count === 0) count = 256;
+    if (pos + count * 3 > data.length) break;
+
+    for (let j = 0; j < count; j++) {
+      if (index > 255) index = 0; // Wrap, as FFmpeg does.
+      let r = data[pos++] << shift;
+      let g = data[pos++] << shift;
+      let b = data[pos++] << shift;
+      if (shift === 2) {
+        // 6-bit to 8-bit: replicate the top two bits.
+        r |= (r >> 6) & 0x03;
+        g |= (g >> 6) & 0x03;
+        b |= (b >> 6) & 0x03;
+      }
+      palette[index * 3] = r;
+      palette[index * 3 + 1] = g;
+      palette[index * 3 + 2] = b;
+      index++;
+    }
+  }
+}
+
+/** Byte-run compression used by the first frame: each line is one byte of
+ *  packets followed by signed run lengths (positive repeats, negative copies). */
+function applyFliBrun(
+  data: Buffer,
+  width: number,
+  height: number,
+  canvas: Uint8Array,
+): void {
+  let pos = 0;
+  for (let y = 0; y < height; y++) {
+    if (pos >= data.length) return;
+    pos++; // Per-line packet count; the run stream is self-terminating.
+
+    const rowStart = y * width;
+    let x = 0;
+    while (x < width && pos < data.length) {
+      const run = data.readInt8(pos++);
+      if (run === 0) break;
+
+      if (run > 0) {
+        if (pos >= data.length) return;
+        const value = data[pos++];
+        const count = Math.min(run, width - x);
+        canvas.fill(value, rowStart + x, rowStart + x + count);
+        x += count;
+      } else {
+        const count = Math.min(-run, width - x);
+        if (pos + count > data.length) return;
+        data.copy(canvas, rowStart + x, pos, pos + count);
+        pos += count;
+        x += count;
+      }
+    }
+  }
+}
+
+/** Line compression: per line, packets of (skip, signed run). */
+function applyFliLc(
+  data: Buffer,
+  width: number,
+  height: number,
+  canvas: Uint8Array,
+): void {
+  if (data.length < 4) return;
+  let pos = 0;
+  const startLine = data.readUInt16LE(pos);
+  pos += 2;
+  let lines = data.readUInt16LE(pos);
+  pos += 2;
+
+  let y = startLine;
+  while (lines > 0 && y < height && pos < data.length) {
+    const packets = data[pos++];
+    const rowStart = y * width;
+    let x = 0;
+
+    for (let i = 0; i < packets && pos + 1 < data.length; i++) {
+      x += data[pos++];
+      const run = data.readInt8(pos++);
+
+      if (run > 0) {
+        if (pos + run > data.length) return;
+        const count = Math.min(run, width - x);
+        if (count > 0) data.copy(canvas, rowStart + x, pos, pos + count);
+        pos += run;
+        x += run;
+      } else if (run < 0) {
+        if (pos >= data.length) return;
+        const value = data[pos++];
+        const count = Math.min(-run, width - x);
+        if (count > 0) canvas.fill(value, rowStart + x, rowStart + x + count);
+        x += -run;
+      }
+    }
+
+    y++;
+    lines--;
+  }
+}
+
+/** Uncompressed frame; rows are padded to a 4-byte boundary. */
+function applyFliCopy(
+  data: Buffer,
+  width: number,
+  height: number,
+  canvas: Uint8Array,
+): void {
+  const rowBytes = Math.ceil(width / 4) * 4;
+  let pos = 0;
+  for (let y = 0; y < height; y++) {
+    if (pos + width > data.length) return;
+    data.copy(canvas, y * width, pos, pos + width);
+    pos += rowBytes;
+  }
 }
