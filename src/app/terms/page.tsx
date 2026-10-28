@@ -4,7 +4,7 @@ import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
 const SITE = "https://www.convertek.tech";
 const CONTACT = "support@convertek.tech";
-const UPDATED = "August 2, 2026";
+const UPDATED = "October 28, 2026";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -98,21 +98,54 @@ export default function TermsPage() {
         conversion will succeed for every file.
       </p>
 
-      <h2>6. Intellectual property</h2>
+      <h2>6. Advertising</h2>
+      <p>
+        The Service is free and funded by advertising served by third parties,
+        including Google AdSense. Those providers — not us — select which ads
+        appear, and we do not endorse the products or services advertised.
+      </p>
+      <ul>
+        <li>
+          Ads are requested by code running in your browser. We do not send
+          uploaded files, conversion results, or account details to
+          advertisers.
+        </li>
+        <li>
+          Advertising and analytics cookies are optional. Visitors in the EEA,
+          the UK and Switzerland are asked first, and anyone can change or
+          withdraw a choice at any time through the “Cookie settings” link in
+          the footer. The{" "}
+          <Link href="/privacy" className="text-emerald-600">
+            Privacy Policy
+          </Link>{" "}
+          lists the cookies involved and the opt-out links.
+        </li>
+        <li>
+          Using an ad blocker does not restrict any conversion feature.
+        </li>
+        <li>
+          If you believe an ad shown on the Service is misleading, unlawful, or
+          infringing, report it to{" "}
+          <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we will review it with
+          the ad provider.
+        </li>
+      </ul>
+
+      <h2>7. Intellectual property</h2>
       <p>
         The Convertek name, site design, and software (except your files)
         are owned by the operator or its licensors. You may not copy or
         rebrand the Service without permission.
       </p>
 
-      <h2>7. Disclaimers</h2>
+      <h2>8. Disclaimers</h2>
       <p>
         To the fullest extent permitted by law, we disclaim warranties of
         merchantability, fitness for a particular purpose, and non-infringement.
         Conversion quality depends on input files and available converters.
       </p>
 
-      <h2>8. Limitation of liability</h2>
+      <h2>9. Limitation of liability</h2>
       <p>
         To the fullest extent permitted by law, we are not liable for indirect,
         incidental, special, consequential, or lost-profit damages, or for lost
@@ -122,26 +155,26 @@ export default function TermsPage() {
         $50 if you used a free tier only.
       </p>
 
-      <h2>9. Indemnity</h2>
+      <h2>10. Indemnity</h2>
       <p>
         You will defend and hold us harmless from claims arising from your
         content or your misuse of the Service.
       </p>
 
-      <h2>10. Governing law</h2>
+      <h2>11. Governing law</h2>
       <p>
         These Terms are governed by the laws applicable in the operator’s
         place of establishment, without regard to conflict-of-law rules, unless
         mandatory consumer protections in your jurisdiction apply.
       </p>
 
-      <h2>11. Changes to Terms</h2>
+      <h2>12. Changes to Terms</h2>
       <p>
         We may update these Terms. The “Last updated” date will change when we
         do. Continued use constitutes acceptance of updated Terms.
       </p>
 
-      <h2>12. Contact</h2>
+      <h2>13. Contact</h2>
       <p>
         Questions about these Terms:{" "}
         <a href={`mailto:${CONTACT}`}>{CONTACT}</a>

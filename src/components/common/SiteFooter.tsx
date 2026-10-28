@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTitle } from "@/components/common/BrandTitle";
+import { CookieSettingsButton } from "@/components/consent/CookieConsent";
 
 const FOOTER_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Converter" },
@@ -65,6 +66,7 @@ export function SiteFooter() {
             Privacy Policy
           </Link>
           .
+          <CookieSettingsButton className="ml-2 underline decoration-dotted underline-offset-2" />
         </div>
       </div>
     </footer>

@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import JsonLd from "@/components/json-ld";
 import { AppProvider } from "@/lib/app-context";
 import { TrafficTracker } from "@/components/analytics/TrafficTracker";
+import { CookieConsent } from "@/components/consent/CookieConsent";
+import { ADSENSE_CLIENT, ADSENSE_SRC, adsConsentBootstrapScript } from "@/lib/ads";
 import {
   BRAND_ASSET_VERSION,
   BRAND_TAGLINE,
@@ -172,6 +174,8 @@ export const metadata: Metadata = {
   other: {
     "msapplication-TileColor": "#10b981",
     "msapplication-TileImage": `/icon-192.png?v=${BRAND_ASSET_VERSION}`,
+    // AdSense site ownership signal; mirrors public/ads.txt and the loader below.
+    "google-adsense-account": ADSENSE_CLIENT,
   },
 };
 
@@ -188,6 +192,24 @@ export default function RootLayout({
           href={`/logo-mark.webp?v=${BRAND_ASSET_VERSION}`}
           as="image"
           type="image/webp"
+        />
+        {/*
+         * AdSense auto ads. Plain tags rather than next/script, and `defer`
+         * rather than `async`: React hoists async scripts to the top of <head>,
+         * which put the loader before the consent flag and made the flag
+         * useless. With defer the document order holds — flag first, loader
+         * second — and neither blocks parsing. The flag decides personalisation
+         * for EEA visitors who have not opted in.
+         */}
+        <script
+          id="adsense-consent"
+          dangerouslySetInnerHTML={{ __html: adsConsentBootstrapScript() }}
+        />
+        <script
+          id="adsense-loader"
+          defer
+          src={ADSENSE_SRC}
+          crossOrigin="anonymous"
         />
       </head>
       <body
@@ -206,6 +228,7 @@ export default function RootLayout({
           {children}
           <TrafficTracker />
         </AppProvider>
+        <CookieConsent />
         <Toaster />
       </body>
     </html>

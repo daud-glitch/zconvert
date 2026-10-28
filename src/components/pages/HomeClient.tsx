@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTaglines, BrandTitle } from "@/components/common/BrandTitle";
+import { CookieSettingsButton } from "@/components/consent/CookieConsent";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -838,6 +839,7 @@ export default function HomeClient({
                   </a>
                 ),
               )}
+              <CookieSettingsButton className="hover:text-foreground" />
               <button
                 className="flex items-center gap-1.5 hover:text-foreground transition-colors"
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}

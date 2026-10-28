@@ -3,6 +3,8 @@
  * Use this module for metadata, structured data, and consistent marketing lines.
  */
 
+import type { FormatCategory, FormatInfo } from "@/lib/formats";
+
 /** Public brand origin used in sitemap, robots, OG, JSON-LD. */
 export const CANONICAL_SITE_URL = "https://www.convertek.tech";
 
@@ -169,15 +171,152 @@ export function formatPageDescription(
   return `Free online ${upper} (${name}) converter. ${short}${short.length >= 110 ? "…" : ""} Convert ${upper} to ${top}${targets.length > 6 ? " & more" : ""}. No watermarks.`;
 }
 
-export function conversionPairTitle(fromExt: string, toExt: string): string {
-  return `Convert ${fromExt.toUpperCase()} to ${toExt.toUpperCase()} Online Free — ${SITE_NAME}`;
+/**
+ * Strips a brand suffix a CMS editor may have typed into `seoTitle`.
+ *
+ * The root layout template already appends `| Convertek`, so a stored
+ * "… — Convertek" rendered as "… — Convertek | Convertek" in search results.
+ */
+export function stripBrandSuffix(title: string): string {
+  const cleaned = title
+    .replace(new RegExp(`\\s*[|\u2013\u2014-]\\s*${SITE_NAME}\\s*$`, "i"), "")
+    .replace(new RegExp(`\\s*\\|\\s*${SITE_DOMAIN}\\s*$`, "i"), "")
+    .trim();
+  return cleaned || title.trim();
 }
 
-export function conversionPairDescription(
-  fromExt: string,
-  fromName: string,
-  toExt: string,
-  toName: string,
-): string {
-  return `Free online ${fromExt.toUpperCase()} to ${toExt.toUpperCase()} converter. Convert ${fromName} files to ${toName} instantly — no watermarks, no sign-up. Fast, private, browser-based.`;
+/**
+ * Pair page title without the brand.
+ *
+ * The layout's title template adds `| Convertek`; including it here produced
+ * "Convert PDF to JPG Online Free — Convertek | Convertek" on ~2,500 pages.
+ * Callers that build their own <title> (Open Graph, Twitter) append the brand
+ * explicitly.
+ */
+export function conversionPairTitle(fromExt: string, toExt: string): string {
+  return `Convert ${fromExt.toUpperCase()} to ${toExt.toUpperCase()} Online Free`;
+}
+
+const CATEGORY_NAME: Record<FormatCategory, string> = {
+  image: "image",
+  video: "video",
+  audio: "audio",
+  document: "document",
+  data: "data",
+  archive: "archive",
+  ebook: "ebook",
+  presentation: "presentation",
+  subtitle: "subtitle",
+  font: "font",
+  other: "file",
+};
+
+/**
+ * What actually happens to the content — the part that makes two same-category
+ * conversions tell a reader something different.
+ */
+function pairContentNote(from: FormatInfo, to: FormatInfo): string {
+  const toUpper = to.ext.toUpperCase();
+
+  if (from.category === to.category) {
+    switch (from.category) {
+      case "image":
+        return `Colour, transparency and resolution are re-encoded for ${toUpper}.`;
+      case "data":
+        return `Rows, headers and value types are rewritten for ${toUpper}.`;
+      case "audio":
+        return `Audio is decoded and re-encoded as ${toUpper}, length and channels intact.`;
+      case "video":
+        return `Frames, bitrate and audio tracks are repacked into the ${toUpper} container.`;
+      case "document":
+        return `Text, layout and embedded images are carried into the ${toUpper} file.`;
+      case "archive":
+        return `The files inside are repacked into ${toUpper}, paths intact.`;
+      case "subtitle":
+        return `Cue timings and line breaks are rewritten in ${toUpper} syntax.`;
+      case "ebook":
+        return `Chapters, images and reading order carry over into ${toUpper}.`;
+      case "presentation":
+        return `Slides, notes and embedded media keep their ${toUpper} structure.`;
+      case "font":
+        return `Glyph outlines and font metrics are re-wrapped as ${toUpper}.`;
+      default:
+        return `The file's contents are re-wrapped in the ${toUpper} format.`;
+    }
+  }
+
+  if (from.category === "video" && to.category === "audio") {
+    return `The audio track is kept as ${toUpper}; the video frames are dropped.`;
+  }
+  if (from.category === "document" && to.category === "image") {
+    return `Pages are rendered as ${toUpper} images, so text is no longer selectable.`;
+  }
+  if (from.category === "image" && to.category === "document") {
+    return `The picture sits on a paginated ${toUpper} file so it prints and shares cleanly.`;
+  }
+  if (from.category === "data") {
+    return `Values and structure carry over as ${toUpper}; styling is dropped.`;
+  }
+  if (to.category === "data") {
+    return `The contents are parsed and written out as structured ${toUpper} records.`;
+  }
+  const source = CATEGORY_NAME[from.category];
+  return `${source.charAt(0).toUpperCase()}${source.slice(1)} content is decoded and re-encoded as ${CATEGORY_NAME[to.category]}.`;
+}
+
+/** Stable per-pair pick so the same URL always renders the same snippet. */
+function pick<T>(items: readonly T[], key: string, salt: number): T {
+  let hash = salt;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return items[hash % items.length];
+}
+
+function clampDescription(text: string, limit = 158): string {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 80 ? cut.slice(0, lastSpace) : cut).trimEnd()}\u2026`;
+}
+
+/**
+ * Unique, format-aware meta description for a conversion pair.
+ *
+ * Every previously generated description was the same sentence with the two
+ * format names swapped, which reads as boilerplate across ~2,500 pages. The
+ * leading clause always names both extensions, so no two pairs collide; the
+ * rest is derived from the categories and what the conversion really does.
+ */
+export function conversionPairDescription(from: FormatInfo, to: FormatInfo): string {
+  const fromUpper = from.ext.toUpperCase();
+  const toUpper = to.ext.toUpperCase();
+  const key = `${from.ext}-${to.ext}`;
+
+  const openers = [
+    `Free ${fromUpper} to ${toUpper} conversion: ${from.name} in, ${to.name} out, no account needed.`,
+    `Convert ${fromUpper} to ${toUpper} online \u2014 ${from.name} files become ${to.name} in seconds.`,
+    `${fromUpper} to ${toUpper} in your browser: upload the ${from.name}, download the ${to.name}.`,
+    `Turn ${from.name} files into ${to.name} with this free ${fromUpper} to ${toUpper} converter.`,
+    `Quick ${fromUpper} to ${toUpper} conversion \u2014 private, watermark-free, no account.`,
+  ];
+
+  const closers = [
+    ` Files are processed temporarily and deleted.`,
+    ` Uploads are capped at 30 MB per file.`,
+    ` No sign-up and nothing kept afterwards.`,
+  ];
+
+  const opener = pick(openers, key, 7);
+  const note = pairContentNote(from, to);
+  let description = `${opener} ${note}`;
+
+  // Only add the third sentence when it fits whole — a truncated snippet reads
+  // worse than a shorter one.
+  const closer = pick(closers, key, 53);
+  if (`${description}${closer}`.length <= 155) {
+    description += closer;
+  }
+
+  return clampDescription(description);
 }

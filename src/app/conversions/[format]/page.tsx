@@ -28,12 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (pair) {
     return {
       title: conversionPairTitle(pair.from.ext, pair.to.ext),
-      description: conversionPairDescription(
-        pair.from.ext,
-        pair.from.name,
-        pair.to.ext,
-        pair.to.name,
-      ),
+      description: conversionPairDescription(pair.from, pair.to),
       alternates: { canonical: `/${ext}` },
       robots: { index: false, follow: true },
     };

@@ -9,6 +9,18 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-10-28-cookie-and-ad-consent",
+    date: "2026-10-28",
+    title: "Cookie and ad consent",
+    items: [
+      "Visitors in the EEA, the UK and Switzerland now get a cookie notice before any advertising or analytics storage runs, with Accept all, Reject optional and per-category preferences.",
+      "The choice can be changed or withdrawn at any time from the \u201cCookie settings\u201d link in the footer, on every page.",
+      "Google AdSense is installed site-wide, and the ad code requests non-personalised ads until you allow advertising — declining keeps personalisation off instead of blocking the page.",
+      "The Privacy Policy explains Google AdSense cookies, the opt-out links, and how to turn personalised ads off.",
+      "The Terms of Service gained an advertising section covering how ads are selected, what is never shared with advertisers, and how to report a misleading ad.",
+    ],
+  },
+  {
     id: "2026-10-24-eps-icns-and-failure-counts",
     date: "2026-10-24",
     title: "Conversion fixes",

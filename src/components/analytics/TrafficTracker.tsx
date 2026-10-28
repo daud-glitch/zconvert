@@ -1,21 +1,29 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { isLikelyCrawler } from "@/lib/crawler";
 import { useApp } from "@/lib/app-context";
+import { hasAnalyticsConsent, subscribeConsent } from "@/lib/consent";
 
 /**
  * Lightweight first-party page-view beacon for admin traffic sources.
  * One beacon per path per browser session (privacy-friendly, no third party).
+ *
+ * Skipped when analytics consent is withheld; if the visitor accepts later on
+ * the same page, the consent change re-runs this effect and the beacon fires.
  */
 export function TrafficTracker() {
   const { isAdmin, loading } = useApp();
+  const [consentVersion, setConsentVersion] = useState(0);
+
+  useEffect(() => subscribeConsent(() => setConsentVersion((v) => v + 1)), []);
 
   useEffect(() => {
     if (loading || isAdmin) return;
 
     try {
       if (isLikelyCrawler()) return;
+      if (!hasAnalyticsConsent()) return;
 
       const path = window.location.pathname || "/";
       // Skip admin UI itself
@@ -57,7 +65,7 @@ export function TrafficTracker() {
     } catch {
       // ignore tracker failures
     }
-  }, [loading, isAdmin]);
+  }, [loading, isAdmin, consentVersion]);
 
   return null;
 }

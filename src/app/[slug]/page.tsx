@@ -14,6 +14,7 @@ import {
   absoluteUrl,
   OG_IMAGE_PATH,
   SITE_NAME,
+  stripBrandSuffix,
 } from "@/lib/seo";
 import ConversionPairClient from "@/components/pages/ConversionPairClient";
 import ConversionPairJsonLd from "@/components/seo/ConversionPairJsonLd";
@@ -62,12 +63,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const pair = parseConversionSlug(slug);
   if (pair) {
     const title = conversionPairTitle(pair.from.ext, pair.to.ext);
-    const description = conversionPairDescription(
-      pair.from.ext,
-      pair.from.name,
-      pair.to.ext,
-      pair.to.name,
-    );
+    const description = conversionPairDescription(pair.from, pair.to);
     const fromUpper = pair.from.ext.toUpperCase();
     const toUpper = pair.to.ext.toUpperCase();
     const path = `/${slug}`;
@@ -88,7 +84,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ],
       alternates: { canonical: path },
       openGraph: {
-        title,
+        title: `${title} | ${SITE_NAME}`,
         description,
         url: absoluteUrl(path),
         type: "website",
@@ -104,7 +100,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
       twitter: {
         card: "summary_large_image",
-        title,
+        title: `${title} | ${SITE_NAME}`,
         description,
         images: [OG_IMAGE_PATH],
       },
@@ -129,7 +125,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       robots: { index: false, follow: false },
     };
   }
-  const title = page.seoTitle || page.title;
+  // The layout template appends "| Convertek", so drop any brand a CMS editor
+  // typed into the SEO title to avoid "… — Convertek | Convertek".
+  const title = stripBrandSuffix(page.seoTitle || page.title);
   const description = page.seoDesc || undefined;
   return {
     title,

@@ -1,9 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { CmsAd } from "@/hooks/use-cms";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import { hasAdsConsent, subscribeConsent } from "@/lib/consent";
 
-/** Renders enabled CMS ads for a placement (HTML sanitized). */
+/**
+ * Renders enabled CMS ads for a placement (HTML sanitized).
+ *
+ * `code` ads are third-party ad tags (AdSense units included), so they wait for
+ * an advertising consent decision — nothing is injected before it is known.
+ */
 export function CmsAdSlot({
   ads,
   className = "",
@@ -11,7 +18,16 @@ export function CmsAdSlot({
   ads: CmsAd[];
   className?: string;
 }) {
-  const visible = ads.filter((ad) => ad.type === "banner" || ad.type === "code");
+  const [adsAllowed, setAdsAllowed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setAdsAllowed(hasAdsConsent());
+    return subscribeConsent(() => setAdsAllowed(hasAdsConsent()));
+  }, []);
+
+  const visible = ads
+    .filter((ad) => ad.type === "banner" || ad.type === "code")
+    .filter((ad) => ad.type !== "code" || adsAllowed === true);
   if (!visible.length) return null;
 
   return (
