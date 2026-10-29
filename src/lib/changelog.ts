@@ -9,6 +9,16 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-10-29-new-guides",
+    date: "2026-10-29",
+    title: "Ten new conversion guides",
+    items: [
+      "Ten new in-depth guides were published, covering the conversions people ask about most: PNG to JPG (what transparency costs), JPG to PDF (page size and DPI), PDF to JPG (rendering resolution), PowerPoint to PDF (fonts and lost animation), Excel to CSV (formulas, dates and leading zeros), SVG to PNG (export size and outlined text), MP3 vs WAV vs FLAC (bitrate and lossless archiving), favicons and ICO files (sizes browsers actually request), MOV to MP4 (stream copy versus re-encode) and EPUB vs PDF (reflowable versus fixed layout).",
+      "Each guide explains the trade-off a conversion makes and links straight to the converter pairs it discusses, so the right format is one click away instead of a guess.",
+      "The guides index now has a Back to home link at the top, matching the breadcrumb the individual guides already had.",
+    ],
+  },
+  {
     id: "2026-10-29-rar-packaging",
     date: "2026-10-29",
     title: "RAR conversion is fixed",
