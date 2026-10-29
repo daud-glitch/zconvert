@@ -21,6 +21,8 @@ import {
   Server,
   Database,
   Shield,
+  Wrench,
+  Package,
 } from "lucide-react";
 import {
   Card,
@@ -42,20 +44,37 @@ import { categoryColors, categoryBorderColors } from "@/lib/app-constants";
 import { useApp } from "@/lib/app-context";
 import { AdminFailedConversions } from "@/components/admin/AdminFailedConversions";
 
+type ToolchainTool = {
+  available: boolean;
+  path: string | null;
+  source: "env" | "vendor" | "path" | null;
+};
+
+type ToolchainStatus = {
+  dyno: string | null;
+  platform: string;
+  vendorDir: string;
+  packagingDisabled: boolean;
+  rar: ToolchainTool;
+  unrar: ToolchainTool;
+};
+
 export function AdminOverview() {
   const { setCurrentView: navigate } = useApp();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [formatStatus, setFormatStatus] = useState<FormatStatusData | null>(
     null,
   );
+  const [toolchain, setToolchain] = useState<ToolchainStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [statsRes, formatRes] = await Promise.all([
+        const [statsRes, formatRes, toolchainRes] = await Promise.all([
           fetch("/api/admin/stats"),
           fetch("/api/admin/format-status"),
+          fetch("/api/admin/toolchain"),
         ]);
 
         let statsData = {};
@@ -72,10 +91,22 @@ export function AdminOverview() {
           console.error(`Format Status API returned ${formatRes.status}`);
         }
 
+        let toolchainData: Partial<ToolchainStatus> & { error?: string } = {};
+        if (toolchainRes.ok) {
+          toolchainData = await toolchainRes.json().catch(() => ({}));
+        } else {
+          console.error(`Toolchain API returned ${toolchainRes.status}`);
+        }
+
         const statsPayload = statsData as AdminStats & { error?: string };
         const formatPayload = formatData as FormatStatusData & { error?: string };
         setStats(statsPayload.error ? null : statsPayload);
         setFormatStatus(formatPayload.error ? null : formatPayload);
+        setToolchain(
+          toolchainData.rar && toolchainData.unrar
+            ? (toolchainData as ToolchainStatus)
+            : null,
+        );
       } catch (err) {
         console.error("Failed to load admin dashboard data:", err);
       } finally {
@@ -562,6 +593,71 @@ export function AdminOverview() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Conversion toolchain */}
+      <Card className="card-elevated">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-sky-500" />
+            Conversion toolchain
+          </CardTitle>
+          <CardDescription className="text-[11px]">
+            RAR binaries available to the process serving this request.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {toolchain ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { label: "rar — creates archives", tool: toolchain.rar },
+                  { label: "unrar — extracts archives", tool: toolchain.unrar },
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
+                  >
+                    <div
+                      className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${
+                        row.tool.available
+                          ? statusStyles.emerald
+                          : statusStyles.red
+                      }`}
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs font-semibold">
+                        {row.tool.available ? "Installed" : "Missing"}
+                        <span className="text-[10px] font-normal text-muted-foreground">
+                          {row.label}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground"
+                        title={row.tool.path ?? undefined}
+                      >
+                        {row.tool.path ?? "not found"}
+                        {row.tool.source ? ` (${row.tool.source})` : ""}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 font-mono text-[10px] text-muted-foreground">
+                {toolchain.dyno ?? "local"} · {toolchain.platform} ·{" "}
+                {toolchain.packagingDisabled
+                  ? "packaging disabled by DISABLE_RAR"
+                  : "packaging enabled"}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Toolchain status unavailable — reload the page to retry.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

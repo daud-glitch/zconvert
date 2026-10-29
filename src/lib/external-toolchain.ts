@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { accessSync, constants, existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -180,6 +180,106 @@ async function ensureVendorRar(): Promise<void> {
   });
 
   return vendorRarProvision;
+}
+
+export type ToolchainToolStatus = {
+  available: boolean;
+  /** Absolute path the runtime would execute, when one was found. */
+  path: string | null;
+  /** Where the candidate came from: an env var, the bundled vendor dir, or PATH. */
+  source: "env" | "vendor" | "path" | null;
+};
+
+export type RarToolchainStatus = {
+  dyno: string | null;
+  platform: string;
+  vendorDir: string;
+  /** True when DISABLE_RAR turns RAR packaging off for this process. */
+  packagingDisabled: boolean;
+  rar: ToolchainToolStatus;
+  unrar: ToolchainToolStatus;
+};
+
+function isExecutable(file: string): boolean {
+  try {
+    accessSync(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function findOnPath(bin: string): string | null {
+  const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const full = path.join(dir, bin);
+    if (isExecutable(full)) return full;
+  }
+  return null;
+}
+
+function resolveTool(
+  entries: Array<{ value: string; source: "env" | "vendor" | "path" }>,
+): ToolchainToolStatus {
+  for (const entry of entries) {
+    const value = entry.value.trim();
+    if (!value) continue;
+    if (path.isAbsolute(value)) {
+      if (isExecutable(value)) {
+        return { available: true, path: value, source: entry.source };
+      }
+      continue;
+    }
+    const found = findOnPath(value);
+    if (found) return { available: true, path: found, source: entry.source };
+  }
+  return { available: false, path: null, source: null };
+}
+
+/**
+ * Read-only report of the RAR toolchain on the process that serves this request.
+ *
+ * Diagnostics only: nothing here installs or executes a binary. `rar` creates
+ * archives, `unrar` extracts them, and on Heroku both normally come from the
+ * `vendor/rar` copy that `scripts/ensure-rar.js` provisions.
+ */
+export function getRarToolchainStatus(): RarToolchainStatus {
+  const vendorDir = path.join(process.cwd(), "vendor", "rar");
+  const envNames = [
+    ...splitCandidates(process.env.RAR_BIN),
+    ...splitCandidates(process.env.UNRAR_BIN),
+  ];
+
+  const rar = resolveTool([
+    ...splitCandidates(process.env.RAR_BIN).map((value) => ({
+      value,
+      source: "env" as const,
+    })),
+    { value: vendorRarPath("Rar.exe"), source: "vendor" as const },
+    { value: vendorRarPath("rar"), source: "vendor" as const },
+    { value: "rar", source: "path" as const },
+    { value: "rar.exe", source: "path" as const },
+  ]);
+
+  const unrar = resolveTool([
+    ...envNames.map((value) => ({ value, source: "env" as const })),
+    { value: vendorRarPath("UnRAR.exe"), source: "vendor" as const },
+    { value: vendorRarPath("unrar"), source: "vendor" as const },
+    { value: vendorRarPath("Rar.exe"), source: "vendor" as const },
+    { value: vendorRarPath("rar"), source: "vendor" as const },
+    { value: "unrar", source: "path" as const },
+    { value: "rar", source: "path" as const },
+  ]);
+
+  return {
+    dyno: process.env.DYNO ?? null,
+    platform: process.platform,
+    vendorDir,
+    packagingDisabled:
+      process.env.DISABLE_RAR === "1" || process.env.DISABLE_RAR === "true",
+    rar,
+    unrar,
+  };
 }
 
 function getRarCandidates(): string[] {
