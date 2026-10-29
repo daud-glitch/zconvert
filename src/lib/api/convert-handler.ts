@@ -37,6 +37,25 @@ import {
   isConvertWorkerEnabled,
 } from "@/lib/convert-job-store";
 import { DOWNLOAD_BRAND_PREFIX } from "@/lib/download-brand";
+import { formats } from "@/lib/formats";
+
+/**
+ * Resolve the upload's source extension, preferring a registered compound
+ * extension (tar.bz2, tar.xz, tar.zst) over its last dot segment. Without
+ * this, `backup.tar.bz2` was read as `bz2`, which is not a source format, so
+ * the job was rejected before extraction ran.
+ */
+export function detectSourceExt(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  const compound = formats
+    .map((f) => f.ext)
+    .filter((ext) => ext.includes(".") && lower.endsWith(`.${ext}`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (compound) return compound;
+
+  const dotIdx = lower.lastIndexOf(".");
+  return dotIdx >= 0 ? lower.slice(dotIdx + 1) : "";
+}
 
 function corsOrigin(): string {
   return process.env.ALLOWED_ORIGIN?.trim() || "*";
@@ -145,9 +164,7 @@ export async function handleConvertPost(
       return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
     }
 
-    const dotIdx = fileName.lastIndexOf(".");
-    const sourceExt =
-      dotIdx >= 0 ? fileName.slice(dotIdx + 1).toLowerCase() : "";
+    const sourceExt = detectSourceExt(fileName);
 
     if (!sourceExt) {
       return NextResponse.json(
