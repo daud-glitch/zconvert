@@ -994,8 +994,16 @@ export async function extractWith7zip(
 
   // 7za (7zip-min) often cannot open modern RAR5 (exit code 2). Prefer UnRAR/WinRAR.
   if (safeExt === "rar" || looksLikeRarMagic(input)) {
-    const viaUnrar = await extractRarWithToolchain(input);
-    if (viaUnrar && viaUnrar.length > 0) return viaUnrar;
+    try {
+      const viaUnrar = await extractRarWithToolchain(input);
+      if (viaUnrar && viaUnrar.length > 0) return viaUnrar;
+    } catch (err) {
+      // A missing/non-executable binary must fall through to 7za, not abort.
+      console.warn(
+        "[rar-extract] toolchain threw:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   const { unpack } = await import("7zip-min");
@@ -1026,10 +1034,12 @@ export async function extractWith7zip(
           );
         }
       } else if (safeExt === "rar" || looksLikeRarMagic(input)) {
+        // UnRAR was already tried before 7za, so reaching here means the
+        // archive itself is unreadable (password, split volumes, damage) — not
+        // that the server is missing a RAR packer.
         throw new Error(
-          `Could not extract RAR archive. Install UnRAR/WinRAR (or set UNRAR_BIN), or ensure RAR_BIN is available. ` +
-            `Details: ${err instanceof Error ? err.message : "unknown error"}. ` +
-            `The file may also be password-protected or corrupt.`,
+          `Could not extract RAR archive. It may be password-protected, split across several volumes, or corrupt. ` +
+            `Details: ${err instanceof Error ? err.message : "unknown error"}.`,
         );
       } else {
         throw new Error(

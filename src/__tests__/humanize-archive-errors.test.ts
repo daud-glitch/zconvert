@@ -19,6 +19,15 @@ describe("humanizeConversionError archive vs audio", () => {
     expect(msg.toLowerCase()).not.toContain("audio");
   });
 
+  it("does not report a RAR extract failure as missing RAR packaging", () => {
+    const msg = humanizeConversionError(
+      "Could not extract RAR archive. Install UnRAR/WinRAR (or set UNRAR_BIN), or ensure RAR_BIN is available. Details: unexpected end of archive.",
+    );
+    expect(msg.toLowerCase()).not.toContain("packaging");
+    expect(msg.toLowerCase()).toMatch(/rar/);
+    expect(msg.toLowerCase()).toMatch(/password|corrupt|extract/);
+  });
+
   it("keeps the container hint when a ZIP is renamed .tar", () => {
     const msg = humanizeConversionError(
       "Failed to extract TAR archive: this file is a ZIP archive, not an uncompressed TAR. Rename it to .zip and convert from there.",

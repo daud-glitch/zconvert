@@ -395,10 +395,13 @@ export function humanizeConversionError(message: string): string {
         lower.includes("could not extract rar") ||
         lower.includes("install unrar")))
   ) {
-    if (lower.includes("packaging") || lower.includes("rar_bin")) {
+    // Only a packaging failure means "RAR cannot be created here". An extract
+    // failure that merely names RAR_BIN in its hint must not be rewritten into
+    // that message — it sends the user chasing the wrong problem.
+    if (lower.includes("packaging") || lower.includes("external rar")) {
       return rarUnavailableMessage();
     }
-    return "Could not open this RAR file. It may be password-protected or corrupt — or UnRAR/WinRAR is missing on the server. Try ZIP instead, or set UNRAR_BIN.";
+    return "Could not open this RAR file. It may be password-protected, split across several volumes, or corrupt. Try extracting it locally, or repack it as ZIP first.";
   }
   if (
     lower.includes("failed to extract") ||
