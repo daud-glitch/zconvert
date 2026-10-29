@@ -107,6 +107,15 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
                   All Formats
                 </Button>
               </Link>
+              <Link href="/guides">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Guides
+                </Button>
+              </Link>
               <Button variant="ghost" size="icon" onClick={toggleDark}>
                 {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>

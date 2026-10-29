@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, Clock } from "lucide-react";
 import { SiteFooter } from "@/components/common/SiteFooter";
+import { SiteHeader } from "@/components/common/SiteHeader";
 import { guides } from "@/lib/guides";
 import { SITE_NAME, SITE_URL, OG_IMAGE_PATH } from "@/lib/seo";
 
@@ -43,6 +44,7 @@ export default function GuidesIndexPage() {
   return (
     <>
       <div className="h-1 w-full bg-emerald-500" />
+      <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
         <nav aria-label="Breadcrumb" className="mb-8">
           <Link

@@ -177,6 +177,15 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
                   Conversions
                 </Button>
               </Link>
+              <Link href="/guides">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Guides
+                </Button>
+              </Link>
               <Button variant="ghost" size="icon" onClick={toggleDark}>
                 {darkMode ? (
                   <Sun className="w-4 h-4" />

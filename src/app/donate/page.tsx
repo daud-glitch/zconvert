@@ -16,6 +16,7 @@ import { BrandMark } from "@/components/common/BrandMark";
 import { getDonationSettings } from "@/lib/donation-settings";
 import { OG_IMAGE_PATH } from "@/lib/seo";
 import { SiteFooter } from "@/components/common/SiteFooter";
+import { SiteHeader } from "@/components/common/SiteHeader";
 
 const SITE = "https://www.convertek.tech";
 const UPDATED = "August 27, 2026";
@@ -111,6 +112,7 @@ export default async function DonatePage() {
 
   return (
     <>
+    <SiteHeader />
     <div className="relative min-h-screen overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(244,63,94,0.12),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(16,185,129,0.10),_transparent_50%)]" />
       <div className="h-1 w-full bg-gradient-to-r from-rose-500 via-emerald-500 to-rose-400" />

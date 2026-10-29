@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { SiteFooter } from "@/components/common/SiteFooter";
+import { SiteHeader } from "@/components/common/SiteHeader";
 
 export function LegalPageShell({
   title,
@@ -15,6 +16,7 @@ export function LegalPageShell({
   return (
     <div className="min-h-screen bg-background">
       <div className="h-1 w-full bg-emerald-500" />
+      <SiteHeader />
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <Link
           href="/"

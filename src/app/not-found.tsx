@@ -6,6 +6,7 @@ import { getPopularPairs } from "@/lib/conversion-pairs";
 import { pairToSlug } from "@/lib/conversion-pairs";
 import { SITE_NAME } from "@/lib/seo";
 import { SiteFooter } from "@/components/common/SiteFooter";
+import { SiteHeader } from "@/components/common/SiteHeader";
 
 export const metadata: Metadata = {
   title: `Page not found — ${SITE_NAME}`,
@@ -25,6 +26,7 @@ export default function NotFound() {
 
   return (
     <>
+    <SiteHeader />
     <main className="container mx-auto px-4 py-16 sm:py-24">
       <div className="max-w-2xl mx-auto text-center">
         <p className="font-mono text-sm font-bold text-muted-foreground">

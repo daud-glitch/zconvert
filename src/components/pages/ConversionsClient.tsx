@@ -293,6 +293,15 @@ export default function ConversionsClient() {
                 <LayoutGrid className="w-4 h-4 mr-1.5" />
                 Conversions
               </Button>
+              <Link href="/guides">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Guides
+                </Button>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"

@@ -9,6 +9,7 @@ import {
   Clock,
 } from "lucide-react";
 import { SiteFooter } from "@/components/common/SiteFooter";
+import { SiteHeader } from "@/components/common/SiteHeader";
 import { getGuide, getGuideSlugs } from "@/lib/guides";
 import { getFormatByExt } from "@/lib/formats";
 import { absoluteUrl, OG_IMAGE_PATH, SITE_NAME } from "@/lib/seo";
@@ -96,6 +97,7 @@ export default async function GuidePage({ params }: Props) {
       />
 
       <div className="h-1 w-full bg-emerald-500" />
+      <SiteHeader />
 
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <nav
