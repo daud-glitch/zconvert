@@ -90,6 +90,98 @@ function getUnrarCandidates(): string[] {
   ]);
 }
 
+function vendorRarPath(name: string): string {
+  return path.join(
+    process.cwd(),
+    "vendor",
+    "rar",
+    process.platform === "win32" ? name : name.toLowerCase(),
+  );
+}
+
+/** A configured RAR_BIN/UNRAR_BIN is trusted; otherwise look for the bundled binary. */
+function hasRarBinary(): boolean {
+  if (process.env.RAR_BIN?.trim()) return true;
+  return existsSync(vendorRarPath("rar")) || existsSync(vendorRarPath("Rar.exe"));
+}
+
+function hasUnrarBinary(): boolean {
+  if (process.env.UNRAR_BIN?.trim() || process.env.RAR_BIN?.trim()) return true;
+  return (
+    existsSync(vendorRarPath("unrar")) ||
+    existsSync(vendorRarPath("UnRAR.exe")) ||
+    existsSync(vendorRarPath("rar")) ||
+    existsSync(vendorRarPath("Rar.exe"))
+  );
+}
+
+let vendorRarProvision: Promise<void> | null = null;
+
+/**
+ * Install the RAR CLI on a Heroku-style dyno when it is missing.
+ *
+ * The slug normally gets it from `ensure-rar` at build time, but the web
+ * process runs `server.js` directly, so a build that missed the download (or a
+ * platform that provisions the slug elsewhere) leaves RAR packaging with no
+ * binary. Running the existing downloader once per process fixes that without
+ * shipping a proprietary binary in git; the result is cached in
+ * `vendor/rar/` for the life of the dyno.
+ */
+async function ensureVendorRar(): Promise<void> {
+  if (process.env.DISABLE_RAR === "1" || process.env.DISABLE_RAR === "true") return;
+  if (process.platform !== "linux") return;
+  if (vendorRarProvision) return vendorRarProvision;
+
+  const script = path.join(process.cwd(), "scripts", "ensure-rar.js");
+  if (!existsSync(script)) return;
+
+  vendorRarProvision = new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    try {
+      const proc = spawn(process.execPath, [script], {
+        cwd: process.cwd(),
+        windowsHide: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      let stderr = "";
+      proc.stderr?.on("data", (chunk: Buffer | string) => {
+        stderr += chunk.toString();
+      });
+      const timer = setTimeout(() => {
+        proc.kill();
+        console.warn("[rar] provisioning timed out");
+        finish();
+      }, 120_000);
+      proc.on("error", (err) => {
+        clearTimeout(timer);
+        console.warn("[rar] provisioning failed:", err.message);
+        finish();
+      });
+      proc.on("close", () => {
+        clearTimeout(timer);
+        if (stderr.trim()) {
+          console.warn("[rar] provisioning:", stderr.trim().slice(0, 300));
+        }
+        finish();
+      });
+    } catch (err) {
+      console.warn(
+        "[rar] provisioning failed:",
+        err instanceof Error ? err.message : String(err),
+      );
+      finish();
+    }
+  });
+
+  return vendorRarProvision;
+}
+
 function getRarCandidates(): string[] {
   return unique([
     ...splitCandidates(process.env.RAR_BIN),
@@ -117,6 +209,7 @@ export async function extractRarWithToolchain(
 ): Promise<ArchiveEntry[] | null> {
   if (!TOOLCHAIN_ENABLED) return null;
   if (!input?.length) return null;
+  if (!hasUnrarBinary()) await ensureVendorRar();
 
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-unrar-"));
   const rarPath = path.join(tmp, "archive.rar");
@@ -331,21 +424,7 @@ export async function createRarWithToolchain(
     return null;
   }
   if (!files.length) return null;
-
-  // Lazily ensure vendor rar on long-running dynos (Heroku start already runs ensure-rar)
-  try {
-    const vendorRar = path.join(
-      process.cwd(),
-      "vendor",
-      "rar",
-      process.platform === "win32" ? "Rar.exe" : "rar",
-    );
-    if (!existsSync(vendorRar) && process.platform === "linux") {
-      console.warn("[rar] vendor rar missing — run: npm run ensure-rar");
-    }
-  } catch {
-    // ignore
-  }
+  if (!hasRarBinary()) await ensureVendorRar();
 
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "zconvert-rar-"));
   const inDir = path.join(tmp, "in");

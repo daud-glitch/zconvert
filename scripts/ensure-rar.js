@@ -109,9 +109,12 @@ function extractRarBinary(tgzPath) {
   fs.rmSync(extractDir, { recursive: true, force: true });
   fs.mkdirSync(extractDir, { recursive: true });
 
-  // Prefer system tar (available on Heroku Linux)
+  // Prefer system tar (available on Heroku Linux). Run from VENDOR_DIR with
+  // relative paths: Windows' bundled bsdtar reads a drive letter in an
+  // absolute path as a remote host.
   try {
-    execFileSync("tar", ["-xzf", tgzPath, "-C", extractDir], {
+    execFileSync("tar", ["-xzf", path.basename(tgzPath), "-C", "_extract"], {
+      cwd: VENDOR_DIR,
       stdio: "ignore",
       timeout: 60_000,
     });
@@ -119,7 +122,7 @@ function extractRarBinary(tgzPath) {
     throw new Error(`tar extract failed: ${err.message}`);
   }
 
-  // Package layout is typically extractDir/rar/rar
+  // Package layout is typically extractDir/rar/rar and extractDir/rar/unrar
   const candidates = [];
   function walk(dir, depth = 0) {
     if (depth > 4) return;
@@ -127,7 +130,7 @@ function extractRarBinary(tgzPath) {
       const full = path.join(dir, name);
       const st = fs.statSync(full);
       if (st.isDirectory()) walk(full, depth + 1);
-      else if (name === "rar" || name === "Rar.exe") candidates.push(full);
+      else if (["rar", "unrar"].includes(name.toLowerCase())) candidates.push(full);
     }
   }
   walk(extractDir);
@@ -141,6 +144,18 @@ function extractRarBinary(tgzPath) {
     fs.chmodSync(VENDOR_BIN, 0o755);
   } catch {
     // ignore
+  }
+
+  // unrar is optional but preferred for extraction (rar can also extract)
+  const unrarBin = candidates.find((c) => path.basename(c).toLowerCase() === "unrar");
+  if (unrarBin) {
+    const unrarDest = path.join(VENDOR_DIR, "unrar");
+    fs.copyFileSync(unrarBin, unrarDest);
+    try {
+      fs.chmodSync(unrarDest, 0o755);
+    } catch {
+      // ignore
+    }
   }
   fs.rmSync(extractDir, { recursive: true, force: true });
   try {
