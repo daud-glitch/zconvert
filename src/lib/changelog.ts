@@ -9,6 +9,18 @@ export type ChangelogEntry = {
 /** User-facing product fixes and improvements, newest first. */
 export const changelogEntries: ChangelogEntry[] = [
   {
+    id: "2026-10-29-rar-packaging",
+    date: "2026-10-29",
+    title: "RAR conversion is fixed",
+    items: [
+      "RAR files convert again. The server now installs its own rar and unrar binaries on startup and again on the first RAR job, so a deploy or a dyno restart can no longer leave every RAR conversion failing with \u201cRAR packaging is not available on this server\u201d.",
+      "Creating RAR archives is working: ZIP, 7Z, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZST, GZ, APK and JAR can all be packed to RAR.",
+      "Opening RAR archives is working too: RAR converts to ZIP, 7Z, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZST, APK, JAR and CBZ.",
+      "A RAR that genuinely cannot be opened now says why \u2014 password-protected, split across several volumes, or corrupt \u2014 instead of claiming the server has no RAR support. A toolchain that fails to load also falls back to the built-in extractor instead of aborting the job.",
+      "The admin overview reports whether rar and unrar are installed on the running dyno, with the resolved path and whether it came from an environment variable, the bundled vendor folder, or PATH.",
+    ],
+  },
+  {
     id: "2026-10-28-flc-feather-dta-fixes",
     date: "2026-10-28",
     title: "Animation, Feather, Stata and P7M fixes",
