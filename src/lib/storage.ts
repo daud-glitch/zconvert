@@ -52,16 +52,31 @@ export function matchesAccountKey(
   return entryKey === accountKey;
 }
 
-/** Open the DB once so schema migrations (e.g. dropping the queue store) run. */
+/**
+ * Open the DB once so schema migrations (e.g. dropping the queue store) run.
+ *
+ * The connection stays pooled for the tab. Closing it here used to leave the
+ * cached promise pointing at a closed connection, so the next history read or
+ * write threw "Can't start a transaction on a closed database". A connection
+ * another tab needs to upgrade is released by the `blocking` handler instead.
+ */
 export async function primeStorage(): Promise<void> {
-  const db = await getDB();
-  await db?.close();
+  await getDB();
 }
 
 function getDB() {
   if (typeof window === "undefined") return null;
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
+      // Another tab upgrading the schema closes this connection; drop the
+      // cached handle so the next operation reopens rather than throwing.
+      terminated() {
+        dbPromise = null;
+      },
+      blocking() {
+        void dbPromise?.then((open) => open.close()).catch(() => undefined);
+        dbPromise = null;
+      },
       upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains(FILES_STORE)) {
           const files = db.createObjectStore(FILES_STORE, { keyPath: "id" });

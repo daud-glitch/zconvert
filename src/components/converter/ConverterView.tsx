@@ -397,31 +397,35 @@ export function ConverterView({
     // Open IndexedDB once so the schema migration that drops the removed
     // queue store runs even for signed-out visitors. A stale dev chunk can hand
     // us an older storage module, so never let that take down the mount effect.
-    if (typeof primeStorage === "function") void primeStorage();
+    if (typeof primeStorage === "function") {
+      void primeStorage().catch(() => undefined);
+    }
     resetQueue();
     setRecentConversions([]);
 
     // Recent list only for signed-in accounts (bookmarks live in Bookmarks section only).
     // Guests still convert in the queue with live status, but nothing is persisted.
     if (currentUser && accountKey) {
-      void getLocalHistory(5, accountKey).then((rows) => {
-        if (cancelled) return;
-        setRecentConversions(
-          rows.map((r) => ({
-            id: r.id,
-            fileName: r.fileName,
-            originalExt: r.originalExt,
-            targetExt: r.targetExt,
-            category: r.category,
-            inputSize: r.inputSize,
-            outputSize: r.outputSize,
-            status: r.status,
-            duration: r.duration,
-            error: r.error,
-            createdAt: r.createdAt,
-          })),
-        );
-      });
+      void getLocalHistory(5, accountKey)
+        .then((rows) => {
+          if (cancelled) return;
+          setRecentConversions(
+            rows.map((r) => ({
+              id: r.id,
+              fileName: r.fileName,
+              originalExt: r.originalExt,
+              targetExt: r.targetExt,
+              category: r.category,
+              inputSize: r.inputSize,
+              outputSize: r.outputSize,
+              status: r.status,
+              duration: r.duration,
+              error: r.error,
+              createdAt: r.createdAt,
+            })),
+          );
+        })
+        .catch(() => undefined);
     }
 
     return () => {
@@ -1112,21 +1116,27 @@ export function ConverterView({
 
       // Durable history only when signed in (account-scoped IndexedDB)
       if (currentUser?.id) {
-        await saveLocalConversion({
-          id: conversionId,
-          fileName: item.name,
-          originalExt: item.ext,
-          targetExt: outputExt,
-          category: getCategoryFromExt(item.ext) || "other",
-          inputSize: item.size,
-          outputSize: blob.size,
-          status: "done",
-          duration: endTime - startTime,
-          error: null,
-          mimeType: blob.type || "application/octet-stream",
-          data: blob,
-          accountKey: currentUser.id,
-        });
+        // Local history is a convenience: closed/blocked IndexedDB or a quota
+        // failure must not turn a finished conversion into a failed one.
+        try {
+          await saveLocalConversion({
+            id: conversionId,
+            fileName: item.name,
+            originalExt: item.ext,
+            targetExt: outputExt,
+            category: getCategoryFromExt(item.ext) || "other",
+            inputSize: item.size,
+            outputSize: blob.size,
+            status: "done",
+            duration: endTime - startTime,
+            error: null,
+            mimeType: blob.type || "application/octet-stream",
+            data: blob,
+            accountKey: currentUser.id,
+          });
+        } catch (storageErr) {
+          console.warn("Could not save conversion to local history:", storageErr);
+        }
       }
 
       if (!isQueued(item.id) || controller.signal.aborted) return false;
@@ -1229,7 +1239,7 @@ export function ConverterView({
           duration: endTime - startTime,
           error: message,
           accountKey: currentUser.id,
-        });
+        }).catch(() => undefined);
       }
       showToast(message, "error");
       return true;
