@@ -96,6 +96,41 @@ function getDB() {
   return dbPromise;
 }
 
+function isClosedConnectionError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const name = (err as { name?: string }).name ?? "";
+  if (name === "InvalidStateError" || name === "TransactionInactiveError") {
+    return true;
+  }
+  const message =
+    "message" in err ? String((err as { message?: unknown }).message ?? "") : "";
+  return /closed database|database is closing|connection is closing|transaction is inactive/i.test(
+    message,
+  );
+}
+
+/**
+ * Run an operation on the pooled connection, reopening and retrying once if the
+ * connection was closed under us — another tab upgrading the schema can close
+ * it between `getDB()` and the first transaction.
+ */
+async function withDb<T>(
+  fallback: T,
+  op: (db: IDBPDatabase) => Promise<T>,
+): Promise<T> {
+  const db = await getDB();
+  if (!db) return fallback;
+  try {
+    return await op(db);
+  } catch (err) {
+    if (!isClosedConnectionError(err)) throw err;
+    dbPromise = null;
+    const reopened = await getDB();
+    if (!reopened) return fallback;
+    return await op(reopened);
+  }
+}
+
 async function pruneHistory(db: IDBPDatabase) {
   const keys = await db.getAllKeysFromIndex(HISTORY_STORE, "createdAt");
   if (keys.length <= MAX_HISTORY_ENTRIES) return;
@@ -119,9 +154,6 @@ export async function saveLocalConversion(
   // Durable history is account-bound only.
   if (!entry.accountKey) return;
 
-  const db = await getDB();
-  if (!db) return;
-
   const createdAt = entry.createdAt ?? new Date().toISOString();
   const hasFile = Boolean(entry.data && entry.data.size > 0);
 
@@ -143,20 +175,22 @@ export async function saveLocalConversion(
     ...(hasFile && entry.data ? { data: entry.data } : {}),
   };
 
-  await db.put(HISTORY_STORE, record);
+  await withDb(undefined, async (db) => {
+    await db.put(HISTORY_STORE, record);
 
-  // Keep legacy files store in sync for older download helpers
-  if (hasFile && entry.data) {
-    await db.put(FILES_STORE, {
-      id: entry.id,
-      fileName: entry.fileName,
-      data: entry.data,
-      mimeType: entry.mimeType || entry.data.type || "application/octet-stream",
-      createdAt: Date.parse(createdAt) || Date.now(),
-    } satisfies StoredFileV1);
-  }
+    // Keep legacy files store in sync for older download helpers
+    if (hasFile && entry.data) {
+      await db.put(FILES_STORE, {
+        id: entry.id,
+        fileName: entry.fileName,
+        data: entry.data,
+        mimeType: entry.mimeType || entry.data.type || "application/octet-stream",
+        createdAt: Date.parse(createdAt) || Date.now(),
+      } satisfies StoredFileV1);
+    }
 
-  await pruneHistory(db);
+    await pruneHistory(db);
+  });
 }
 
 /** @deprecated Prefer saveLocalConversion */
@@ -189,12 +223,8 @@ export async function getLocalHistory(
   // Unauthenticated users have no durable history on this device.
   if (!accountKey) return [];
 
-  const db = await getDB();
-  if (!db) return [];
-
-  const all = (await db.getAllFromIndex(
-    HISTORY_STORE,
-    "createdAt",
+  const all = (await withDb<unknown[]>([], (db) =>
+    db.getAllFromIndex(HISTORY_STORE, "createdAt"),
   )) as LocalHistoryEntry[];
 
   // Index returns ascending; newest last
@@ -212,11 +242,10 @@ export async function getLocalHistoryEntry(
   accountKey?: string | null,
 ): Promise<LocalHistoryEntry | null> {
   if (!accountKey) return null;
-  const db = await getDB();
-  if (!db) return null;
-  const entry = (await db.get(HISTORY_STORE, id)) as
-    | LocalHistoryEntry
-    | undefined;
+  const entry = await withDb<LocalHistoryEntry | undefined>(
+    undefined,
+    (db) => db.get(HISTORY_STORE, id),
+  );
   if (!entry) return null;
   if (!matchesAccountKey(entry.accountKey, accountKey)) {
     return null;
@@ -248,15 +277,15 @@ export async function deleteFileOnlyLocally(
   accountKey?: string | null,
 ): Promise<void> {
   if (!accountKey) return;
-  const db = await getDB();
-  if (!db) return;
-  const entry = (await db.get(HISTORY_STORE, id)) as
-    | LocalHistoryEntry
-    | undefined;
-  if (!entry || !matchesAccountKey(entry.accountKey, accountKey)) return;
-  const { data: _drop, ...rest } = entry;
-  await db.put(HISTORY_STORE, { ...rest, hasFile: false, data: undefined });
-  await db.delete(FILES_STORE, id);
+  await withDb(undefined, async (db) => {
+    const entry = (await db.get(HISTORY_STORE, id)) as
+      | LocalHistoryEntry
+      | undefined;
+    if (!entry || !matchesAccountKey(entry.accountKey, accountKey)) return;
+    const { data: _drop, ...rest } = entry;
+    await db.put(HISTORY_STORE, { ...rest, hasFile: false, data: undefined });
+    await db.delete(FILES_STORE, id);
+  });
 }
 
 /** Remove history row + file completely. */
@@ -265,14 +294,14 @@ export async function deleteLocalConversion(
   accountKey?: string | null,
 ): Promise<void> {
   if (!accountKey) return;
-  const db = await getDB();
-  if (!db) return;
-  const entry = (await db.get(HISTORY_STORE, id)) as
-    | LocalHistoryEntry
-    | undefined;
-  if (!entry || !matchesAccountKey(entry.accountKey, accountKey)) return;
-  await db.delete(HISTORY_STORE, id);
-  await db.delete(FILES_STORE, id);
+  await withDb(undefined, async (db) => {
+    const entry = (await db.get(HISTORY_STORE, id)) as
+      | LocalHistoryEntry
+      | undefined;
+    if (!entry || !matchesAccountKey(entry.accountKey, accountKey)) return;
+    await db.delete(HISTORY_STORE, id);
+    await db.delete(FILES_STORE, id);
+  });
 }
 
 export async function deleteFileLocally(id: string) {
@@ -280,10 +309,10 @@ export async function deleteFileLocally(id: string) {
 }
 
 export async function clearAllFilesLocally() {
-  const db = await getDB();
-  if (!db) return;
-  await db.clear(HISTORY_STORE);
-  await db.clear(FILES_STORE);
+  await withDb(undefined, async (db) => {
+    await db.clear(HISTORY_STORE);
+    await db.clear(FILES_STORE);
+  });
 }
 
 

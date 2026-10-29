@@ -74,22 +74,29 @@ export function HistoryView() {
 
   const handleDownload = async (record: LocalHistoryEntry) => {
     if (!currentUser?.id) return;
-    const stored = await getFileLocally(record.id, currentUser.id);
-    if (!stored) {
-      alert("File is no longer in your browser storage. Convert again to keep a copy.");
-      return;
-    }
+    try {
+      const stored = await getFileLocally(record.id, currentUser.id);
+      if (!stored) {
+        alert(
+          "File is no longer in your browser storage. Convert again to keep a copy.",
+        );
+        return;
+      }
 
-    const url = URL.createObjectURL(stored.data);
-    const a = document.createElement("a");
-    a.href = url;
-    const baseName = record.fileName.replace(/\.[^/.]+$/, "");
-    a.download = brandedDownloadFilename(
-      baseName,
-      record.targetExt || "bin",
-    );
-    a.click();
-    URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(stored.data);
+      const a = document.createElement("a");
+      a.href = url;
+      const baseName = record.fileName.replace(/\.[^/.]+$/, "");
+      a.download = brandedDownloadFilename(
+        baseName,
+        record.targetExt || "bin",
+      );
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to read stored file:", err);
+      alert("Could not read the stored file from this browser. Please retry.");
+    }
   };
 
   const handleDeleteRecord = async (id: string) => {

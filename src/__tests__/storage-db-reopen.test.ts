@@ -32,4 +32,35 @@ describe("local storage connection", () => {
     expect(openDB).toHaveBeenCalledTimes(1);
     expect(first.getAllFromIndex).toHaveBeenCalled();
   });
+
+  it("reopens and retries a read when the connection closed mid-flight", async () => {
+    const closed = Object.assign(
+      new Error("Can't start a transaction on a closed database"),
+      { name: "InvalidStateError" },
+    );
+    const first = fakeDb();
+    first.getAllFromIndex.mockRejectedValueOnce(closed);
+    const second = fakeDb();
+    openDB.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+
+    const { getLocalHistory } = await import("@/lib/storage");
+
+    await expect(getLocalHistory(5, "acct-1")).resolves.toEqual([]);
+    expect(openDB).toHaveBeenCalledTimes(2);
+    expect(second.getAllFromIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reopen for unrelated storage errors", async () => {
+    const quota = Object.assign(new Error("Quota exceeded"), {
+      name: "QuotaExceededError",
+    });
+    const first = fakeDb();
+    first.getAllFromIndex.mockRejectedValueOnce(quota);
+    openDB.mockResolvedValueOnce(first);
+
+    const { getLocalHistory } = await import("@/lib/storage");
+
+    await expect(getLocalHistory(5, "acct-1")).rejects.toThrow("Quota exceeded");
+    expect(openDB).toHaveBeenCalledTimes(1);
+  });
 });
