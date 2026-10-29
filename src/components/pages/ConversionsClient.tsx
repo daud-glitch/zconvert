@@ -287,8 +287,10 @@ export default function ConversionsClient() {
                 </Button>
               </Link>
               <Button
+                variant="ghost"
                 size="sm"
-                className="bg-foreground text-background hover:bg-foreground/90"
+                aria-current="page"
+                className="bg-emerald-500/10 font-semibold text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-400"
               >
                 <LayoutGrid className="w-4 h-4 mr-1.5" />
                 Conversions

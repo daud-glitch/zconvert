@@ -167,11 +167,11 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
                   Converter
                 </Button>
               </Link>
-              <Link href="/conversions">
+              <Link href="/conversions" aria-current="page">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="bg-emerald-500/10 font-semibold text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-400"
                 >
                   <LayoutGrid className="w-4 h-4 mr-1.5" />
                   Conversions
