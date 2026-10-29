@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import HomeClient from "@/components/pages/HomeClient";
 import HomeFaqJsonLd from "@/components/seo/HomeFaqJsonLd";
+import type { GuideTeaser } from "@/components/seo/HomeGuidesSection";
+import { guides } from "@/lib/guides";
 import {
   BRAND_TAGLINE,
   BRAND_TAGLINE_ACTION,
@@ -41,11 +43,32 @@ export const metadata: Metadata = {
   },
 };
 
+/** High-intent guides that earn a card on the homepage. */
+const HOMEPAGE_GUIDE_SLUGS = [
+  "heic-to-jpg-guide",
+  "png-to-jpg-guide",
+  "pdf-to-jpg-guide",
+  "mov-to-mp4-guide",
+];
+
+const homepageGuides: GuideTeaser[] = HOMEPAGE_GUIDE_SLUGS.flatMap((slug) => {
+  const guide = guides.find((g) => g.slug === slug);
+  if (!guide) return [];
+  return [
+    {
+      slug: guide.slug,
+      title: guide.title,
+      description: guide.description,
+      readingMinutes: guide.readingMinutes,
+    },
+  ];
+});
+
 export default function Page() {
   return (
     <>
       <HomeFaqJsonLd />
-      <HomeClient defaultView="converter" />
+      <HomeClient defaultView="converter" guides={homepageGuides} />
     </>
   );
 }

@@ -44,6 +44,10 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { HomeFaqSection } from "@/components/seo/HomeFaqSection";
+import {
+  HomeGuidesSection,
+  type GuideTeaser,
+} from "@/components/seo/HomeGuidesSection";
 import { isLikelyCrawler } from "@/lib/crawler";
 
 function isAdminRoute(pathname: string | null | undefined): boolean {
@@ -110,9 +114,12 @@ const CmsFeatureCards = dynamic(
 export default function HomeClient({
   defaultView,
   extraQuery = {},
+  guides = [],
 }: {
   defaultView?: ViewType;
   extraQuery?: Record<string, string | string[] | null>;
+  /** Featured guide cards, built on the server so bodies stay out of the bundle. */
+  guides?: GuideTeaser[];
 }) {
   const resolvedTab = typeof extraQuery?.tab === "string"
     ? extraQuery.tab
@@ -657,6 +664,7 @@ export default function HomeClient({
           <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
             <CmsFeatureCards features={features} />
           </div>
+          <HomeGuidesSection guides={guides} />
           <HomeFaqSection />
         </>
       ) : null}
