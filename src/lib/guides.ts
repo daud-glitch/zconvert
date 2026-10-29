@@ -1009,6 +1009,724 @@ export const guides: Guide[] = [
       },
     ],
   },
+  {
+    slug: "png-to-jpg-guide",
+    title: "PNG to JPG: What You Gain, What You Lose, and When to Keep the PNG",
+    description:
+      "Converting PNG to JPG: why the file shrinks, what happens to transparency, text and logos, and how to pick a quality setting that survives review.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "png to jpg",
+      "convert png to jpeg",
+      "png transparency jpg",
+      "reduce png file size",
+    ],
+    lead:
+      "PNG to JPG is the most common image conversion there is, and the one most often done for the wrong reason. The file usually gets much smaller — but exactly what disappears on the way is decided by the image content, not by the converter.",
+    blocks: [
+      {
+        heading: "Why the PNG was large in the first place",
+        paragraphs: [
+          "PNG is lossless. It compresses by finding repeated byte patterns, the same way a ZIP does, so every pixel you saved is still there when the file is reopened. That is excellent for screenshots, diagrams, interface captures and anything with large areas of identical colour, because those areas compress extremely well without any quality cost. It is far less effective on photographs, where neighbouring pixels almost never repeat exactly: the compressor keeps hunting for matches, finds few, and the file stays large.",
+          "The other size driver is the alpha channel. A PNG can store per-pixel transparency, and transparency does not compress as neatly as solid colour. A 4000-pixel-wide screenshot of a transparent logo can easily weigh several megabytes, most of it spent describing which pixels are see-through. JPG has no alpha channel at all, which is simultaneously why it is smaller and why the conversion changes how the image looks.",
+        ],
+      },
+      {
+        heading: "The transparency problem",
+        paragraphs: [
+          "A JPG cannot store a transparent pixel. Every pixel must have a colour, so anything transparent has to become something. Most converters fill it with white; some fill with black; a few let you choose. If you convert a transparent logo to JPG and view it on a dark page, you will see the rectangle you never knew was there — a white box around the mark. That is not a bug in the converter, it is the format honestly reporting that it has nowhere to put the information.",
+          "The right move is to flatten deliberately before converting. Compose the image over the background it will actually sit on — white for print, the page colour for a website, a brand colour for a slide — and export that flattened result as JPG. If the transparent version still has a use, keep it as PNG and treat the JPG as a delivery copy. Never overwrite the only copy of a transparent asset with a flattened one.",
+        ],
+      },
+      {
+        heading: "Where JPG wins and where it damages the image",
+        paragraphs: [
+          "JPG is a photographic format. It discards detail the eye is unlikely to notice, concentrating on brightness and giving colour less precision, which is a very good model of human vision for photographs, skin tones and landscapes. At a quality setting around 80 to 85, a photo is typically a tenth of the PNG size with no visible difference at normal viewing distance. Lower settings start to show blocking in smooth gradients such as skies, and ringing around high-contrast edges.",
+          "Those edges are the problem for anything that is not a photograph. Text, logos, line art and screenshots are made of hard transitions between flat colours, exactly the content JPG's maths handles worst. You get coloured fringes and grey mush around every letter, and thin strokes can disappear entirely at small sizes. If the image contains words, a chart with labels, or a logo with fine detail, converting it to JPG for a smaller file is usually a false economy: the result looks broken and often needs redoing.",
+        ],
+      },
+      {
+        heading: "A conversion routine that does not lose anything you need",
+        paragraphs: [
+          "Start from the original PNG, not from a JPG you already exported. Each JPG pass is a fresh generation of loss, and re-saving a JPG compounds the artefacts of the previous one rather than starting clean. If the image has transparency, decide the background colour first and produce the flattened version as its own file so the decision is explicit and reversible.",
+          "Then check the result at the size it will actually be seen, not at 400 percent zoom. A quality setting that looks fine on a phone thumbnail may fall apart on a poster, and the reverse is also true: there is no point paying for 95 percent quality on an image that will render 300 pixels wide. Finally, compare the two file sizes before committing. If the PNG is only a little larger, keeping it avoids the whole set of trade-offs and preserves the alpha channel for future edits.",
+        ],
+      },
+    ],
+    related: [
+      { from: "png", to: "jpg" },
+      { from: "jpg", to: "png" },
+      { from: "png", to: "webp" },
+      { from: "png", to: "pdf" },
+      { from: "png", to: "ico" },
+      { from: "png", to: "svg" },
+    ],
+    relatedFormats: ["png", "jpg", "webp", "pdf", "ico"],
+    faqs: [
+      {
+        question: "Does converting PNG to JPG reduce quality?",
+        answer:
+          "Yes. JPG is lossy and has no alpha channel, so fine detail is discarded and transparent pixels become a solid colour. Photographs usually survive well; text and logos usually do not.",
+      },
+      {
+        question: "Can I convert PNG to JPG and keep the transparent background?",
+        answer:
+          "No. JPG has no transparency support. Use WebP or AVIF if you need a small file with alpha, or flatten the image onto the background colour it will sit on.",
+      },
+      {
+        question: "What JPG quality should I use?",
+        answer:
+          "Around 80 to 85 is the usual sweet spot for photographs. Go higher only for images that will be printed large or cropped afterwards.",
+      },
+    ],
+  },
+  {
+    slug: "jpg-to-pdf-guide",
+    title: "JPG to PDF: Turning Photos into a Document That Prints Correctly",
+    description:
+      "How to combine JPG photos into one PDF: page size, DPI, orientation and compression, and why a poorly sized image prints blurry or cropped.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "jpg to pdf",
+      "photos to pdf",
+      "combine images into pdf",
+      "image dpi for printing",
+    ],
+    lead:
+      "Putting a photo into a PDF looks like the simplest conversion on the site, and it is the one where the settings decide whether the print comes back sharp or soft. The image is not changed by the format; it is changed by the page it is placed on.",
+    blocks: [
+      {
+        heading: "A PDF is a page, not a picture",
+        paragraphs: [
+          "A JPG stores pixels and says nothing about physical size. A PDF stores a page with a defined width and height in points, and places images on it at a chosen position and scale. That is why the same photo can look crisp in one PDF and blurry in another: the number of pixels is identical, but the physical area they are spread across is not. Blurriness in a printed PDF is almost always too few pixels for the page size, not a bad conversion.",
+          "The arithmetic is worth knowing. A4 is 210 by 297 millimetres, roughly 8.27 by 11.69 inches. At the 300 dots per inch that print shops expect, that is about 2480 by 3508 pixels. A phone photo at 4032 by 3024 pixels fills an A4 page comfortably. A 1000-pixel-wide image stretched to A4 is working at roughly 120 DPI, which is fine on screen and visibly soft on paper.",
+        ],
+      },
+      {
+        heading: "Page size, orientation and margins",
+        paragraphs: [
+          "Decide the page size before converting, because changing it afterwards means re-laying out every image. A4 is the norm outside North America, Letter inside it, and a mismatch between the two shows up as an unexpected white strip at the edge or content clipped by the printer's unprintable border. Keep a margin of at least five millimetres on all sides for the same reason.",
+          "Orientation matters with mixed photos. A portrait photo on a landscape page leaves large empty areas; a landscape photo on a portrait page either gets shrunk to fit or gets cropped. Most converters offer fit-to-page, which preserves the whole image and leaves whitespace, or fill-the-page, which crops. For a document someone will read on paper, fitting is normally correct: a small white band is better than a headless portrait. Also check that the converter respects the EXIF rotation flag, or phone photos taken in portrait can arrive sideways.",
+        ],
+      },
+      {
+        heading: "Should the PDF recompress the images?",
+        paragraphs: [
+          "There are two ways to get a JPG into a PDF. The first embeds the original compressed stream untouched, which is lossless from the JPG's point of view and keeps the file size roughly equal to the sum of the images. The second decodes the image and re-encodes it, usually at a chosen quality or a target resolution, which can shrink a phone-photo PDF dramatically at the cost of one more lossy generation. Neither is wrong, but you should know which one happened.",
+          "For a print order, embed the originals and let the print shop handle scaling; for an email attachment with a size limit, recompressing to around 150 DPI at quality 80 is usually indistinguishable on screen and a fraction of the size. If the photos contain readable text — receipts, whiteboards, scanned pages — keep the resolution high and avoid aggressive compression, because JPG artefacts around lettering are what makes a scanned document unreadable.",
+        ],
+      },
+      {
+        heading: "Multiple images in one file",
+        paragraphs: [
+          "When you combine several photos, the order is the document. Most tools sort by filename, which means IMG_1002 comes before IMG_0010 unless the names are zero-padded. Rename or reorder before converting if the sequence matters, and check the first and last page of the output rather than assuming.",
+          "Mixed source formats are fine: a PDF can hold JPG, PNG and even transparent PNG images on the same page, and the transparency is preserved because the PDF page provides the background. If the document is going to be edited later, a PDF is a poor working format — keep the images and the arrangement notes, and treat the PDF as the delivered artefact.",
+        ],
+      },
+    ],
+    related: [
+      { from: "jpg", to: "pdf" },
+      { from: "png", to: "pdf" },
+      { from: "pdf", to: "jpg" },
+      { from: "jpg", to: "png" },
+      { from: "heic", to: "pdf" },
+      { from: "webp", to: "pdf" },
+    ],
+    relatedFormats: ["jpg", "pdf", "png", "heic", "webp"],
+    faqs: [
+      {
+        question: "What DPI should photos be for a PDF?",
+        answer:
+          "300 DPI at the final page size for printing, 150 DPI for screen reading and email. Below about 120 DPI a photo looks soft on paper.",
+      },
+      {
+        question: "Why is my photo blurry in the PDF?",
+        answer:
+          "The image has fewer pixels than the page area needs at print resolution. Either use a larger original or place it on a smaller page.",
+      },
+      {
+        question: "Does JPG to PDF reduce quality?",
+        answer:
+          "Not if the JPG is embedded directly. It does if the converter re-encodes it, which many do when you pick a target size or compression level.",
+      },
+    ],
+  },
+  {
+    slug: "pdf-to-jpg-guide",
+    title: "PDF to JPG: Rendering Pages at a Resolution That Still Reads",
+    description:
+      "Turn PDF pages into JPG images: choosing DPI, handling multipage files, keeping text legible, and knowing when PNG is the better output.",
+    updated: "2026-10-29",
+    readingMinutes: 5,
+    keywords: [
+      "pdf to jpg",
+      "pdf to image",
+      "pdf page to jpeg",
+      "pdf dpi",
+    ],
+    lead:
+      "A PDF does not contain pictures of pages — it contains instructions for drawing them. Converting to JPG means deciding how many pixels to spend on that drawing, and that single number decides whether the output is a sharp document or an unreadable smudge.",
+    blocks: [
+      {
+        heading: "Rendering, not extracting",
+        paragraphs: [
+          "When a PDF is converted to an image, a renderer executes the page's drawing commands — text, vector shapes, embedded images — into a pixel grid at the requested resolution. Text stops being text: it becomes pixels, so the output cannot be selected, searched or read by a screen reader, and it is no longer accessible. That is the real cost of the conversion, not file size.",
+          "The exception is a PDF that is only a wrapper around a scanned photo. In that case the page is already one big image and there is nothing meaningful to rasterise, so the result looks the same at any resolution as long as you do not exceed the original. Most PDFs, though, are a mix of vector text and images, and they need enough pixels for the text to resolve.",
+        ],
+      },
+      {
+        heading: "Choosing a resolution",
+        paragraphs: [
+          "For reading on a screen, 150 DPI at the page's physical size is usually enough: an A4 page becomes about 1240 by 1754 pixels, comfortable on a laptop and legible when zoomed. For printing, or for any output that will be re-inserted into a document, 300 DPI is the safe default and gives roughly 2480 by 3508 pixels per A4 page. Going to 600 DPI is only worth it for line art, maps or text you intend to crop hard, and it multiplies the file size by four for a gain most eyes cannot see.",
+          "There is a trap above 300 DPI: a page containing a low-resolution embedded photo does not gain detail from a higher render setting. The text gets crisper, the photo stays exactly as soft as it was, and the JPG around it gets larger. If the goal is to recover an image from inside a PDF, rendering the page is the wrong approach — the embedded image should be extracted directly if the tool supports it.",
+        ],
+      },
+      {
+        heading: "Multipage files and naming",
+        paragraphs: [
+          "A multipage PDF becomes one image per page, not one long strip. That is convenient for presentations and awkward for documents: a 90-page report produces 90 files. Check whether the converter lets you select a page range first, and if not, expect to sort the output afterwards. Page numbers in filenames usually come from the renderer rather than the printed page number, so a document whose visible numbering starts at 1 on its fifth sheet will not line up.",
+          "Colour is the other detail. A PDF intended for print may carry CMYK colours and an embedded output intent, and most renderers convert to sRGB when producing a JPG. Highly saturated brand colours can shift slightly, and very dark areas can lose separation. For screen use that is fine; for colour-critical proofs, keep the PDF and let the printer handle the conversion.",
+        ],
+      },
+      {
+        heading: "When JPG is the wrong output",
+        paragraphs: [
+          "If the page is mostly text on a white background, JPG's compression produces faint grey halos around every letter and slightly ragged edges at small sizes. PNG stores the same page losslessly and is often only modestly larger for flat documents, so it is the better choice for screenshots of pages, forms and diagrams. Use JPG when the pages are photographic, when file size matters more than crispness, or when a platform rejects PNG.",
+          "A practical compromise is to render to JPG at 200 to 300 DPI for photographs and to PNG for anything where text dominates, then compare a 100 percent crop of a heading before converting the whole file. One look at a letter edge tells you more than any general rule.",
+        ],
+      },
+    ],
+    related: [
+      { from: "pdf", to: "jpg" },
+      { from: "pdf", to: "png" },
+      { from: "pdf", to: "docx" },
+      { from: "pdf", to: "txt" },
+      { from: "jpg", to: "pdf" },
+    ],
+    relatedFormats: ["pdf", "jpg", "png"],
+    faqs: [
+      {
+        question: "What DPI should I use for PDF to JPG?",
+        answer:
+          "150 DPI for screen reading, 300 DPI for printing or documents that will be edited further. Higher settings only add pixels, not detail.",
+      },
+      {
+        question: "Can I convert only one page of a PDF?",
+        answer:
+          "Yes, if the converter supports a page range. Otherwise every page is rendered and you delete the ones you do not need.",
+      },
+      {
+        question: "Does PDF to JPG keep the text searchable?",
+        answer:
+          "No. The text becomes pixels, so it cannot be selected, searched or read aloud. Keep the PDF if that matters.",
+      },
+    ],
+  },
+  {
+    slug: "ppt-to-pdf-guide",
+    title: "PowerPoint to PDF: Keeping Slides Intact on Someone Else's Machine",
+    description:
+      "Why PowerPoint to PDF changes fonts, animations and video, how to prepare slides for a fixed layout, and when PDF is the wrong format to send.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "ppt to pdf",
+      "powerpoint to pdf",
+      "pptx pdf fonts",
+      "slides pdf export",
+    ],
+    lead:
+      "Sending a .pptx is asking the recipient to have the right fonts, the right PowerPoint version and the right screen. A PDF removes that uncertainty by fixing every slide into a page — but it also fixes the animations, which is usually the point and occasionally the problem.",
+    blocks: [
+      {
+        heading: "What a PDF actually preserves",
+        paragraphs: [
+          "Each slide becomes one page with the same dimensions as the slide, so a 16:9 deck becomes a wide page rather than a sheet of A4. Text, shapes, images and charts are rendered as they appear in the editor, which is why a PDF is the reliable way to share a deck: what you saw is what they see. Comments, revision history and the editing structure are not part of that rendering and do not travel.",
+          "Anything that depends on time disappears. Transitions, entrance animations and auto-advancing builds are flattened into their final state, which means a slide that revealed one bullet at a time becomes a slide with all the bullets visible at once. If the build was part of the explanation, a PDF loses the argument even though it keeps the words.",
+        ],
+      },
+      {
+        heading: "Fonts and the substitution problem",
+        paragraphs: [
+          "The most common visible defect is a font change. If the deck uses a font that is not embedded or not available to the converter, a substitute with different metrics takes its place, and text that fitted neatly in a box now wraps to a second line or spills outside it. The usual symptoms are a title that suddenly runs onto two lines, a caption overlapping a diagram, or a table column that collapses.",
+          "Before converting, either embed the fonts or switch to a font that is guaranteed to be present, then look at the slides that are tightest on space. Bold and italic variants are the ones most often missing in a substitute, so headings are the first place to check. If you cannot embed, exporting to images first tells you immediately whether the layout survived, at the cost of making the text unselectable.",
+        ],
+      },
+      {
+        heading: "Media, links and speaker notes",
+        paragraphs: [
+          "Embedded video and audio do not survive as playable media. A PDF can link to a file, but it will not carry the video inside the page in a way a reader expects, and the poster frame is usually what remains. If the deck depends on a clip, send the video alongside or host it and link to it; do not assume the PDF is self-contained.",
+          "Hyperlinks generally survive as clickable annotations, including links to other slides — those become internal jumps between pages, which is one of the nicer properties of a PDF deck. Speaker notes, on the other hand, usually do not appear in the exported pages. Some exporters can include them as notes pages or an appendix; if the notes are the handout, check that option rather than discovering afterwards that a 30-slide deck exported as 30 pages of slides only.",
+        ],
+      },
+      {
+        heading: "When to send the deck instead",
+        paragraphs: [
+          "A PDF is the right deliverable for a finished presentation: a pitch, a report, a conference deck, anything that will be read rather than edited. It is the wrong deliverable when the recipient needs to change the content, reuse a slide, or present with the animations intact. In that case send the .pptx and accept the compatibility risk, or send both and say which one to open.",
+          "For printing, check the page size and orientation rather than assuming A4. A 16:9 slide printed on A4 portrait leaves large white bands, and a dark slide consumes a great deal of toner. Many exporters offer a handout layout with several slides per page plus lines for notes, which is usually a better artefact for a meeting than one full page per slide.",
+        ],
+      },
+    ],
+    related: [
+      { from: "pptx", to: "pdf" },
+      { from: "pptx", to: "png" },
+      { from: "pptx", to: "jpg" },
+      { from: "pptx", to: "html" },
+      { from: "odp", to: "pptx" },
+      { from: "pptx", to: "txt" },
+    ],
+    relatedFormats: ["pptx", "pdf", "png", "odp"],
+    faqs: [
+      {
+        question: "Does PowerPoint to PDF keep animations?",
+        answer:
+          "No. Each slide is rendered in its final state, so builds and transitions are flattened into a single static page.",
+      },
+      {
+        question: "Why did my fonts change in the PDF?",
+        answer:
+          "The font was not embedded or was unavailable to the converter, so a substitute with different spacing was used. Embed the fonts before exporting.",
+      },
+      {
+        question: "Can I get speaker notes into the PDF?",
+        answer:
+          "Sometimes. Look for a notes-pages or handout export option; a plain slide export usually leaves the notes behind.",
+      },
+    ],
+  },
+  {
+    slug: "xlsx-to-csv-guide",
+    title: "Excel to CSV: What a Spreadsheet Loses on the Way to Plain Text",
+    description:
+      "Converting XLSX to CSV: one sheet only, formulas become values, date and number formats disappear, and how to keep encoding and leading zeros.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "xlsx to csv",
+      "excel to csv",
+      "csv encoding",
+      "csv leading zeros",
+    ],
+    lead:
+      "CSV is the lowest common denominator of tabular data, and that is exactly its value: every tool can read it. The cost is that almost everything a spreadsheet knows beyond the raw values is left behind, and most of the surprises after conversion come from that gap.",
+    blocks: [
+      {
+        heading: "One file, one sheet",
+        paragraphs: [
+          "A workbook can hold dozens of sheets; a CSV holds one table. There is no place in the format to say that a second table follows, because a CSV is defined as rows of fields separated by a delimiter. A converter therefore has to choose: export the first sheet, the active sheet, or ask you which one. Silent first-sheet export is the usual behaviour and the usual source of a file that looks truncated.",
+          "If you need several sheets, export them as separate CSV files and name them by sheet, or use a format that can hold multiple tables. Excel's own xlsx is a zip of XML; ODS works similarly; Parquet can hold a schema and multiple columns efficiently. CSV is for feeding one table into one import step, not for archiving a workbook.",
+        ],
+      },
+      {
+        heading: "Formulas and formatting do not travel",
+        paragraphs: [
+          "A CSV stores the displayed value, not the formula that produced it. That is normally what you want for an import, since the receiving system cannot recalculate a formula it does not have. The trap is that the displayed value depends on formatting: a cell showing 12.30 percent might export as 0.123, and a cell showing 1,234.50 might export as 1234.5. Currency symbols are display formatting and disappear, so the receiving system has no idea what the number means.",
+          "Dates are worse. A spreadsheet stores a date as a serial number with a format applied, and CSV export often writes either the serial number or a locale-formatted string such as 03/04/2026, which is ambiguous to half the world. If the destination expects ISO dates, format the column as yyyy-mm-dd before exporting, or convert afterwards. The same applies to percentages and to numbers stored as text.",
+        ],
+      },
+      {
+        heading: "Encoding, delimiters and the Excel trap",
+        paragraphs: [
+          "CSV has no declared encoding, so the reader has to guess. UTF-8 is the correct default, but Excel on Windows will misread a plain UTF-8 file containing accented characters or non-Latin scripts unless it sees a byte-order mark. Writing UTF-8 with a BOM fixes Excel at the cost of confusing some strict parsers, which may treat the BOM as part of the first header name. Know which consumer you are feeding.",
+          "The delimiter is the other portability problem. Comma is standard, but locales where the decimal separator is a comma often export with semicolons so the two do not collide. If your values contain commas, the fields must be quoted, and if they contain quotes those must be doubled. A correctly escaped CSV is unambiguous; a hand-edited one usually is not. For values that are only tab-separated, TSV avoids the quoting mess entirely, which is why data tools often prefer it.",
+        ],
+      },
+      {
+        heading: "The leading-zero and large-number problem",
+        paragraphs: [
+          "Postcodes, phone numbers, account numbers and product codes are identifiers, not quantities, but a CSV has no types. A value like 01234 is written faithfully, and then a reader that infers types turns it into 1234 and destroys the identifier. Large integers suffer the same way: a 19-digit ID exceeds the precision of a double and comes back rounded. The usual defence is to keep the column as text in the source and, where the reader allows it, declare the column as text on import.",
+          "Scientific notation is the visible symptom of this. If a part number appears as 1.23E+18, it has already been parsed as a number and the original digits are gone. Fix it at the export stage by prefixing or quoting, not by editing the CSV in a spreadsheet that will re-corrupt it on save.",
+        ],
+      },
+    ],
+    related: [
+      { from: "xlsx", to: "csv" },
+      { from: "csv", to: "xlsx" },
+      { from: "xlsx", to: "json" },
+      { from: "xlsx", to: "tsv" },
+      { from: "xlsx", to: "pdf" },
+      { from: "csv", to: "json" },
+    ],
+    relatedFormats: ["xlsx", "csv", "tsv", "json", "ods"],
+    faqs: [
+      {
+        question: "Why does my CSV only contain one sheet?",
+        answer:
+          "The CSV format holds a single table. Export each sheet separately, or use XLSX, ODS or Parquet when you need more than one.",
+      },
+      {
+        question: "How do I stop Excel removing leading zeros from a CSV?",
+        answer:
+          "There is no type information in CSV, so the reader guesses. Import the column explicitly as text, or keep the original file and convert to a typed format instead.",
+      },
+      {
+        question: "Do formulas survive XLSX to CSV?",
+        answer:
+          "No. You get the computed value as text, which is what an import needs. Recalculate in the spreadsheet before exporting if the values are stale.",
+      },
+    ],
+  },
+  {
+    slug: "svg-to-png-guide",
+    title: "SVG to PNG: Rasterising Vector Art Without Soft Edges",
+    description:
+      "How SVG to PNG conversion works, how to choose the output size, and why fonts, filters and external assets are the usual reasons a render looks wrong.",
+    updated: "2026-10-29",
+    readingMinutes: 5,
+    keywords: [
+      "svg to png",
+      "convert svg to png",
+      "svg rasterize",
+      "svg export size",
+    ],
+    lead:
+      "An SVG is a set of drawing instructions: lines, curves, fills and text at coordinates, with no fixed resolution. Converting it to PNG means choosing how many pixels to draw those instructions into, and every problem people report with the result traces back to that choice or to something the SVG referenced but did not contain.",
+    blocks: [
+      {
+        heading: "Vector in, raster out",
+        paragraphs: [
+          "The conversion is one-way in the useful sense: a PNG can never be turned back into a clean SVG, because the shape information is gone once it becomes pixels. That makes the output size the most important setting. Export at the largest size you will ever need and scale down from there; exporting at 200 pixels and enlarging later gives you a blurry icon, which is the exact problem SVG existed to avoid.",
+          "A reasonable target is the CSS pixel size multiplied by two or three, which covers high-density screens. A logo displayed at 240 by 80 CSS pixels should be exported around 720 by 240 so it stays sharp on a phone and in a retina browser. For print, work backwards from the physical size at 300 DPI instead.",
+        ],
+      },
+      {
+        heading: "Fonts are the first thing to break",
+        paragraphs: [
+          "Text in an SVG is still text: it names a font family and the renderer picks one. If that font is not installed on the machine doing the conversion, a substitute with different widths is used, and text that fitted inside a badge now overflows it or sits off-centre. This is the single most common cause of an SVG that looked fine in the browser and wrong in the exported PNG.",
+          "The robust fix is to convert text to paths in the design tool before export. The shapes then carry the letterforms themselves and no font is needed. The trade-off is that the text stops being editable and stops being readable by search engines or assistive technology, so keep an editable SVG with live text as the master and use the outlined version only for rasterising.",
+        ],
+      },
+      {
+        heading: "External references and effects",
+        paragraphs: [
+          "An SVG can point at things outside itself: a linked stylesheet, an external font file, an image by URL, a filter defined in another document. Browsers may resolve those references when the file is served from the same origin, but a converter working on a standalone file has nothing to resolve them against. The result renders with missing fills, default black, or no image where a picture should be. If the SVG was exported by a design tool, check for an option to embed images and inline CSS.",
+          "Filters and blend modes are the other fragile area. Blur, drop shadows and complex masks are specified but implemented inconsistently, and some renderers silently ignore them. If a shadow is missing in the PNG, the file is not corrupt; the renderer did not support that effect. Flattening effects in the design tool before export gives a predictable result.",
+        ],
+      },
+      {
+        heading: "Background and colour",
+        paragraphs: [
+          "PNG supports transparency, so an SVG with no background exports with a transparent background by default. That is usually right for a logo and wrong for anything that assumes white, such as a document thumbnail. Decide explicitly: transparent for assets that will be composited, a solid colour for images that will be viewed on their own. Some converters add white silently, which is worth checking rather than assuming.",
+          "Colour profiles are usually not carried through the conversion. An SVG with a wide-gamut colour will be rendered into sRGB, and very saturated values can shift slightly. For brand assets, compare a rendered PNG against the source before shipping it, and keep the SVG as the canonical file so the PNG can always be regenerated at a new size.",
+        ],
+      },
+    ],
+    related: [
+      { from: "svg", to: "png" },
+      { from: "svg", to: "jpg" },
+      { from: "svg", to: "pdf" },
+      { from: "png", to: "svg" },
+      { from: "jpg", to: "svg" },
+      { from: "webp", to: "svg" },
+    ],
+    relatedFormats: ["svg", "png", "jpg", "pdf"],
+    faqs: [
+      {
+        question: "What size should I export an SVG to PNG?",
+        answer:
+          "Two to three times the CSS display size for screens, or the physical size at 300 DPI for print. Export large and scale down.",
+      },
+      {
+        question: "Why did the text change in my PNG?",
+        answer:
+          "The SVG names a font that the converter did not have, so a substitute was used. Convert text to paths before export to avoid it.",
+      },
+      {
+        question: "Can I convert a PNG back to SVG?",
+        answer:
+          "Only as a traced approximation. The original shapes and editability are not recoverable from pixels.",
+      },
+    ],
+  },
+  {
+    slug: "audio-formats-mp3-wav-flac",
+    title: "MP3 vs WAV vs FLAC: Choosing an Audio Format That Fits the Job",
+    description:
+      "When to use MP3, WAV, FLAC, AAC or OGG, what bitrate and sample rate actually buy you, and why converting lossy audio to lossless is pointless.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "mp3 vs wav",
+      "flac vs mp3",
+      "audio format comparison",
+      "audio bitrate guide",
+    ],
+    lead:
+      "Audio formats split into two jobs: keeping a recording intact, and delivering it small enough to stream. Choosing the wrong side of that line costs either storage or quality, and the conversion you cannot undo is the one that throws quality away.",
+    blocks: [
+      {
+        heading: "Lossless and lossy, in audio terms",
+        paragraphs: [
+          "WAV is not really a compression format. It is a container that usually holds uncompressed PCM samples, which is why a WAV is large: every sample of every channel is stored at full precision. It is the working format of recording, editing and interchange, because every tool reads it and nothing is lost. FLAC compresses those same samples losslessly, typically halving the size, and decodes back to bit-identical audio. It is the right archive format when you want to keep everything without keeping a huge file.",
+          "MP3, AAC, OGG Vorbis and Opus are lossy. They discard information the ear is unlikely to miss, using psychoacoustic models, and the result is typically a tenth of the WAV size. The detail is gone for good; decoding an MP3 to WAV produces a large file that contains exactly the same limited information. That asymmetry is the single most important fact about audio conversion.",
+        ],
+      },
+      {
+        heading: "What bitrate and sample rate actually buy",
+        paragraphs: [
+          "At 128 kbps, an MP3 is acceptable for speech and background listening and audibly imperfect on cymbals, strings and complex mixes. At 192 kbps most listeners cannot tell it from the source on ordinary equipment. At 256 to 320 kbps the difference is inaudible to nearly everyone, and the file is still a fraction of WAV. The curve flattens: going from 128 to 192 buys a lot, 192 to 320 buys very little. For spoken word, a mono file at 64 to 96 kbps is entirely adequate and halves the size again.",
+          "Sample rate matters differently. 44.1 kHz covers the full range of human hearing; 48 kHz is the video and broadcast standard; higher rates exist for production headroom, not for delivery. Downsampling 96 kHz to 44.1 kHz is a real conversion that needs proper filtering, and it is the one place where a careless converter can introduce audible artefacts. Bit depth is about dynamic range: 16-bit is CD standard, 24-bit is for recording and editing, and converting 24-bit to 16-bit requires dithering to avoid quantisation distortion in quiet passages.",
+        ],
+      },
+      {
+        heading: "Matching the format to the destination",
+        paragraphs: [
+          "For a podcast, MP3 at 96 to 128 kbps mono or 192 kbps stereo is universally playable and small. For music distribution, the platform will specify its preferred format, often WAV or FLAC for masters and AAC for streaming. For a website, MP3 remains the safest single source, though Opus and AAC give better quality at the same bitrate where the browser supports them. For video editing, keep WAV or FLAC until the final export, because every lossy generation accumulates.",
+          "Phone and voice recordings add a wrinkle: they are often mono, low sample rate and already compressed. Converting one to a high-bitrate stereo MP3 cannot restore anything, and it triples the size. Check the source properties before choosing output settings, and match them rather than exceeding them.",
+        ],
+      },
+      {
+        heading: "Conversions you should refuse to make",
+        paragraphs: [
+          "Do not convert MP3 to FLAC expecting better sound, and do not convert it to WAV expecting a master. Both produce larger files containing the same lossy audio, and the FLAC or WAV label then misleads whoever receives it into thinking they have an original. The only way to regain quality is to go back to a lossless source, if one exists.",
+          "Do not chain lossy conversions either. MP3 to AAC, or AAC to MP3, applies the model twice and the second pass spends its bits encoding the artefacts of the first. Convert once, from the best source you have, to the format the destination needs. If you must change container without re-encoding, that is a remux, and it preserves the audio exactly — but it only works when the codec is already supported by the target container.",
+        ],
+      },
+    ],
+    related: [
+      { from: "wav", to: "mp3" },
+      { from: "mp3", to: "wav" },
+      { from: "flac", to: "mp3" },
+      { from: "mp3", to: "flac" },
+      { from: "aac", to: "mp3" },
+      { from: "ogg", to: "mp3" },
+    ],
+    relatedFormats: ["mp3", "wav", "flac", "ogg", "aac"],
+    faqs: [
+      {
+        question: "Is WAV better quality than MP3?",
+        answer:
+          "A WAV from a lossless source contains everything; an MP3 has discarded detail. But converting an MP3 to WAV does not restore that detail.",
+      },
+      {
+        question: "What bitrate is good enough for music?",
+        answer:
+          "192 kbps is transparent to most listeners on normal equipment; 256 to 320 kbps leaves a margin. Below 128 kbps artefacts become easy to hear.",
+      },
+      {
+        question: "Should I use FLAC or WAV for archiving?",
+        answer:
+          "FLAC, unless a tool requires uncompressed PCM. It is lossless, roughly half the size, and carries tags that WAV handles poorly.",
+      },
+    ],
+  },
+  {
+    slug: "favicon-ico-guide",
+    title: "Favicons and App Icons: Making an ICO That Every Browser Displays",
+    description:
+      "What an ICO file really contains, which sizes browsers and phones ask for, and why a favicon that looks fine in the tab is unreadable on a bookmark bar.",
+    updated: "2026-10-29",
+    readingMinutes: 5,
+    keywords: [
+      "png to ico",
+      "favicon sizes",
+      "create favicon",
+      "apple touch icon",
+    ],
+    lead:
+      "A favicon is the smallest design asset on a site and one of the few that appears on every page. It is also the one most often produced by shrinking a logo until it becomes an unrecognisable smudge, because the format and the sizes are misunderstood.",
+    blocks: [
+      {
+        heading: "An ICO is a container, not an image",
+        paragraphs: [
+          "The .ico format is a small archive of images at different sizes, each possibly stored as a PNG or as a BMP with an alpha mask. That is its advantage over a plain PNG: the browser can pick the 16-pixel version for a tab and the 48-pixel version for a bookmark list, each drawn at its native size instead of scaled from one master. A modern ICO typically carries 16, 32 and 48 pixel entries.",
+          "If you supply only a PNG, most browsers will scale it and the result depends on their scaler. A 512-pixel PNG scaled down to 16 pixels loses thin strokes and fine detail; a hand-tuned 16-pixel entry stays legible because it was drawn for that size. This is why the best favicons are not simple downscales.",
+        ],
+      },
+      {
+        heading: "The sizes that actually get requested",
+        paragraphs: [
+          "Browsers ask for 16 and 32 pixels for tabs, and 48 for some bookmark and history views. Windows shortcut icons use 48 and 256. iOS uses a 180-pixel Apple touch icon, Android uses 192 and 512 for the home screen and splash, and web app manifests want 192 and 512 with a purpose declaration. A single ICO with 16, 32 and 48 plus a 180 PNG and two manifest PNGs covers essentially everything.",
+          "Serving the right size matters for more than looks. A browser asked for a 16-pixel icon and given a 512-pixel one must decode and downscale it, which costs work on every tab and can produce a blurry result on displays without good filtering. Small files also mean the favicon request does not compete with the page for bandwidth on a slow connection.",
+        ],
+      },
+      {
+        heading: "Designing for 16 pixels",
+        paragraphs: [
+          "At 16 pixels there is no room for text, gradients or thin outlines. A single strong shape with high contrast against both light and dark browser chrome is the only reliable approach. Detailed logos should be simplified for the favicon: drop the wordmark, thicken the strokes, increase the padding slightly so the shape is not clipped by the rounded tab, and check the result at actual size rather than at 400 percent.",
+          "Test on both a light and a dark tab bar. A dark logo on transparency disappears in dark mode; a light logo on transparency disappears in light mode. The usual fix is a filled background shape behind the mark, or two variants selected by a media query, which most modern browsers support through the manifest or a prefers-color-scheme link.",
+        ],
+      },
+      {
+        heading: "Caching, and why your new icon does not show",
+        paragraphs: [
+          "Browsers cache favicons aggressively, often beyond normal cache headers, and some store them per profile in a way that survives a hard refresh. After deploying a new icon you may see the old one for hours or days. The reliable trick is to change the filename, for example from favicon.ico to favicon-v2.ico, and update the link tags, because a new URL has no cached entry.",
+          "Also check that the file is actually being served at the root path the browser probes automatically, and that the server returns the correct content type. A 404 at /favicon.ico, or an HTML error page served with a 200, is a common reason a valid icon never appears. Declaring the icon explicitly in the page head removes the guesswork.",
+        ],
+      },
+    ],
+    related: [
+      { from: "png", to: "ico" },
+      { from: "jpg", to: "ico" },
+      { from: "ico", to: "png" },
+      { from: "ico", to: "jpg" },
+    ],
+    relatedFormats: ["ico", "png", "jpg", "svg"],
+    faqs: [
+      {
+        question: "What sizes should a favicon ICO contain?",
+        answer:
+          "At minimum 16, 32 and 48 pixels. Add a 180-pixel PNG for iOS and 192 and 512 pixel PNGs for Android and the web app manifest.",
+      },
+      {
+        question: "Can I use a PNG as a favicon?",
+        answer:
+          "Yes, and modern browsers accept it, but an ICO with hand-tuned small sizes usually looks sharper in a tab.",
+      },
+      {
+        question: "Why is my old favicon still showing?",
+        answer:
+          "It is cached by the browser, sometimes persistently. Serve the new icon from a new filename and update the link tags.",
+      },
+    ],
+  },
+  {
+    slug: "mov-to-mp4-guide",
+    title: "MOV to MP4: Making iPhone and Mac Video Play Everywhere",
+    description:
+      "Why MOV files fail on Windows, Android and the web, when a MOV to MP4 conversion can copy the video untouched, and when it must re-encode.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "mov to mp4",
+      "iphone video format",
+      "quicktime mp4",
+      "hevc to h264",
+    ],
+    lead:
+      "A video that plays perfectly on the iPhone that recorded it and shows a black frame everywhere else is almost always a MOV problem. The fix is usually a container change that costs no quality at all — if the codec inside is one the destination understands.",
+    blocks: [
+      {
+        heading: "Container and codec are two different things",
+        paragraphs: [
+          "MOV is Apple's QuickTime container and MP4 is the ISO base media container. They are close relatives, and both can hold H.264 or HEVC video with AAC audio. That is why a MOV recorded with H.264 can often be rewrapped into an MP4 with the video and audio streams copied byte for byte: no decoding, no re-encoding, no generation loss, and the conversion finishes in seconds even for a large file.",
+          "When people say a MOV will not play, the codec is frequently the real culprit. Newer iPhones record HEVC by default, and HEVC inside a MOV will not play on many Windows machines, Android devices or browsers even after the container is changed to MP4. In that case the video must be decoded and re-encoded to H.264, which is slower and costs one generation of quality.",
+        ],
+      },
+      {
+        heading: "How to tell which case you are in",
+        paragraphs: [
+          "Check the codec before converting. On a Mac, the Finder's information panel or QuickTime's inspector shows it; on Windows, the file's properties do; command-line tools such as ffprobe report it directly. If the video is H.264, choose a converter that copies the streams. If it is HEVC or ProRes, expect a real re-encode and budget time accordingly — ProRes in particular produces very large intermediates and takes a while to decode.",
+          "The audio matters too. QuickTime can carry uncompressed or unusual audio that MP4 players reject, and a stream copy that includes incompatible audio produces a file that opens but has no sound. Converting the audio to AAC while copying the video is a good compromise: the video stays untouched and the audio loss is inaudible.",
+        ],
+      },
+      {
+        heading: "What re-encoding costs, and how to keep it small",
+        paragraphs: [
+          "A re-encode applies lossy compression to an already compressed source. At a generous bitrate the difference is hard to see; at a low one the artefacts of the first encode get compressed again and the result looks worse than either input. Set the output bitrate close to the source's, or use a quality-based setting that targets visual quality rather than a fixed size.",
+          "Watch the resolution as well. A 4K phone video re-encoded at 1080p is a deliberate, often sensible reduction for sharing, but it is irreversible. Keep the original MOV as the master, and treat the MP4 as the delivery copy. The same applies to frame rate: 60 fps to 30 fps halves the data and changes the look of motion, so only do it when the destination or file size demands it.",
+        ],
+      },
+      {
+        heading: "Rotation, metadata and the web",
+        paragraphs: [
+          "Phone video often carries a rotation matrix rather than being physically rotated. A converter that drops the metadata produces a video that plays sideways, which looks like a bug in the player. Most modern tools apply the rotation during re-encode and preserve it during a remux, but it is worth checking the first frames of the output rather than assuming.",
+          "For the web, the container change alone is not enough: a video served for progressive playback should have its index at the front of the file so the browser can start before the download finishes. If a page shows a spinner until the whole clip is fetched, the file is fine and its layout is not. Also confirm the audio track survived; a silent video on a website is a common and quiet failure.",
+        ],
+      },
+    ],
+    related: [
+      { from: "mov", to: "mp4" },
+      { from: "mp4", to: "mov" },
+      { from: "mov", to: "mp3" },
+      { from: "mov", to: "avi" },
+      { from: "m4v", to: "mp4" },
+      { from: "mkv", to: "mp4" },
+    ],
+    relatedFormats: ["mov", "mp4", "m4v", "mp3"],
+    faqs: [
+      {
+        question: "Does MOV to MP4 reduce quality?",
+        answer:
+          "Not if the H.264 video stream is copied into the new container. It does if the codec has to change, for example HEVC to H.264.",
+      },
+      {
+        question: "Why won't my iPhone video play on Windows?",
+        answer:
+          "It is probably HEVC in a MOV container. Convert to MP4 with H.264 video and AAC audio for the widest support.",
+      },
+      {
+        question: "How do I keep the original quality?",
+        answer:
+          "Use a stream-copy conversion when the codec is already H.264, and keep the original MOV as your master either way.",
+      },
+    ],
+  },
+  {
+    slug: "epub-vs-pdf-ebooks-guide",
+    title: "EPUB vs PDF: Which eBook Format to Convert To, and What Breaks",
+    description:
+      "EPUB reflows and PDF does not. What each format preserves, why PDF to EPUB conversion is approximate, and which one to send to readers.",
+    updated: "2026-10-29",
+    readingMinutes: 6,
+    keywords: [
+      "epub vs pdf",
+      "pdf to epub",
+      "ebook format",
+      "convert ebook",
+    ],
+    lead:
+      "EPUB and PDF solve opposite problems. One describes a document that should reflow to fit any screen; the other describes a page that should look identical everywhere. Converting between them is less a format change than a change of intent, and that is why results vary so much.",
+    blocks: [
+      {
+        heading: "Reflowable versus fixed layout",
+        paragraphs: [
+          "An EPUB is a zip of HTML, CSS and assets with a manifest. The text is text, so the reader controls font size, typeface, margins and line spacing, and the content reflows to the screen. That is ideal for novels, essays and anything read linearly on a phone, and it is what accessibility tools depend on. It also means the author cannot control exactly where a page breaks or how a line falls.",
+          "A PDF is a fixed page. Every element has a coordinate and a size, so a two-column layout with captions, sidebars and precise typography looks the same on every device. That is ideal for manuals, textbooks, reports and anything where layout carries meaning. The cost is that reading a fixed A4 page on a phone means zooming and panning, and text extraction depends on how the PDF was produced.",
+        ],
+      },
+      {
+        heading: "Why PDF to EPUB is approximate",
+        paragraphs: [
+          "A PDF does not know what a paragraph is. It knows where glyphs were drawn. A converter has to infer structure from positions: lines close together form a paragraph, a short line followed by a gap may be a heading, a repeated footer must be removed. When the inference is right the result reads well; when it is wrong you get broken sentences, headings buried in body text, and page numbers scattered through the prose.",
+          "Images are extracted as separate files and may lose their position relative to the text, tables often collapse into unreadable sequences of cells, and multi-column layouts are the hardest case. Scanned PDFs are worse still: there is no text at all, only pictures of words, so conversion produces either images of pages or garbage unless OCR runs first. Expect to proofread and repair, and do not promise a clean automatic result.",
+        ],
+      },
+      {
+        heading: "What survives an EPUB to PDF conversion",
+        paragraphs: [
+          "This direction is more predictable. The EPUB's HTML is rendered to pages, so the text, images and basic formatting come through, but the reader-controlled settings are frozen at whatever the renderer chose. Font size, page size and margins become fixed, and a book that looked comfortable on a phone may end up with very wide lines on A4 unless the page size is set sensibly.",
+          "Fonts referenced by the EPUB but not embedded in it will be substituted, which can change line breaks. Fixed-layout EPUBs, used for comics and children's books, convert much more faithfully because they already specify positions. Reflowable books with complex tables or code blocks are where the layout tends to suffer.",
+          "Also check for DRM. A protected EPUB cannot be converted by an ordinary tool, and the failure usually surfaces as an unreadable or empty output rather than a clear message. Only convert files you have the right to use.",
+        ],
+      },
+      {
+        heading: "Choosing the format to distribute",
+        paragraphs: [
+          "Send EPUB to people who will read on a phone, a tablet or a dedicated e-reader: the text scales, the file is small, and the reading experience is what those devices are built for. Send PDF when the layout is the message, when the document will be printed, or when the recipient needs a file that looks the same on every machine. Sending both is a legitimate answer and often the kindest one.",
+          "When converting, keep the source. A PDF to EPUB conversion is a lossy interpretation of structure, not a reversible transformation, so going back rarely recovers the original layout. If the book is still being edited, work from the original manuscript format — DOCX, Markdown or HTML — and generate both outputs from it rather than converting one output into the other.",
+        ],
+      },
+    ],
+    related: [
+      { from: "epub", to: "pdf" },
+      { from: "pdf", to: "epub" },
+      { from: "mobi", to: "epub" },
+      { from: "epub", to: "docx" },
+      { from: "epub", to: "txt" },
+      { from: "epub", to: "html" },
+    ],
+    relatedFormats: ["epub", "pdf", "mobi", "docx", "html"],
+    faqs: [
+      {
+        question: "Should I publish my book as EPUB or PDF?",
+        answer:
+          "EPUB for reading on phones and e-readers, PDF when layout and printing matter. Offering both covers the common cases.",
+      },
+      {
+        question: "Why is my PDF to EPUB conversion messy?",
+        answer:
+          "A PDF stores positions, not paragraphs, so structure has to be guessed. Multi-column layouts, tables and scanned pages are the usual failures.",
+      },
+      {
+        question: "Does EPUB to PDF keep the formatting?",
+        answer:
+          "Text and images survive, but reader-controlled settings become fixed and missing fonts are substituted, which can shift line breaks.",
+      },
+    ],
+  },
 ];
 
 const bySlug = new Map(guides.map((g) => [g.slug, g]));
