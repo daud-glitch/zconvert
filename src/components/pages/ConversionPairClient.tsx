@@ -4,6 +4,7 @@ import { Suspense, type SVGProps } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { SiteHeader } from "@/components/common/SiteHeader";
+import { PageIntro } from "@/components/common/PageIntro";
 import { FileIllustration } from "@/components/common/FileIllustration";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { PairGuideSection } from "@/components/pages/PairGuideSection";
@@ -24,7 +25,7 @@ const ConverterView = dynamic(
     import("@/components/converter/ConverterView").then((m) => m.ConverterView),
   {
     loading: () => (
-      <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-card text-muted-foreground">
+      <div className="mx-auto flex min-h-64 max-w-3xl items-center justify-center rounded-2xl border border-border bg-card text-muted-foreground">
         <Loader2 className="h-7 w-7 animate-spin text-emerald-500" aria-hidden />
         <span className="sr-only">Loading converter…</span>
       </div>
@@ -66,30 +67,26 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
           </span>
         </div>
 
-        <section aria-labelledby="pair-title" className="group mb-12 grid min-w-0 items-center gap-6 rounded-3xl bg-emerald-50/70 p-4 sm:p-7 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-8 lg:has-[[data-converter-queue]]:grid-cols-1 dark:bg-emerald-950/30">
-          <div>
-            <div className="mb-4 flex items-center gap-3 group-has-[[data-converter-queue]]:hidden">
-              <FileIllustration type={from.category} extension={from.ext} className="h-16 w-13" />
-              <ArrowRightIcon aria-hidden="true" className="size-5 text-slate-500 dark:text-slate-400" />
-              <FileIllustration type={to.category} extension={to.ext} className="h-16 w-13" />
+        <PageIntro
+          title={`Convert ${fromUpper} to ${toUpper}`}
+          description={`${from.name} to ${to.name}. No watermarks or sign-up required.`}
+          icons={
+            <>
+              <FileIllustration type={from.category} extension={from.ext} className="h-11 w-9 sm:h-13 sm:w-11" />
+              <ArrowRightIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+              <FileIllustration type={to.category} extension={to.ext} className="h-11 w-9 sm:h-13 sm:w-11" />
+            </>
+          }
+        />
+        <section id="converter" aria-label={`${fromUpper} to ${toUpper} converter`} className="mb-12 min-w-0 scroll-mt-24">
+          <Suspense fallback={
+            <div role="status" className="mx-auto grid min-h-64 max-w-3xl place-items-center rounded-2xl border border-border bg-card">
+              <Loader2 aria-hidden="true" className="size-6 animate-spin text-emerald-700" />
+              <span className="sr-only">Loading converter…</span>
             </div>
-            <h1 id="pair-title" className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl dark:text-white">
-              Convert {fromUpper} to {toUpper}
-            </h1>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Convert {from.name} files to {to.name}. No watermarks or sign-up required.
-            </p>
-          </div>
-          <div id="converter" className="min-w-0 scroll-mt-24">
-            <Suspense fallback={
-              <div role="status" className="grid min-h-64 place-items-center rounded-2xl border border-border bg-card">
-                <Loader2 aria-hidden="true" className="size-6 animate-spin text-emerald-700" />
-                <span className="sr-only">Loading converter…</span>
-              </div>
-            }>
-              <ConverterView embedded initialFrom={from.ext} initialTo={to.ext} />
-            </Suspense>
-          </div>
+          }>
+            <ConverterView embedded initialFrom={from.ext} initialTo={to.ext} />
+          </Suspense>
         </section>
 
         <div className="mb-16">

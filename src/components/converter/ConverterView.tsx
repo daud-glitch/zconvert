@@ -6,7 +6,7 @@ import {
   Download, RefreshCw, Plus, Settings,
   History, Layers, Check,
   File as FileIcon, FileText, Globe, Shield, Clock,
-  DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
+  DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft, ChevronDown,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
   Timer, X, Zap, FileStack, Loader2, Film, MessageCircle, Music2,
@@ -42,7 +42,6 @@ import {
   subtitleQuickPresets,
   type CategoryQuickPreset,
   SUPPORTED_EXTENSIONS,
-  categoryColors,
   DOWNLOAD_BRAND_PREFIX,
   bulkZipDownloadFilename,
   brandedDownloadFilename,
@@ -1520,6 +1519,7 @@ export function ConverterView({
     (requestedCategories.includes("video") && !VIDEO_CONVERSION_ENABLED);
 
   const hasFiles = files.length > 0;
+  const completedConversions = recentConversions.filter((conversion) => isConversionSuccess(conversion.status)).slice(0, 5);
 
   const urlImport = (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -1587,13 +1587,9 @@ export function ConverterView({
   );
 
   return (
-    <div
-      data-converter-queue={hasFiles ? "" : undefined}
-      className={embedded ? "space-y-6 pb-24 sm:space-y-8 sm:pb-0" : "space-y-6 sm:space-y-8"}
-    >
-
+    <div className={hasFiles ? "space-y-5 pb-20 sm:space-y-6 sm:pb-0" : "space-y-5 sm:space-y-6"}>
       {!hasFiles && (
-        <Card ref={uploadCardRef} className="min-w-0 scroll-mt-24 gap-0 rounded-2xl border-border bg-card py-0 shadow-sm">
+        <Card ref={uploadCardRef} className="mx-auto w-full min-w-0 max-w-3xl scroll-mt-24 gap-0 rounded-2xl border-border bg-card py-0 shadow-sm">
           <CardContent className="p-3 sm:p-5">
             <ConverterFormatFields
               from={preferredFrom}
@@ -1615,10 +1611,10 @@ export function ConverterView({
               }}
             />
             <div
-              className={`flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-4 text-center sm:min-h-48 ${
+              className={`flex min-h-36 flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed p-3.5 text-center sm:min-h-40 ${
                 dragOver
                   ? "border-emerald-600 bg-emerald-100 dark:bg-emerald-950/70"
-                  : "border-emerald-500/60 bg-emerald-50/70 dark:bg-emerald-950/35"
+                  : "border-emerald-500/45 bg-slate-50/70 dark:bg-slate-900/55"
               }`}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -1627,7 +1623,9 @@ export function ConverterView({
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
-              <Upload aria-hidden="true" className="size-8 text-emerald-700 sm:size-10 dark:text-emerald-300" />
+              <span className="grid size-9 place-items-center rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                <Upload aria-hidden="true" className="size-5" />
+              </span>
               <Button
                 type="button"
                 className="h-11 w-full max-w-60 rounded-lg bg-emerald-700 px-6 font-semibold text-white hover:bg-emerald-800"
@@ -1637,7 +1635,7 @@ export function ConverterView({
               </Button>
               <p className="text-sm text-muted-foreground">{dragOver ? "Drop files to add them" : "or drag and drop"}</p>
             </div>
-            <p className="mt-3 text-center text-xs text-muted-foreground">
+            <p className="mt-2.5 text-center text-xs text-muted-foreground">
               {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video
             </p>
             {mediaUnavailable && (
@@ -2859,7 +2857,7 @@ export function ConverterView({
                                 <Button
                                   variant="default"
                                   size="sm"
-                                  className="h-8 text-xs bg-emerald-500 hover:bg-emerald-600"
+                                  className="h-9 bg-emerald-700 text-xs text-white hover:bg-emerald-800"
                                   onClick={() => convertFile(item)}
                                   title={
                                     item.uploadError
@@ -3169,64 +3167,29 @@ export function ConverterView({
         </Card>
       )}
 
-      {/* ─── Recent Conversions (signed-in only) ─── */}
-      {currentUser &&
-        recentConversions.filter((c) => isConversionSuccess(c.status)).length >
-          0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <History className="w-4 h-4 text-sky-500" />
-                Recent Conversions
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
-              {recentConversions
-                .filter((c) => isConversionSuccess(c.status))
-                .slice(0, 6)
-                .map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
-                  >
-                    <div
-                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        categoryColors[c.category] || "bg-gray-500"
-                      }`}
-                    />
-                    <span className="text-sm font-medium truncate flex-1 min-w-0">
-                      {c.fileName}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                      <span className="font-mono uppercase">
-                        {c.originalExt}
-                      </span>
-                      <ArrowRightLeft className="w-3 h-3" />
-                      <span className="font-mono uppercase">{c.targetExt}</span>
-                    </div>
-                    <Badge
-                      variant={
-                        isConversionSuccess(c.status) ? "default" : "destructive"
-                      }
-                      className={
-                        isConversionSuccess(c.status)
-                          ? "bg-emerald-500 hover:bg-emerald-600 text-xs shrink-0"
-                          : "text-xs shrink-0"
-                      }
-                    >
-                      {c.status}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">
-                      {formatDate(c.createdAt)}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
+      {currentUser && completedConversions.length > 0 && (
+        <details className="group mx-auto w-full max-w-3xl rounded-xl border border-border bg-card">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-4 text-sm font-semibold hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+            <History aria-hidden="true" className="size-4 text-emerald-700 dark:text-emerald-300" />
+            Recent conversions
+            <ChevronDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground group-open:rotate-180" />
+          </summary>
+          <ul className="divide-y divide-border/60 border-t border-border/60 px-4">
+            {completedConversions.map((conversion) => (
+              <li key={conversion.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-4">
+                <span className="truncate text-sm font-medium" title={conversion.fileName}>
+                  {conversion.fileName}
+                </span>
+                <span className="flex items-center gap-1.5 font-mono text-xs uppercase text-muted-foreground">
+                  {conversion.originalExt}
+                  <ArrowRightLeft aria-hidden="true" className="size-3" />
+                  {conversion.targetExt}
+                </span>
+                <span className="hidden text-xs text-muted-foreground sm:block">{formatDate(conversion.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* ─── Image Preview Dialog ─── */}
@@ -3265,7 +3228,7 @@ export function ConverterView({
       {pendingCount > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
           <Button
-            className="w-full h-12 rounded-xl bg-emerald-500 text-base font-semibold hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
+            className="w-full h-12 rounded-xl bg-emerald-700 text-base font-semibold text-white hover:bg-emerald-800 shadow-lg shadow-emerald-700/20"
             onClick={convertAll}
             disabled={!canStartConvert}
           >

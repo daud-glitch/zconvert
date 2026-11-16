@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRightLeft, ChevronRight, HardDrive, Layers, Shield, Zap } from "lucide-react";
+import { PageIntro } from "@/components/common/PageIntro";
 import { FileIllustration } from "@/components/common/FileIllustration";
 import { formatNonVideoMaxUploadLabel, formatVideoMaxUploadLabel, getMaxNonVideoBatchFiles } from "@/lib/upload-limits";
 
@@ -13,27 +13,19 @@ const popularPairs = [
   { from: "xlsx", to: "csv", type: "data" },
 ] as const;
 
-export function HomeConverterHero({ children }: { children: ReactNode }) {
+export function HomeConverterIntro() {
   return (
-    <section
-      aria-labelledby="converter-hero-heading"
-      className="group grid min-w-0 items-center gap-5 rounded-3xl px-1 py-2 sm:gap-7 sm:bg-linear-to-br sm:from-emerald-50/70 sm:to-teal-50 sm:p-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-10 lg:has-[[data-converter-queue]]:grid-cols-1 sm:dark:from-emerald-950/30 sm:dark:to-teal-950/30"
-    >
-      <div className="min-w-0">
-        <h1 id="converter-hero-heading" className="text-3xl font-extrabold leading-[1.05] tracking-tight text-slate-950 sm:max-w-md sm:text-5xl xl:text-6xl group-has-[[data-converter-queue]]:text-3xl dark:text-white">
-          Convert your files
-        </h1>
-        <p className="mt-3 text-sm text-slate-700 sm:text-lg group-has-[[data-converter-queue]]:hidden dark:text-slate-300">
-          Images, PDFs, video, audio, and more.
-        </p>
-        <div aria-hidden="true" className="mt-6 flex items-end gap-1 sm:mt-9 sm:gap-2 group-has-[[data-converter-queue]]:hidden">
-          <FileIllustration type="image" className="h-14 w-12 -rotate-3 sm:h-24 sm:w-20" />
-          <FileIllustration type="pdf" className="z-10 h-16 w-13 sm:h-27 sm:w-22" />
-          <FileIllustration type="video" className="h-14 w-12 rotate-3 sm:h-24 sm:w-20" />
-        </div>
-      </div>
-      {children}
-    </section>
+    <PageIntro
+      title="Convert your files"
+      description="Convert images, PDFs, video, audio, and more."
+      icons={
+        <>
+          <FileIllustration type="image" className="h-10 w-8 -rotate-6 sm:h-12 sm:w-10" />
+          <FileIllustration type="pdf" className="h-11 w-9 sm:h-13 sm:w-11" />
+          <FileIllustration type="video" className="h-10 w-8 rotate-6 sm:h-12 sm:w-10" />
+        </>
+      }
+    />
   );
 }
 
