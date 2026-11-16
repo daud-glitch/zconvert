@@ -36,7 +36,7 @@ export function ConverterWorkspace({
   return (
     <section
       aria-labelledby="converter-workspace-title"
-      className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-card shadow-sm sm:rounded-3xl md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]"
+      className="grid w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm sm:rounded-3xl md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]"
     >
       <div className="relative isolate overflow-hidden border-b border-emerald-200/65 bg-[#effaf5] px-5 py-6 sm:px-7 md:flex md:flex-col md:justify-center md:border-r md:border-b-0 md:px-8 lg:px-10 dark:border-emerald-900/70 dark:bg-emerald-950/45">
         <div

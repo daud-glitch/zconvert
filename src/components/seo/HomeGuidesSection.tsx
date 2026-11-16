@@ -15,8 +15,8 @@ export function HomeGuidesSection({ guides }: { guides: GuideTeaser[] }) {
   if (guides.length === 0) return null;
 
   return (
-    <section id="guides" aria-labelledby="guides-heading" className="px-3 pb-10 sm:px-6 sm:pb-14 lg:px-8">
-      <div className="mx-auto max-w-5xl rounded-2xl border border-emerald-100 bg-[#f3faf6] p-4 sm:rounded-3xl sm:p-7 dark:border-emerald-900/65 dark:bg-emerald-950/25">
+    <section id="guides" aria-labelledby="guides-heading" className="mx-auto w-full max-w-7xl px-3 pb-10 sm:px-6 sm:pb-14 lg:px-8">
+      <div className="rounded-2xl border border-emerald-100 bg-[#f3faf6] p-4 sm:rounded-3xl sm:p-7 dark:border-emerald-900/65 dark:bg-emerald-950/25">
         <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-3">
           <div className="max-w-xl">
             <h2 id="guides-heading" className="text-xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">

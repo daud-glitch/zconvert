@@ -14,7 +14,7 @@ const popularPairs = [
 
 export function HomePopularConversions() {
   return (
-    <section aria-labelledby="popular-pairs-heading" className="mx-auto mt-9 w-full max-w-5xl sm:mt-12">
+    <section aria-labelledby="popular-pairs-heading" className="mt-9 w-full sm:mt-12">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:mb-5">
         <h2 id="popular-pairs-heading" className="text-xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
           Popular conversions
@@ -54,7 +54,7 @@ export function HomeConverterFeatures() {
   ];
 
   return (
-    <section aria-labelledby="converter-features-heading" className="mx-auto mt-10 w-full max-w-5xl">
+    <section aria-labelledby="converter-features-heading" className="mt-10 w-full">
       <h2 id="converter-features-heading" className="mb-4 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl dark:text-white">Why Convertek?</h2>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {features.map(({ icon: Icon, title, description, color }) => (
