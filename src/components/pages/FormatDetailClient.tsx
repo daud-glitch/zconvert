@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { SiteHeader } from "@/components/common/SiteHeader";
+import { PageIntro } from "@/components/common/PageIntro";
 import { FileIllustration } from "@/components/common/FileIllustration";
 import {
   ChevronRight,
@@ -145,48 +146,24 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
           </span>
         </div>
 
-        {/* Format Hero Card */}
-        <div
-          className="mb-8 rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30"
+        <PageIntro
+          title={`Convert ${format.ext.toUpperCase()} files`}
+          description={format.description}
+          icons={<FileIllustration type={format.category} extension={format.ext} className="h-13 w-11" />}
         >
-          <div className="flex flex-col sm:flex-row items-start gap-5">
-            <FileIllustration type={format.category} extension={format.ext} className="h-18 w-15 sm:h-23 sm:w-19" />
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <span className="font-mono text-3xl sm:text-4xl font-extrabold uppercase tracking-tight">
-                  .{format.ext}
-                </span>
-                <Badge
-                  className={`${catColors[format.category]} text-white border-0 text-sm px-3 py-1`}
-                >
-                  {meta?.label}
-                </Badge>
-              </div>
-              <h1 className="mb-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
-                Convert {format.ext.toUpperCase()} Files Online Free
-              </h1>
-              <p className="text-base font-semibold text-foreground/90 mb-1">
-                {format.name}
-              </p>
-              <p className="text-muted-foreground">{format.description}</p>
-              {format.mimeTypes.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-2 font-mono">
-                  MIME: {format.mimeTypes.join(", ")}
-                </p>
-              )}
-            </div>
-            <Link
-              href={`/?from=${encodeURIComponent(ext)}`}
-              rel="nofollow"
-              className="shrink-0"
-            >
-              <Button className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2">
-                <ArrowRightLeft className="w-4 h-4" />
-                Start Converting
-              </Button>
-            </Link>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Badge variant="secondary">{meta?.label}</Badge>
+            <span className="text-sm text-muted-foreground">{format.name}</span>
           </div>
-        </div>
+          {format.mimeTypes.length > 0 && (
+            <p className="mt-2 break-all font-mono text-xs text-muted-foreground">MIME: {format.mimeTypes.join(", ")}</p>
+          )}
+          <Button asChild className="mt-5 h-11 gap-2 bg-emerald-700 px-5 text-white hover:bg-emerald-800">
+            <Link href={`/?from=${encodeURIComponent(ext)}`} rel="nofollow">
+              Start converting <ArrowRightLeft aria-hidden="true" className="size-4" />
+            </Link>
+          </Button>
+        </PageIntro>
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4 mb-10">

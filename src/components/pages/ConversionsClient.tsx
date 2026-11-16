@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { SiteHeader } from "@/components/common/SiteHeader";
+import { PageIntro } from "@/components/common/PageIntro";
 import { FileIllustration } from "@/components/common/FileIllustration";
 import {
   Search,
@@ -236,19 +237,11 @@ export default function ConversionsClient() {
           <span className="text-foreground font-medium">Conversions</span>
         </div>
 
-        {/* Heading */}
-        <div className="mb-10 rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30">
-          <div className="mb-4 flex gap-2"><FileIllustration type="image" /><FileIllustration type="pdf" /><FileIllustration type="video" /></div>
-          <h1 className="mb-3 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-5xl dark:text-white">
-            All{" "}
-            <span className="text-emerald-600 dark:text-emerald-400">
-              Conversions
-            </span>
-          </h1>
-          <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-            Free online conversion hub. Convert between {formats.length} input formats and explore {totalConversions}+ conversion pairs across {categories.length} categories. No watermarks.
-          </p>
-        </div>
+        <PageIntro
+          title="All conversions"
+          description={`Explore ${formats.length} input formats and ${totalConversions.toLocaleString()} conversion pairs across ${categories.length} categories.`}
+          icons={<><FileIllustration type="image" /><FileIllustration type="pdf" /><FileIllustration type="video" /></>}
+        />
 
         <PopularConversionsSection />
 

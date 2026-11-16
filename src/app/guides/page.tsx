@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookOpen, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
+import { PageIntro } from "@/components/common/PageIntro";
 import { FileIllustration } from "@/components/common/FileIllustration";
 import { getFormatByExt } from "@/lib/formats";
 import { SiteFooter } from "@/components/common/SiteFooter";
@@ -57,22 +58,11 @@ export default function GuidesIndexPage() {
           </Link>
         </nav>
 
-        <div className="mb-10 rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-            <BookOpen className="h-4 w-4" />
-            Guides
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl dark:text-white">
-            File conversion guides
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-            Decisions you actually have to make when converting files — which
-            format to pick, what a conversion throws away, and how to avoid the
-            mistakes that quietly ruin an output. Written for Convertek&apos;s
-            supported formats, and each guide links straight to the converters
-            it discusses.
-          </p>
-        </div>
+        <PageIntro
+          title="File conversion guides"
+          description="Choose the right file format, understand what a conversion changes, and get better results with practical settings."
+          icons={<FileIllustration type="ebook" />}
+        />
 
         <div className="grid gap-6 sm:grid-cols-2">
           {list.map((guide) => {

@@ -1,20 +1,28 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { ConverterView } from "@/components/converter/ConverterView";
 
 const searchParams = new URLSearchParams();
+let currentUser: { id: string } | null = null;
+const getLocalHistory = vi.fn();
+
+afterEach(() => {
+  currentUser = null;
+  getLocalHistory.mockReset();
+});
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
 }));
 vi.mock("@/lib/app-context", () => ({
-  useApp: () => ({ currentUser: null }),
+  useApp: () => ({ currentUser }),
 }));
 vi.mock("@/hooks/use-formats", () => ({
   useFormats: () => ({ data: null }),
 }));
 vi.mock("@/lib/storage", () => ({
   primeStorage: async () => undefined,
+  getLocalHistory: (...args: unknown[]) => getLocalHistory(...args),
 }));
 
 it("updates compatible output options and sends the selected format to the file queue", () => {
@@ -69,4 +77,33 @@ it("shows the same uploader on a pair page and retains the pair defaults", () =>
   });
   expect(screen.getByRole("combobox", { name: "Output format for sample.pdf" })).toHaveTextContent("JPG");
   expect(window.location.search).toBe("");
+});
+
+
+it("keeps signed-in conversion history collapsed below the uploader", async () => {
+  currentUser = { id: "test-user" };
+  getLocalHistory.mockResolvedValue([
+    {
+      id: "conversion-1",
+      fileName: "previous.pdf",
+      originalExt: "pdf",
+      targetExt: "jpg",
+      category: "document",
+      status: "done",
+      createdAt: "2026-11-16T12:00:00Z",
+    },
+  ]);
+
+  render(<ConverterView />);
+
+  const upload = screen.getByRole("button", { name: "Choose files" });
+  const history = await screen.findByText("Recent conversions");
+  const details = history.closest("details");
+  expect(details).not.toHaveAttribute("open");
+  expect(upload.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByText("previous.pdf")).not.toBeVisible();
+
+  fireEvent.click(history);
+  expect(details).toHaveAttribute("open");
+  expect(screen.getByText("previous.pdf")).toBeVisible();
 });
