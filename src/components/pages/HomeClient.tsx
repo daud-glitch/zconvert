@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import {
   RefreshCw,
   X,
-  Layers,
+  Menu,
   LogOut,
   Sun,
   Moon,
@@ -21,6 +21,7 @@ import {
   Loader2,
   ScrollText,
 } from "lucide-react";
+import { HomeConverterHero, HomePopularConversions } from "@/components/converter/HomeConverterDesign";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTaglines, BrandTitle } from "@/components/common/BrandTitle";
 import { CookieSettingsButton } from "@/components/consent/CookieConsent";
@@ -71,10 +72,19 @@ function ViewFallback() {
 }
 
 
+function HomeConverterFallback() {
+  return (
+    <div role="status" className="grid min-h-72 place-content-center rounded-2xl border border-border bg-card text-sm text-muted-foreground">
+      <Loader2 aria-hidden="true" className="mx-auto mb-2 size-5 animate-spin text-emerald-700" />
+      Loading converter…
+    </div>
+  );
+}
+
 const ConverterView = dynamic(
   () =>
     import("@/components/converter/ConverterView").then((m) => m.ConverterView),
-  { loading: () => <ViewFallback /> },
+  { loading: () => <HomeConverterFallback /> },
 );
 const FormatsView = dynamic(
   () => import("@/components/formats/FormatsView").then((m) => m.FormatsView),
@@ -231,12 +241,7 @@ export default function HomeClient({
   useEffect(() => {
     const saved =
       localStorage.getItem("cc-desktop-theme") || localStorage.getItem("theme");
-    let next = false;
-    if (saved === "dark" || saved === "light") {
-      next = saved === "dark";
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      next = true;
-    }
+    const next = saved === "dark";
     setDarkMode(next);
     document.documentElement.classList.toggle("dark", next);
     document.documentElement.style.colorScheme = next ? "dark" : "light";
@@ -356,11 +361,8 @@ export default function HomeClient({
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300 overflow-x-hidden">
-      {/* ── Top Accent Line ─────────────────────────────────────────── */}
-      <div className="h-1.5 w-full bg-emerald-500 fixed top-0 left-0 z-[100]" />
-
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="sticky top-1.5 z-50 w-full max-w-[100vw] border-b border-border/40 bg-background overflow-x-hidden">
+      <header className="sticky top-0 z-50 w-full max-w-[100vw] border-b border-border/40 bg-background overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2 min-w-0">
             {/* Logo — always resets to clean home (clears ?from=&to= deep links) */}
@@ -374,30 +376,23 @@ export default function HomeClient({
             >
               <BrandMark className="h-8 w-8 sm:h-9 sm:w-9" priority />
               <div className="min-w-0">
-                <BrandTitle className="text-base sm:text-lg font-bold tracking-tight text-emerald-600 dark:text-emerald-400 block truncate" />
+                <BrandTitle className="block truncate text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl dark:text-white" />
               </div>
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden xl:flex items-center gap-0.5 shrink-0">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isDonate = item.id === "donate";
+            <nav aria-label="Primary" className="ml-auto hidden items-center gap-2 md:flex">
+              {navItems.filter(({ id }) => id === "formats" || id === "guides" || id === "history").map((item) => {
                 if (item.href) {
                   return (
                     <Button
                       key={item.id}
-                      variant={isDonate ? "default" : "ghost"}
+                      variant="ghost"
                       size="sm"
-                      className={
-                        isDonate
-                          ? "site-nav-link gap-1 h-8.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-xs text-sm font-semibold"
-                          : "site-nav-link gap-1 h-8.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted text-sm font-medium"
-                      }
+                      className="h-9 rounded-lg px-3 text-sm font-semibold"
                       asChild
                     >
                       <Link href={item.href}>
-                        <Icon className="w-3.5 h-3.5" />
                         {item.label}
                       </Link>
                     </Button>
@@ -416,7 +411,6 @@ export default function HomeClient({
                     }`}
                     onClick={() => toggleView(item.id as ViewType)}
                   >
-                    <Icon className="w-3.5 h-3.5" />
                     {item.label}
                   </Button>
                 );
@@ -428,8 +422,9 @@ export default function HomeClient({
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground"
+                className="hidden size-9 rounded-lg text-muted-foreground hover:text-foreground sm:inline-flex"
                 onClick={toggleTheme}
+                aria-label={darkMode ? "Use light theme" : "Use dark theme"}
                 title="Toggle theme (D)"
               >
                 {darkMode ? (
@@ -491,7 +486,7 @@ export default function HomeClient({
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <div className="flex items-center gap-0.5 sm:gap-1">
+                <div className="hidden items-center gap-1 sm:flex">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -514,27 +509,16 @@ export default function HomeClient({
 
               <Button
                 variant="ghost"
-                size="sm"
-                className="site-nav-link hidden xl:inline-flex gap-1 h-8.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
-                asChild
-              >
-                <Link href={changelogNavItem.href!}>
-                  <ScrollText className="w-3.5 h-3.5" />
-                  {changelogNavItem.label}
-                </Link>
-              </Button>
-
-              {/* Mobile Menu Trigger */}
-              <Button
-                variant="ghost"
                 size="icon"
-                className="xl:hidden rounded-full w-8 h-8 sm:w-9 sm:h-9"
+                className="size-10 rounded-lg"
+                aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+                aria-expanded={mobileNavOpen}
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
               >
                 {mobileNavOpen ? (
                   <X className="w-5 h-5" />
                 ) : (
-                  <Layers className="w-5 h-5" />
+                  <Menu className="w-5 h-5" />
                 )}
               </Button>
             </div>
@@ -543,8 +527,20 @@ export default function HomeClient({
 
         {/* Mobile Navigation */}
         {mobileNavOpen && (
-          <div className="xl:hidden border-t border-border bg-background animate-in slide-in-from-top-4">
-            <div className="px-4 pt-2 pb-6 space-y-1">
+          <nav aria-label="All site links" className="border-t border-border bg-background animate-in slide-in-from-top-4">
+            <div className="mx-auto max-h-[calc(100dvh-4rem)] max-w-7xl overflow-y-auto px-4 pt-2 pb-6 sm:px-6">
+              <div className="mb-2 flex flex-wrap gap-1 border-b border-border pb-2 sm:hidden">
+                {!currentUser && (
+                  <>
+                    <Button variant="ghost" disabled={loading} onClick={() => { setMobileNavOpen(false); openAuth("login"); }}>Log in</Button>
+                    <Button variant="ghost" disabled={loading} onClick={() => { setMobileNavOpen(false); openAuth("signup"); }}>Sign up</Button>
+                  </>
+                )}
+                <Button variant="ghost" onClick={toggleTheme}>
+                  {darkMode ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+                  {darkMode ? "Light theme" : "Dark theme"}
+                </Button>
+              </div>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isDonate = item.id === "donate";
@@ -598,7 +594,7 @@ export default function HomeClient({
                 </Link>
               </Button>
             </div>
-          </div>
+          </nav>
         )}
       </header>
 
@@ -607,9 +603,14 @@ export default function HomeClient({
         <div className="max-w-7xl mx-auto w-full min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-10 flex-1 flex flex-col">
           {/* Converter first — ads / feature cards sit below so the tool is the hero */}
           {currentView === "converter" && (
-            <Suspense fallback={<ViewFallback />}>
-              <ConverterView />
-            </Suspense>
+            <>
+              <HomeConverterHero>
+                <Suspense fallback={<HomeConverterFallback />}>
+                  <ConverterView />
+                </Suspense>
+              </HomeConverterHero>
+              <HomePopularConversions />
+            </>
           )}
           {currentView === "formats" && (
             <Suspense fallback={<ViewFallback />}>
