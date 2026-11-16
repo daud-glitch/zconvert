@@ -4,8 +4,7 @@ import { Suspense, type SVGProps } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { SiteHeader } from "@/components/common/SiteHeader";
-import { PageIntro } from "@/components/common/PageIntro";
-import { FileIllustration } from "@/components/common/FileIllustration";
+import { ConverterWorkspaceLoading, type ConverterWorkspaceIntro } from "@/components/converter/ConverterWorkspace";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { PairGuideSection } from "@/components/pages/PairGuideSection";
 import {
@@ -13,7 +12,6 @@ import {
   Upload,
   Download,
   Settings2,
-  Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ResolvedPair } from "@/lib/conversion-pairs";
@@ -23,14 +21,6 @@ import { PAIR_FAQS } from "@/components/seo/ConversionPairJsonLd";
 const ConverterView = dynamic(
   () =>
     import("@/components/converter/ConverterView").then((m) => m.ConverterView),
-  {
-    loading: () => (
-      <div className="mx-auto flex min-h-64 max-w-3xl items-center justify-center rounded-2xl border border-border bg-card text-muted-foreground">
-        <Loader2 className="h-7 w-7 animate-spin text-emerald-500" aria-hidden />
-        <span className="sr-only">Loading converter…</span>
-      </div>
-    ),
-  },
 );
 
 export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
@@ -38,6 +28,14 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
   const fromUpper = from.ext.toUpperCase();
   const toUpper = to.ext.toUpperCase();
 
+  const workspace: ConverterWorkspaceIntro = {
+    title: `Convert ${fromUpper} to ${toUpper}`,
+    description: `${from.name} to ${to.name}. No watermarks or sign-up required.`,
+    files: [
+      { type: from.category, extension: from.ext },
+      { type: to.category, extension: to.ext },
+    ],
+  };
   const relatedPairs = getRelatedPairs(from.ext, to.ext);
   const faqs = PAIR_FAQS(fromUpper, toUpper, from.name, to.name);
 
@@ -45,7 +43,7 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader section="/conversions" />
 
-      <main className="group/converter mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8 sm:py-10">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8 sm:py-10">
         <div className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
           <Link href="/" className="transition-colors hover:text-foreground">
             Home
@@ -67,26 +65,9 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
           </span>
         </div>
 
-        <PageIntro
-          compactWhenQueued
-          title={`Convert ${fromUpper} to ${toUpper}`}
-          description={`${from.name} to ${to.name}. No watermarks or sign-up required.`}
-          icons={
-            <>
-              <FileIllustration type={from.category} extension={from.ext} className="h-11 w-9 sm:h-13 sm:w-11" />
-              <ArrowRightIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-              <FileIllustration type={to.category} extension={to.ext} className="h-11 w-9 sm:h-13 sm:w-11" />
-            </>
-          }
-        />
         <section id="converter" aria-label={`${fromUpper} to ${toUpper} converter`} className="mb-12 min-w-0 scroll-mt-24">
-          <Suspense fallback={
-            <div role="status" className="mx-auto grid min-h-64 max-w-3xl place-items-center rounded-2xl border border-border bg-card">
-              <Loader2 aria-hidden="true" className="size-6 animate-spin text-emerald-700" />
-              <span className="sr-only">Loading converter…</span>
-            </div>
-          }>
-            <ConverterView embedded initialFrom={from.ext} initialTo={to.ext} />
+          <Suspense fallback={<ConverterWorkspaceLoading intro={workspace} />}>
+            <ConverterView embedded initialFrom={from.ext} initialTo={to.ext} workspace={workspace} />
           </Suspense>
         </section>
 

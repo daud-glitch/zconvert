@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRightLeft, ChevronRight, HardDrive, Layers, Shield, Zap } from "lucide-react";
-import { PageIntro } from "@/components/common/PageIntro";
 import { FileIllustration } from "@/components/common/FileIllustration";
 import { formatNonVideoMaxUploadLabel, formatVideoMaxUploadLabel, getMaxNonVideoBatchFiles } from "@/lib/upload-limits";
 
@@ -12,23 +11,6 @@ const popularPairs = [
   { from: "mp3", to: "wav", type: "audio" },
   { from: "xlsx", to: "csv", type: "data" },
 ] as const;
-
-export function HomeConverterIntro() {
-  return (
-    <PageIntro
-      compactWhenQueued
-      title="Convert your files"
-      description="Convert images, PDFs, video, audio, and more."
-      icons={
-        <>
-          <FileIllustration type="image" className="h-10 w-8 -rotate-6 sm:h-12 sm:w-10" />
-          <FileIllustration type="pdf" className="h-11 w-9 sm:h-13 sm:w-11" />
-          <FileIllustration type="video" className="h-10 w-8 rotate-6 sm:h-12 sm:w-10" />
-        </>
-      }
-    />
-  );
-}
 
 export function HomePopularConversions() {
   return (

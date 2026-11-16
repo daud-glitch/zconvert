@@ -6,7 +6,7 @@ import {
   Download, RefreshCw, Plus, Settings,
   History, Layers, Check,
   File as FileIcon, FileText, Globe, Clock,
-  DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft, ChevronDown,
+  DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft, ChevronDown, Link2,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
   Timer, X, Zap, FileStack, Loader2, Film, MessageCircle, Music2,
@@ -53,6 +53,7 @@ import {
   isConversionSuccess,
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
+import { ConverterWorkspace, homeWorkspace, type ConverterWorkspaceIntro } from "@/components/converter/ConverterWorkspace";
 import { ConverterFormatFields } from "@/components/converter/ConverterFormatFields";
 import { toast } from "@/hooks/use-toast";
 import { useResultPreview } from "@/components/converter/useResultPreview";
@@ -103,17 +104,16 @@ export type ConverterViewProps = {
   /** Preselect a conversion pair (SEO pair pages / deep links). */
   initialFrom?: string;
   initialTo?: string;
-  /**
-   * Compact tool embed: hide marketing hero + popular pairs, and do not
-   * rewrite the URL with ?from=&to= (keeps /x-to-y canonical clean).
-   */
+  /** Keep pair-page tool selection out of the canonical URL. */
   embedded?: boolean;
+  workspace?: ConverterWorkspaceIntro;
 };
 
 export function ConverterView({
   initialFrom,
   initialTo,
   embedded = false,
+  workspace = homeWorkspace,
 }: ConverterViewProps = {}) {
   const { currentUser, openAuth } = useApp();
   const searchParams = useSearchParams();
@@ -1586,9 +1586,11 @@ export function ConverterView({
 
   return (
     <div className={hasFiles ? "space-y-5 pb-20 sm:space-y-6 sm:pb-0" : "space-y-5 sm:space-y-6"}>
-      {!hasFiles && (
-        <Card ref={uploadCardRef} className="mx-auto w-full min-w-0 max-w-3xl scroll-mt-24 gap-0 rounded-2xl border-border bg-card py-0 shadow-sm">
-          <CardContent className="p-3 sm:p-5">
+      {hasFiles ? (
+        <h1 className="text-center text-2xl font-bold tracking-tight text-slate-950 dark:text-white">{workspace.title}</h1>
+      ) : (
+        <ConverterWorkspace intro={workspace}>
+          <div ref={uploadCardRef} className="min-w-0 scroll-mt-24 p-4 sm:p-6 lg:p-7">
             <ConverterFormatFields
               from={preferredFrom}
               to={preferredTo}
@@ -1609,10 +1611,10 @@ export function ConverterView({
               }}
             />
             <div
-              className={`flex min-h-36 flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed p-3.5 text-center sm:min-h-40 ${
+              className={`flex min-h-36 flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed p-3.5 text-center md:min-h-40 ${
                 dragOver
                   ? "border-emerald-600 bg-emerald-100 dark:bg-emerald-950/70"
-                  : "border-emerald-500/45 bg-slate-50/70 dark:bg-slate-900/55"
+                  : "border-emerald-500/45 bg-emerald-50/35 dark:bg-emerald-950/30"
               }`}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -1626,25 +1628,29 @@ export function ConverterView({
               </span>
               <Button
                 type="button"
-                className="h-11 w-full max-w-60 rounded-lg bg-emerald-700 px-6 font-semibold text-white hover:bg-emerald-800"
+                className="h-11 w-full max-w-60 rounded-lg bg-emerald-700 px-6 font-semibold text-white shadow-sm hover:bg-emerald-800"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {preferredFrom ? `Choose ${preferredFrom.toUpperCase()} files` : "Choose files"}
               </Button>
               <p className="text-sm text-muted-foreground">{dragOver ? "Drop files to add them" : "or drag and drop"}</p>
             </div>
-            <p className="mt-2.5 text-center text-xs text-muted-foreground">
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
               {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video · {MAX_NONVIDEO_BATCH} non-video files per batch
             </p>
             {mediaUnavailable && (
               <p className="mt-2 text-center text-sm text-destructive">This media conversion is currently unavailable.</p>
             )}
-            <details className="mt-2 text-center">
-              <summary className="mx-auto w-fit cursor-pointer py-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">Import from a link</summary>
+            <details className="group mt-1">
+              <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-sm font-semibold text-emerald-800 hover:underline dark:text-emerald-300 [&::-webkit-details-marker]:hidden">
+                <Link2 aria-hidden="true" className="size-4" />
+                Import from a link
+                <ChevronDown aria-hidden="true" className="size-3 group-open:rotate-180" />
+              </summary>
               <div className="mt-4">{urlImport}</div>
             </details>
-          </CardContent>
-        </Card>
+          </div>
+        </ConverterWorkspace>
       )}
 
       {/* ─── File Queue ─── */}
@@ -3035,7 +3041,7 @@ export function ConverterView({
       )}
 
       {currentUser && completedConversions.length > 0 && (
-        <details className="group mx-auto w-full max-w-3xl rounded-xl border border-border bg-card">
+        <details className="group mx-auto w-full max-w-5xl rounded-xl border border-border bg-card">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-4 text-sm font-semibold hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
             <History aria-hidden="true" className="size-4 text-emerald-700 dark:text-emerald-300" />
             Recent conversions

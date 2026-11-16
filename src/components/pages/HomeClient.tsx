@@ -21,7 +21,8 @@ import {
   Loader2,
   ScrollText,
 } from "lucide-react";
-import { HomeConverterFeatures, HomeConverterIntro, HomePopularConversions } from "@/components/converter/HomeConverterDesign";
+import { ConverterWorkspaceLoading, homeWorkspace } from "@/components/converter/ConverterWorkspace";
+import { HomeConverterFeatures, HomePopularConversions } from "@/components/converter/HomeConverterDesign";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTaglines, BrandTitle } from "@/components/common/BrandTitle";
 import { CookieSettingsButton } from "@/components/consent/CookieConsent";
@@ -72,19 +73,9 @@ function ViewFallback() {
 }
 
 
-function HomeConverterFallback() {
-  return (
-    <div role="status" className="mx-auto grid min-h-64 w-full max-w-3xl place-content-center rounded-2xl border border-border bg-card text-sm text-muted-foreground">
-      <Loader2 aria-hidden="true" className="mx-auto mb-2 size-5 animate-spin text-emerald-700" />
-      Loading converter…
-    </div>
-  );
-}
-
 const ConverterView = dynamic(
   () =>
     import("@/components/converter/ConverterView").then((m) => m.ConverterView),
-  { loading: () => <HomeConverterFallback /> },
 );
 const FormatsView = dynamic(
   () => import("@/components/formats/FormatsView").then((m) => m.FormatsView),
@@ -608,13 +599,12 @@ export default function HomeClient({
       </header>
 
       {/* ── Main Content ───────────────────────────────────────────── */}
-      <main className="group/converter flex-1 flex flex-col relative min-w-0 w-full overflow-x-hidden">
+      <main className="flex-1 flex flex-col relative min-w-0 w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto w-full min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-10 flex-1 flex flex-col">
           {/* Converter first — ads / feature cards sit below so the tool is the hero */}
           {currentView === "converter" && (
             <>
-              <HomeConverterIntro />
-              <Suspense fallback={<HomeConverterFallback />}>
+              <Suspense fallback={<ConverterWorkspaceLoading intro={homeWorkspace} />}>
                 <ConverterView />
               </Suspense>
               <HomePopularConversions />
