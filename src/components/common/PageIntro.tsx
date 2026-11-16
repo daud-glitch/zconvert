@@ -12,7 +12,7 @@ export function PageIntro({
   children?: ReactNode;
 }) {
   return (
-    <header className="mx-auto mb-6 max-w-3xl px-1 text-center sm:mb-8">
+    <header className="mx-auto mb-6 w-full max-w-3xl px-1 text-center after:hidden sm:mb-8">
       {icons && (
         <div aria-hidden="true" className="mb-4 flex items-center justify-center gap-2.5 sm:mb-5">
           {icons}

@@ -100,6 +100,9 @@ it("keeps signed-in conversion history collapsed below the uploader", async () =
   const history = await screen.findByText("Recent conversions");
   const details = history.closest("details");
   expect(details).not.toHaveAttribute("open");
+  const workspace = screen.getByRole("region", { name: "Convert your files" });
+  expect(workspace).toContainElement(upload);
+  expect(workspace).not.toContainElement(details);
   expect(upload.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByText("previous.pdf")).not.toBeVisible();
 
