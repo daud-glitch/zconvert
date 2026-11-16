@@ -55,8 +55,7 @@ import {
   isConversionSuccess,
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
-import { ConverterHero } from "@/components/converter/ConverterHero";
-import { PopularPairsSection } from "@/components/converter/PopularPairsSection";
+import { ConverterFormatFields } from "@/components/converter/ConverterFormatFields";
 import { toast } from "@/hooks/use-toast";
 import { useResultPreview } from "@/components/converter/useResultPreview";
 import {
@@ -97,8 +96,7 @@ import {
   humanizeConversionError,
   payloadTooLargeMessage,
 } from "@/lib/upload-limits";
-import { isConversionPairListed } from "@/lib/formats";
-import type { ConversionPair } from "@/lib/conversion-pairs";
+import { formats, isConversionPairListed } from "@/lib/formats";
 
 const MAX_NONVIDEO_BATCH = getMaxNonVideoBatchFiles();
 const MAX_VIDEO_BYTES = getVideoMaxUploadBytes();
@@ -132,9 +130,6 @@ export function ConverterView({
   const [preferredTo, setPreferredTo] = useState<string | null>(
     lockedFrom && lockedTo ? lockedTo : null,
   );
-  const [targetFormatsMap, setTargetFormatsMap] = useState<
-    Record<string, string[]>
-  >({});
   // Messages go to the app's mounted <Toaster /> (layout.tsx) so they are visible.
   const showToast = (message: string, type: "success" | "error" = "success") => {
     toast({
@@ -291,31 +286,18 @@ export function ConverterView({
     setBatchProgress({ current, total: alive.length });
   };
 
-  useEffect(() => {
-    if (!formatsData?.grouped) return;
-    const map: Record<string, string[]> = {};
-    const enabledExts = new Set<string>();
-    
-    // First collect all enabled extensions from the source formats
-    for (const group of Object.values(formatsData.grouped)) {
-      for (const fmt of group.formats) {
-        enabledExts.add(fmt.ext);
-      }
-    }
-
-    for (const group of Object.values(formatsData.grouped)) {
-      for (const fmt of group.formats) {
-        // Ensure target formats are also in the enabled extensions set
-        map[fmt.ext] = (fmt.targetFormats || []).filter(t => enabledExts.has(t));
-      }
-    }
-    setTargetFormatsMap(map);
+  const targetFormatsMap = useMemo(() => {
+    const enabledFormats = Object.values(formatsData?.grouped ?? {}).flatMap(
+      (group) => group.formats,
+    );
+    const enabledExtensions = new Set(enabledFormats.map((format) => format.ext));
+    return Object.fromEntries(
+      enabledFormats.map((format) => [
+        format.ext,
+        format.targetFormats.filter((target) => enabledExtensions.has(target)),
+      ]),
+    );
   }, [formatsData]);
-
-  const activePreferredPair = useMemo((): ConversionPair | null => {
-    if (!preferredFrom || !preferredTo) return null;
-    return { from: preferredFrom, to: preferredTo };
-  }, [preferredFrom, preferredTo]);
 
   const formatCount = formatsData?.totalFormats ?? 0;
   const activeCategories = formatsData
@@ -323,34 +305,30 @@ export function ConverterView({
     : 0;
   const pairCount = formatsData?.totalConversions ?? 0;
 
-  const applyPreferredPair = useCallback(
-    (pair: ConversionPair | null) => {
-      if (pair) {
-        setPreferredFrom(pair.from);
-        setPreferredTo(pair.to);
-        if (!embedded) syncPreferredPairUrl(pair.from, pair.to);
-      } else {
-        setPreferredFrom(null);
-        setPreferredTo(null);
-        if (!embedded) syncPreferredPairUrl(null, null);
-      }
-    },
-    [embedded],
-  );
+  const pickerFormats = useMemo(() => {
+    if (embedded) return { sources: [], outputs: [] };
+    const catalog = formatsData
+      ? Object.values(formatsData.grouped).flatMap((group) => group.formats)
+      : formats;
+    const sources = catalog
+      .filter((format) => format.targetFormats.length > 0)
+      .map((format) => format.ext)
+      .sort();
+    const outputs = preferredFrom
+      ? (formatsData ? targetFormatsMap[preferredFrom] ?? [] : targetsForExt(preferredFrom, {}))
+      : catalog.flatMap((format) => format.targetFormats);
+    return { sources, outputs: [...new Set(outputs)].sort() };
+  }, [embedded, formatsData, preferredFrom, targetFormatsMap]);
 
-  const handlePopularPairSelect = useCallback(
-    (pair: ConversionPair) => {
-      const isSame =
-        preferredFrom === pair.from && preferredTo === pair.to;
-      if (isSame) {
-        applyPreferredPair(null);
-        return;
-      }
-      applyPreferredPair(pair);
-      uploadCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    },
-    [applyPreferredPair, preferredFrom, preferredTo],
-  );
+  function changePreferredFormats(from: string | null, to: string | null) {
+    const availableTargets = from ? (
+      formatsData ? targetFormatsMap[from] ?? [] : targetsForExt(from, {})
+    ) : null;
+    const nextTo = to && availableTargets && !availableTargets.includes(to) ? null : to;
+    setPreferredFrom(from);
+    setPreferredTo(nextTo);
+    if (!embedded) syncPreferredPairUrl(from, nextTo);
+  }
 
   useEffect(() => {
     if (lockedFrom && lockedTo && isConversionPairListed(lockedFrom, lockedTo)) {
@@ -365,25 +343,21 @@ export function ConverterView({
     if (from && to && isConversionPairListed(from, to)) {
       setPreferredFrom(from);
       setPreferredTo(to);
-    } else if (!from && !to) {
-      setPreferredFrom(null);
-      setPreferredTo(null);
-    } else if (from && !to) {
-      setPreferredFrom(from);
-      setPreferredTo(null);
+    } else {
+      setPreferredFrom(from || null);
+      setPreferredTo(from ? null : to || null);
     }
   }, [searchParams, embedded, lockedFrom, lockedTo]);
 
-  // Deep-link landings (`/?from=` / `/?from=&to=`) jump straight to the upload box.
+  // Only scroll for an inbound deep link. Changing the picker keeps focus in place.
+  const [landedWithSource] = useState(() => Boolean(searchParams.get("from")));
   useEffect(() => {
-    if (embedded) return;
-    const from = normalizeExtParam(searchParams.get("from"));
-    if (!from) return;
+    if (embedded || !landedWithSource) return;
     const id = window.setTimeout(() => {
       uploadCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
     return () => window.clearTimeout(id);
-  }, [searchParams, embedded]);
+  }, [embedded, landedWithSource]);
 
   const fileAccept = preferredFrom
     ? acceptForPreferredFrom(preferredFrom)
@@ -930,7 +904,7 @@ export function ConverterView({
     resetQueueRef.current = () => {
       resetQueue();
       // "Start over" is the only reset that also drops the chosen format pair.
-      applyPreferredPair(null);
+      changePreferredFormats(null, null);
     };
   });
   useEffect(() => {
@@ -1552,30 +1526,76 @@ export function ConverterView({
 
   const hasFiles = files.length > 0;
 
-  return (
-    <div className="space-y-6 sm:space-y-8 pb-24 sm:pb-0">
-      {!embedded && !hasFiles && (
-        <ConverterHero
-          totalFormats={formatsData?.totalFormats}
-          totalConversionPairs={formatsData?.totalConversions}
-          categoryCount={
-            formatsData
-              ? Object.values(formatsData.categoryCounts).filter((n) => n > 0)
-                  .length
-              : undefined
-          }
-          onUploadClick={() => fileInputRef.current?.click()}
-          onDropFiles={(files) => addFiles(files)}
-          onSelectPair={handlePopularPairSelect}
-        />
-      )}
+  const urlImport = (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute inset-x-0 top-0 flex items-center justify-center -translate-y-1/2 z-10">
+        <span className="rounded-full border border-emerald-500/25 bg-background px-3.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90 shadow-sm dark:text-emerald-300/90">
+          or paste a link
+        </span>
+      </div>
+      <div className="rounded-b-2xl border-t border-emerald-500/10 bg-emerald-500/[0.04] px-5 py-5 dark:bg-emerald-500/[0.06]">
+        <div
+          className={`mx-auto flex max-w-2xl items-center gap-2.5 rounded-xl border bg-background px-3 py-2 shadow-sm transition-all focus-within:ring-2 focus-within:ring-emerald-500/25 ${
+            urlReady ? "border-emerald-400/50" : "border-border/80"
+          }`}
+        >
+          <div
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+              urlReady
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "bg-muted text-muted-foreground"
+            }`}
+            aria-hidden
+          >
+            <Globe className="h-4 w-4" />
+          </div>
+          <Input
+            type="url"
+            inputMode="url"
+            placeholder="https://example.com/file.png"
+            aria-label="File URL to import"
+            className="h-9 flex-1 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && urlReady) {
+                fetchRemoteFile(urlInput.trim());
+              }
+            }}
+            disabled={urlFetching}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className={`h-9 shrink-0 rounded-lg px-3.5 text-xs font-semibold ${
+              urlReady
+                ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+                : "bg-muted text-muted-foreground"
+            }`}
+            onClick={() => {
+              if (urlReady) fetchRemoteFile(urlInput.trim());
+            }}
+            disabled={!urlReady || urlFetching}
+          >
+            {urlFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <DownloadCloud className="mr-1 h-3.5 w-3.5" />
+                Fetch
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 
-      {!embedded && !hasFiles && (
-        <PopularPairsSection
-          activePair={activePreferredPair}
-          onSelectPair={handlePopularPairSelect}
-        />
-      )}
+  return (
+    <div
+      data-converter-queue={!embedded && hasFiles ? "" : undefined}
+      className={embedded ? "space-y-6 pb-24 sm:space-y-8 sm:pb-0" : "space-y-6 sm:space-y-8"}
+    >
 
       {embedded && preferredFrom && preferredTo && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-50/50 px-4 py-3 dark:bg-emerald-950/20">
@@ -1596,7 +1616,62 @@ export function ConverterView({
       )}
 
       {/* ─── Upload Zone: full dropzone when empty, compact add-more toolbar when queue has files ─── */}
-      {!hasFiles ? (
+      {!hasFiles && !embedded && (
+        <Card ref={uploadCardRef} className="min-w-0 scroll-mt-24 gap-0 rounded-2xl border-border bg-card py-0 shadow-sm">
+          <CardContent className="p-3 sm:p-5">
+            <ConverterFormatFields
+              from={preferredFrom}
+              to={preferredTo}
+              sourceFormats={pickerFormats.sources}
+              outputFormats={pickerFormats.outputs}
+              onChange={changePreferredFormats}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={fileAccept}
+              hidden
+              onChange={(event) => {
+                if (event.target.files) addFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <div
+              className={`flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-4 text-center sm:min-h-48 ${
+                dragOver
+                  ? "border-emerald-600 bg-emerald-100 dark:bg-emerald-950/70"
+                  : "border-emerald-500/60 bg-emerald-50/70 dark:bg-emerald-950/35"
+              }`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <Upload aria-hidden="true" className="size-8 text-emerald-700 sm:size-10 dark:text-emerald-300" />
+              <Button
+                type="button"
+                className="h-11 w-full max-w-60 rounded-lg bg-emerald-700 px-6 font-semibold text-white hover:bg-emerald-800"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {preferredFrom ? `Choose ${preferredFrom.toUpperCase()} files` : "Choose files"}
+              </Button>
+              <p className="text-sm text-muted-foreground">{dragOver ? "Drop files to add them" : "or drag and drop"}</p>
+            </div>
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video
+            </p>
+            <details className="mt-2 text-center">
+              <summary className="mx-auto w-fit cursor-pointer py-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">Import from a link</summary>
+              <div className="mt-4">{urlImport}</div>
+            </details>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasFiles && embedded && (
         <Card
           ref={uploadCardRef}
           className={`card-elevated overflow-hidden border-border/60 shadow-md ${
@@ -1809,74 +1884,13 @@ export function ConverterView({
               </div>
             </div>
 
-            {/* ── URL import (~40% prominence vs upload) ── */}
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <div className="absolute inset-x-0 top-0 flex items-center justify-center -translate-y-1/2 z-10">
-                <span className="rounded-full border border-emerald-500/25 bg-background px-3.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90 shadow-sm dark:text-emerald-300/90">
-                  or paste a link
-                </span>
-              </div>
-              <div className="rounded-b-2xl border-t border-emerald-500/10 bg-emerald-500/[0.04] px-5 py-5 dark:bg-emerald-500/[0.06]">
-                <div
-                  className={`mx-auto flex max-w-2xl items-center gap-2.5 rounded-xl border bg-background px-3 py-2 shadow-sm transition-all focus-within:ring-2 focus-within:ring-emerald-500/25 ${
-                    urlReady ? "border-emerald-400/50" : "border-border/80"
-                  }`}
-                >
-                  <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                      urlReady
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                    aria-hidden
-                  >
-                    <Globe className="h-4 w-4" />
-                  </div>
-                  <Input
-                    type="url"
-                    inputMode="url"
-                    placeholder="https://example.com/file.png"
-                    aria-label="File URL to import"
-                    className="h-9 flex-1 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && urlReady) {
-                        fetchRemoteFile(urlInput.trim());
-                      }
-                    }}
-                    disabled={urlFetching}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className={`h-9 shrink-0 rounded-lg px-3.5 text-xs font-semibold ${
-                      urlReady
-                        ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                    onClick={() => {
-                      if (urlReady) fetchRemoteFile(urlInput.trim());
-                    }}
-                    disabled={!urlReady || urlFetching}
-                  >
-                    {urlFetching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <DownloadCloud className="mr-1 h-3.5 w-3.5" />
-                        Fetch
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
+            {urlImport}
           </CardContent>
         </Card>
-      ) : (
-        /* Compact Add-More Toolbar when files are already queued */
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20">
+      )}
+
+      {hasFiles && (
+        <div ref={uploadCardRef} className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20">
           <input
             ref={fileInputRef}
             type="file"
@@ -3004,8 +3018,8 @@ export function ConverterView({
                               }}
                               disabled={item.status === "converting" || isConverting}
                             >
-                              <SelectTrigger className="w-20 sm:w-24 h-8 text-xs font-semibold">
-                                <SelectValue placeholder="Format" />
+                              <SelectTrigger aria-label={`Output format for ${item.name}`} className="w-20 sm:w-24 h-8 text-xs font-semibold">
+                                <SelectValue placeholder="Format">{item.targetFormat.toUpperCase()}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {groupedTargetFormats(
