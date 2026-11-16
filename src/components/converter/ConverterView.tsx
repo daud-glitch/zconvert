@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Download, RefreshCw, Plus, Settings,
   History, Layers, Check,
-  File as FileIcon, FileText, Globe, Shield, Clock,
+  File as FileIcon, FileText, Globe, Clock,
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft, ChevronDown,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
@@ -13,14 +13,13 @@ import {
   Mic, Radio, Crop, Database, Archive, Subtitles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -150,7 +149,6 @@ export function ConverterView({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [urlFetching, setUrlFetching] = useState(false);
-  const [showResize, setShowResize] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{
     current: number;
     total: number;
@@ -180,7 +178,7 @@ export function ConverterView({
       queueLandedRef.current = true;
       const card = uploadCardRef.current;
       if (card) {
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
     if (files.length === 0) {
@@ -1636,7 +1634,7 @@ export function ConverterView({
               <p className="text-sm text-muted-foreground">{dragOver ? "Drop files to add them" : "or drag and drop"}</p>
             </div>
             <p className="mt-2.5 text-center text-xs text-muted-foreground">
-              {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video
+              {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video · {MAX_NONVIDEO_BATCH} non-video files per batch
             </p>
             {mediaUnavailable && (
               <p className="mt-2 text-center text-sm text-destructive">This media conversion is currently unavailable.</p>
@@ -1647,39 +1645,6 @@ export function ConverterView({
             </details>
           </CardContent>
         </Card>
-      )}
-
-      {hasFiles && (
-        <div ref={uploadCardRef} className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={fileAccept}
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-foreground">
-              Queue active ({files.length} file{files.length === 1 ? "" : "s"})
-            </span>
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              · Up to {MAX_NONVIDEO_BATCH} files total
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="w-3.5 h-3.5 mr-1.5" />
-            Add more files
-          </Button>
-        </div>
       )}
 
       {/* ─── File Queue ─── */}
@@ -1713,22 +1678,869 @@ export function ConverterView({
         </div>
       )}
 
-      {/* ─── Quick Presets (single tabbed section, above queue) ─── */}
-      {availablePresetCategories.length > 0 && (
-        <Card data-slot="quick-presets" className="border-border/60 shadow-xs">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white shrink-0">
-                <Zap className="w-4 h-4" />
-              </div>
+      {hasFiles && (
+        <Card ref={uploadCardRef} data-slot="conversion-queue" className="scroll-mt-24 gap-4 overflow-hidden rounded-2xl border-border py-4 shadow-sm sm:py-5">
+          <CardHeader className="gap-4 px-3 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="font-semibold text-sm">Quick presets</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  One tap applies the right output format for the files in your queue
+                <h2 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white sm:text-xl">Conversion queue</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {files.length} {files.length === 1 ? "file" : "files"} · {formatBytes(files.reduce((sum, file) => sum + file.size, 0))} total
                 </p>
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={fileAccept}
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) addFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload aria-hidden="true" className="size-4" />
+                  Add files
+                </Button>
+                {pendingCount > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="hidden h-9 bg-emerald-700 text-white hover:bg-emerald-800 sm:inline-flex"
+                    onClick={convertAll}
+                    disabled={!canStartConvert}
+                  >
+                    {isQueueBusy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <RefreshCw aria-hidden="true" className="size-4" />}
+                    {isUploading ? "Uploading…" : isConverting ? "Converting…" : `Convert ${pendingCount} ${pendingCount === 1 ? "file" : "files"}`}
+                  </Button>
+                )}
+              </div>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2">
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]" aria-live="polite">
+                {pendingCount > 0 && (
+                  <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
+                    {pendingCount} awaiting conversion
+                  </Badge>
+                )}
+                {convertingCount > 0 && (
+                  <Badge variant="outline" className="border-sky-300 text-sky-700 dark:text-sky-300">
+                    {convertingCount} processing
+                  </Badge>
+                )}
+                {doneCount > 0 && (
+                  <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                    {doneCount} ready to download
+                  </Badge>
+                )}
+                {errorCount > 0 && (
+                  <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-300">
+                    {errorCount} needs attention
+                  </Badge>
+                )}
+              </div>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {pendingCount > 1 && !isConverting && (
+                  <div className="flex items-center gap-1.5">
+                    <Select onValueChange={applyUniversalFormat}>
+                      <SelectTrigger aria-label="Set format for all files" className="h-8 w-33 text-xs">
+                        <SelectValue placeholder="Set all formats" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupedTargetFormats(allTargetFormats).map(([cat, fmts]) => (
+                          <SelectGroup key={cat}>
+                            <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
+                            {fmts.map((fmt) => (
+                              <SelectItem key={fmt} value={fmt} className="text-xs uppercase">{fmt}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {mergeableCount >= 2 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    disabled={isQueueBusy}
+                    onClick={async () => {
+                      if (isQueueBusy) return;
+                      const filesToMerge = files.filter(
+                        (f) => getMergeSourceBlob(f) !== null,
+                      );
+                      if (filesToMerge.length < 2) {
+                        showToast("Need at least 2 PDF files to merge", "error");
+                        return;
+                      }
+                      showToast(`Merging ${filesToMerge.length} files into PDF...`);
+                      try {
+                        const formData = new FormData();
+                        for (const f of filesToMerge) {
+                          const source = getMergeSourceBlob(f)!;
+                          const fileName = mergeOutputFileName(f);
+                          const file = new File([source], fileName, {
+                            type: source.type || "application/pdf",
+                          });
+                          formData.append("files", file);
+                        }
+                        const response = await fetch("/api/merge-pdf", {
+                          method: "POST",
+                          body: formData,
+                        });
+                        if (!response.ok) {
+                          const err = await response.json().catch(() => ({ error: "Merge failed" }));
+                          throw new Error(err.error || "Merge failed");
+                        }
+                        const blob = await response.blob();
+                        if (blob.size === 0) {
+                          throw new Error("Received empty merged PDF");
+                        }
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${DOWNLOAD_BRAND_PREFIX}-${filesToMerge[0].name.replace(/\.[^/.]+$/, "").replace(/[^\w.-]+/g, "_")}-merged.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        showToast(`Merged ${filesToMerge.length} files into PDF!`);
+                      } catch (err) {
+                        const msg = err instanceof Error ? err.message : "Merge failed";
+                        showToast(msg, "error");
+                      }
+                    }}
+                  >
+                    <FileStack className="w-3.5 h-3.5 mr-1" />
+                    Merge
+                  </Button>
+                )}
+                {doneCount + errorCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={() => dropQueueItems(isActiveItem)} disabled={isQueueBusy}>
+                    Clear finished
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="sm:flex-none"
+                  onClick={resetQueue}
+                  disabled={files.length === 0}
+                  aria-label="Clear all files"
+                  title="Clear queue and cancel active uploads/conversions"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
 
+          {/* ── Prominent Batch Completion Banner with Quick ZIP Download ── */}
+          {canBulkExport && doneCount > 0 && (
+            <div className="mx-3 sm:mx-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-xs">
+                  <Check className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    All {doneCount} file{doneCount === 1 ? "" : "s"} converted successfully!
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    Ready to save to your device.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  size="default"
+                  className="flex-1 sm:flex-none h-9 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm font-semibold text-xs px-4"
+                  onClick={async () => {
+                    const doneFiles = files.filter(
+                      (f) => f.status === "done" && f.result,
+                    );
+                    if (doneFiles.length === 0) return;
+                    showToast(`Creating ZIP with ${doneFiles.length} files...`);
+                    try {
+                      const { default: JSZip } = await import("jszip");
+                      const zip = new JSZip();
+                      const usedNames = new Set<string>();
+                      for (const f of doneFiles) {
+                        const baseName = f.name.replace(/\.[^/.]+$/, "");
+                        const arrayBuffer = await f.result!.arrayBuffer();
+                        const entryBase =
+                          f.outputPackage === "zip"
+                            ? `${baseName}-pages`
+                            : baseName;
+                        const entryExt =
+                          f.outputPackage === "zip"
+                            ? "zip"
+                            : f.targetFormat || "bin";
+                        const preferred = brandedDownloadFilename(
+                          entryBase,
+                          entryExt,
+                        );
+                        zip.file(
+                          uniqueZipEntryName(usedNames, preferred),
+                          arrayBuffer,
+                        );
+                      }
+                      const blob = await zip.generateAsync({ type: "blob" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = bulkZipDownloadFilename(
+                        doneFiles.map((f) => f.name),
+                      );
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      showToast(
+                        `ZIP downloaded with ${doneFiles.length} files!`,
+                      );
+                    } catch {
+                      showToast("Failed to create ZIP", "error");
+                    }
+                  }}
+                >
+                  <DownloadCloud className="w-4 h-4 mr-1.5" />
+                  Download ZIP
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="h-9 rounded-lg text-xs px-3"
+                  onClick={downloadAll}
+                  title="Download individually"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1" />
+                  Download files
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <CardContent className="px-3 sm:px-5">
+            <div className="space-y-2" aria-label="Queued files">
+                {files.map((item) => {
+                  const itemIndex = files.findIndex((f) => f.id === item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      draggable
+                      onDragStart={() => setDragIndex(itemIndex)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragIndex === null) return;
+                        const dropIndex = itemIndex;
+                        if (dragIndex === dropIndex) return;
+                        const newFiles = [...files];
+                        const [moved] = newFiles.splice(dragIndex, 1);
+                        newFiles.splice(dropIndex, 0, moved);
+                        setFiles(newFiles);
+                        setDragIndex(null);
+                      }}
+                      className={`p-3 rounded-xl border flex flex-col cursor-grab active:cursor-grabbing transition-all shadow-xs ${
+                        item.status === "done"
+                          ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-950/40"
+                          : item.status === "error"
+                            ? "border-red-300 dark:border-red-700 bg-red-50/70 dark:bg-red-950/40"
+                            : item.status === "converting"
+                              ? "border-sky-300 dark:border-sky-700 bg-sky-50/70 dark:bg-sky-950/40"
+                              : "border-border bg-card/60 hover:bg-card/90"
+                      } ${dragIndex === itemIndex ? "opacity-50 ring-2 ring-emerald-500 ring-offset-1" : ""}`}
+                    >
+                      <Collapsible>
+                        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {/* Grip Handle */}
+                          <div className="hidden sm:block text-muted-foreground/40 mr-0.5 cursor-grab shrink-0">
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+
+                          {/* File Thumbnail */}
+                          <FileThumbnail item={item} />
+
+                          {/* File Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs sm:text-sm font-semibold truncate leading-snug">
+                              {item.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-muted-foreground mt-0.5 flex-wrap">
+                              <span className="uppercase font-mono font-medium">
+                                .{item.ext}
+                              </span>
+                              {item.status === "done" && item.outputSize != null ? (
+                                <>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] px-1.5 py-0 font-mono border-emerald-400/70 text-emerald-700 dark:text-emerald-300"
+                                  >
+                                    {formatBytes(item.size)} → {formatBytes(item.outputSize)}
+                                  </Badge>
+                                  {item.size > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] px-1.5 py-0 ${
+                                        item.outputSize < item.size
+                                          ? "border-emerald-400 text-emerald-600 dark:text-emerald-400"
+                                          : item.outputSize > item.size
+                                            ? "border-amber-400 text-amber-700 dark:text-amber-400"
+                                            : "border-border text-muted-foreground"
+                                      }`}
+                                    >
+                                      {formatSizeChangeLabel(
+                                        item.size,
+                                        item.outputSize,
+                                      )}
+                                    </Badge>
+                                  )}
+                                  {item.startTime && item.endTime && (
+                                    <span className="flex items-center gap-0.5">
+                                      <Timer className="w-3 h-3" />
+                                      {(
+                                        (item.endTime - item.startTime) /
+                                        1000
+                                      ).toFixed(1)}
+                                      s
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span>{formatBytes(item.size)}</span>
+                              )}
+                              {item.status === "error" && (
+                                <span className="flex w-full max-w-md flex-wrap items-center gap-x-2 gap-y-1 text-red-600 dark:text-red-400 font-medium break-words">
+                                  <span>{item.error || "Conversion failed"}</span>
+                                  <span className="font-normal text-[10px] text-muted-foreground">
+                                    Choose another format or retry.
+                                  </span>
+                                </span>
+                              )}
+                              {item.status === "pending" && item.uploading && (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
+                                  <span className="flex items-center gap-1">
+                                    <Upload className="w-3 h-3" />
+                                    Uploading…
+                                    {typeof item.progress === "number"
+                                      ? ` ${item.progress}%`
+                                      : ""}
+                                  </span>
+                                  <span
+                                    className="h-1.5 w-full rounded-full bg-emerald-100 dark:bg-emerald-950 overflow-hidden"
+                                    role="progressbar"
+                                    aria-valuenow={item.progress ?? 0}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                  >
+                                    <span
+                                      className="block h-full rounded-full bg-emerald-500 transition-[width] duration-300"
+                                      style={{
+                                        width: `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
+                                      }}
+                                    />
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    File uploads now — convert when ready
+                                  </span>
+                                </span>
+                              )}
+                              {item.status === "pending" &&
+                                item.uploadReady &&
+                                !item.uploading && (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                    <Check className="w-3 h-3" />
+                                    Ready to convert
+                                  </span>
+                                )}
+                              {item.status === "pending" && item.uploadError && (
+                                <span className="text-amber-600 dark:text-amber-400 font-medium break-words">
+                                  Upload failed — convert will re-upload
+                                </span>
+                              )}
+                              {item.status === "converting" && (
+                                <span className="text-sky-600 dark:text-sky-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 animate-spin" />
+                                    {item.progressPhase === "queued"
+                                      ? item.queueMessage
+                                        ? item.queueMessage.slice(0, 80)
+                                        : "In line… waiting for a free slot"
+                                      : item.progressPhase === "converting"
+                                        ? isVideoItem(item.ext, item.targetFormat)
+                                          ? "Encoding video… (may take a few minutes)"
+                                          : "Converting…"
+                                        : item.progressPhase === "reading"
+                                          ? "Reading file…"
+                                          : "Uploading…"}
+                                    {typeof item.progress === "number" &&
+                                    item.progressPhase !== "queued" &&
+                                    item.progressPhase !== "converting"
+                                      ? ` ${item.progress}%`
+                                      : item.progressPhase === "converting"
+                                        ? ""
+                                        : ""}
+                                  </span>
+                                  <span
+                                    className="h-1.5 w-full rounded-full bg-sky-100 dark:bg-sky-950 overflow-hidden"
+                                    role="progressbar"
+                                    aria-valuenow={
+                                      item.progressPhase === "converting"
+                                        ? 70
+                                        : (item.progress ?? 0)
+                                    }
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                  >
+                                    <span
+                                      className={`block h-full rounded-full transition-[width] duration-300 ${
+                                        item.progressPhase === "queued"
+                                          ? "bg-amber-500"
+                                          : "bg-sky-500"
+                                      } ${
+                                        item.progressPhase === "converting"
+                                          ? "animate-pulse"
+                                          : ""
+                                      }`}
+                                      style={{
+                                        width:
+                                          item.progressPhase === "converting"
+                                            ? "70%"
+                                            : `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
+                                      }}
+                                    />
+                                  </span>
+                                  {item.progressPhase === "uploading" ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Conversion starts after upload completes
+                                    </span>
+                                  ) : item.progressPhase === "queued" ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Busy server — auto-retry. Keep this tab open.
+                                    </span>
+                                  ) : item.progressPhase === "converting" &&
+                                    isVideoItem(item.ext, item.targetFormat) ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Keep this tab open — long video encode runs
+                                      in the background
+                                    </span>
+                                  ) : item.progressPhase === "converting" ? (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Processing on the server — keep this tab open
+                                    </span>
+                                  ) : null}
+                                </span>
+                              )}
+                            </div>
+                            {item.status === "done" &&
+                              item.outputSize &&
+                              item.size > 0 && (
+                                <div className="mt-2 max-w-xs">
+                                  <div className="size-comparison-bar">
+                                    <div
+                                      className="size-comparison-bar-input"
+                                      style={{ width: "50%" }}
+                                    />
+                                    <div
+                                      className="size-comparison-bar-output"
+                                      style={{
+                                        width: `${Math.max(2, (item.outputSize / item.size) * 50)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex justify-between mt-1">
+                                    <span className="text-[9px] text-muted-foreground">
+                                      Before {formatBytes(item.size)}
+                                    </span>
+                                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                      After {formatBytes(item.outputSize)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                          </div>
+                          </div>
+
+                          {/* Action strip: full width row on mobile, inline on desktop */}
+                          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t border-border/40 sm:border-t-0">
+                          {/* Format Selector */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[11px] font-mono text-muted-foreground uppercase hidden sm:inline">
+                              {item.ext}
+                            </span>
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
+                            <Select
+                              value={item.targetFormat}
+                              onValueChange={(val) => {
+                                if (
+                                  item.status === "done" ||
+                                  item.status === "error"
+                                ) {
+                                  const small =
+                                    item.file.size > 0 &&
+                                    item.file.size <= INLINE_UPLOAD_MAX_BYTES;
+                                  const reset: Partial<FileItem> = {
+                                    targetFormat: val,
+                                    status: "pending",
+                                    result: undefined,
+                                    outputSize: undefined,
+                                    outputPackage: undefined,
+                                    pageCount: undefined,
+                                    endTime: undefined,
+                                    uploadId: undefined,
+                                    uploadReady: small,
+                                    uploading: !small,
+                                    uploadError: undefined,
+                                  };
+                                  updateFile(item.id, reset);
+                                  // Re-stage large files only after failed/reconvert
+                                  if (!small) {
+                                    setTimeout(() => {
+                                      const live = filesRef.current.find(
+                                        (f) => f.id === item.id,
+                                      );
+                                      if (live) enqueueAutoUpload([live]);
+                                    }, 0);
+                                  }
+                                } else {
+                                  updateFile(item.id, { targetFormat: val });
+                                }
+                              }}
+                              disabled={item.status === "converting" || isConverting}
+                            >
+                              <SelectTrigger aria-label={`Output format for ${item.name}`} className="w-20 sm:w-24 h-8 text-xs font-semibold">
+                                <SelectValue placeholder="Format">{item.targetFormat.toUpperCase()}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {groupedTargetFormats(
+                                  (targetsForExt(item.ext, targetFormatsMap) || []).filter(
+                                    (f) => item.ext === "pdf" || f !== item.ext,
+                                  ),
+                                ).map(
+                                  ([cat, fmts]) => (
+                                    <SelectGroup key={cat}>
+                                      <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
+                                      {fmts.map((fmt) => (
+                                        <SelectItem
+                                          key={fmt}
+                                          value={fmt}
+                                          className="text-xs uppercase"
+                                        >
+                                          {fmt}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  ),
+                                )}
+                              </SelectContent>
+                            </Select>
+                            {item.ext === "pdf" &&
+                              pdfRasterTargets.has(item.targetFormat) &&
+                              item.status === "pending" && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] whitespace-nowrap border-rose-300 text-rose-700 dark:text-rose-300"
+                                >
+                                  ZIP
+                                </Badge>
+                              )}
+                            {item.status === "done" && item.outputPackage === "zip" && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[9px] whitespace-nowrap"
+                              >
+                                {item.pageCount ?? "?"}p ZIP
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Actions — Convert only after THIS file finished staging; format always until convert runs */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {item.status === "pending" &&
+                              !isConverting &&
+                              !item.uploading &&
+                              (item.uploadReady || Boolean(item.uploadError)) && (
+                              <>
+                                {getCategoryFromExt(item.ext) === "image" && (
+                                  <CollapsibleTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 hover:bg-slate-100"
+                                      title="Image Settings"
+                                      aria-label="Image Settings"
+                                    >
+                                      <Settings className="w-4 h-4 text-slate-500" />
+                                    </Button>
+                                  </CollapsibleTrigger>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => duplicateFile(item)}
+                                  title="Add another format"
+                                  aria-label="Add another format"
+                                >
+                                  <Plus className="w-4 h-4 text-sky-600" />
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-9 bg-emerald-700 text-xs text-white hover:bg-emerald-800"
+                                  onClick={() => convertFile(item)}
+                                  title={
+                                    item.uploadError
+                                      ? "Retry convert (will re-upload)"
+                                      : "Convert"
+                                  }
+                                  aria-label="Convert file"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5 mr-1" />{" "}
+                                  Convert
+                                </Button>
+                              </>
+                            )}
+                            {(item.status === "converting" ||
+                              (item.status === "pending" &&
+                                (isConverting ||
+                                  item.uploading ||
+                                  (!item.uploadReady && !item.uploadError)))) && (
+                              <div
+                                className="w-8 h-8 flex items-center justify-center"
+                                title={
+                                  item.status === "converting"
+                                    ? "Converting…"
+                                    : item.uploading ||
+                                        (!item.uploadReady && !item.uploadError)
+                                      ? "Uploading… only format is available until upload finishes"
+                                      : "Waiting in queue — remove with X to skip"
+                                }
+                              >
+                                {item.status === "pending" &&
+                                (item.uploading ||
+                                  (!item.uploadReady && !item.uploadError)) ? (
+                                  <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                                ) : (
+                                  <Clock className="w-4 h-4 text-sky-600" />
+                                )}
+                              </div>
+                            )}
+                            {item.status === "done" && !isQueueBusy && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => downloadFile(item)}
+                                  title="Download"
+                                  aria-label={`Download ${item.name}`}
+                                >
+                                  <Download className="w-4 h-4 text-emerald-600" />
+                                </Button>
+                                {item.outputPackage !== "zip" &&
+                                  canPreviewResult(item) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                  onClick={() => {
+                                    if (item.result) {
+                                      const baseName = item.name.replace(
+                                        /\.[^/.]+$/,
+                                        "",
+                                      );
+                                      openPreview(
+                                        item.result,
+                                        `${baseName}.${item.targetFormat}`,
+                                      );
+                                    }
+                                  }}
+                                  title="Preview"
+                                  aria-label={`Preview ${item.name}`}
+                                  >
+                                    <Eye className="w-4 h-4 text-sky-500" />
+                                  </Button>
+                                )}
+                                {currentUser ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => saveBookmark(item)}
+                                    title="Save as bookmark"
+                                  >
+                                    <BookmarkPlus className="w-4 h-4 text-amber-500" />
+                                  </Button>
+                                ) : (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => openAuth("login")}
+                                        aria-label="Sign in to bookmark"
+                                      >
+                                        <BookmarkPlus className="w-4 h-4 text-amber-500/70" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="max-w-[220px] text-center"
+                                    >
+                                      Sign in or sign up to save bookmarks
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </>
+                            )}
+                            {item.status === "error" && !isQueueBusy && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-xs text-amber-700 hover:text-amber-800 dark:text-amber-300"
+                                onClick={() => convertFile(item)}
+                                title="Retry conversion"
+                                aria-label={`Retry conversion for ${item.name}`}
+                              >
+                                <RotateCcw className="mr-1 h-3.5 w-3.5 text-amber-500" />
+                                Retry
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => removeFile(item.id)}
+                              title="Remove from queue"
+                              aria-label="Remove from queue"
+                            >
+                              <X className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Content - Independent from flex row */}
+                        {item.status === "pending" &&
+                          getCategoryFromExt(item.ext) === "image" && (
+                            <CollapsibleContent className="mt-3 pt-3 border-t border-border/50">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-2">
+                                {/* Quality */}
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                                      Quality
+                                    </span>
+                                    <span className="text-[10px] font-mono text-emerald-600 font-semibold">
+                                      {item.quality}%
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="100"
+                                    value={item.quality}
+                                    onChange={(e) =>
+                                      updateFile(item.id, {
+                                        quality: parseInt(e.target.value),
+                                      })
+                                    }
+                                    className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                                  />
+                                </div>
+
+                                {/* Resize */}
+                                <div className="space-y-1.5">
+                                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">
+                                    Resize (px)
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                                        W
+                                      </span>
+                                      <Input
+                                        type="number"
+                                        placeholder="Auto"
+                                        className="h-7 text-xs pl-6 pr-2 bg-muted/50 border-transparent focus:bg-background focus-visible:ring-1 focus-visible:ring-sky-500 transition-colors"
+                                        value={item.resizeWidth || ""}
+                                        onChange={(e) =>
+                                          updateFile(item.id, {
+                                            resizeWidth: e.target.value
+                                              ? parseInt(e.target.value)
+                                              : null,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <span className="text-muted-foreground text-[10px]">
+                                      ×
+                                    </span>
+                                    <div className="relative flex-1">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                                        H
+                                      </span>
+                                      <Input
+                                        type="number"
+                                        placeholder="Auto"
+                                        className="h-7 text-xs pl-6 pr-2 bg-muted/50 border-transparent focus:bg-background focus-visible:ring-1 focus-visible:ring-sky-500 transition-colors"
+                                        value={item.resizeHeight || ""}
+                                        onChange={(e) =>
+                                          updateFile(item.id, {
+                                            resizeHeight: e.target.value
+                                              ? parseInt(e.target.value)
+                                              : null,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          )}
+                      </Collapsible>
+                      {/* Progress Bar */}
+                      {item.status !== "pending" && (
+                        <div className="mt-2 h-1 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              item.status === "converting"
+                                ? "bg-sky-500 w-full animate-pulse"
+                                : item.status === "done"
+                                  ? "bg-emerald-500 w-full"
+                                  : "bg-red-500 w-full"
+                            }`}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {availablePresetCategories.length > 0 && (
+        <details className="group rounded-xl border border-border bg-card" data-slot="quick-presets">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-xl px-4 text-sm font-semibold hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+            <span className="grid size-8 place-items-center rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              <Zap aria-hidden="true" className="size-4" />
+            </span>
+            Quick presets
+            <ChevronDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground group-open:rotate-180" />
+          </summary>
+          <div className="border-t border-border/60 p-4 sm:p-5">
             <Tabs
               value={activePresetTab}
               onValueChange={(v) => setPresetTabChoice(v)}
@@ -2150,1021 +2962,76 @@ export function ConverterView({
                 </TabsContent>
               )}
             </Tabs>
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
-      {files.length > 0 && (
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-3 px-3 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
-                  <Layers className="w-4 h-4" />
-                  Conversion Queue
-                  <Badge variant="secondary" className="text-xs">
-                    {files.length}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    {formatBytes(files.reduce((sum, f) => sum + f.size, 0))} total
-                  </span>
-                </CardTitle>
-                <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
-                  Mix any file types in one batch — pick a different output format for each file.
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]" aria-live="polite">
-                  {pendingCount > 0 && (
-                    <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-300">
-                      {pendingCount} awaiting conversion
-                    </Badge>
-                  )}
-                  {convertingCount > 0 && (
-                    <Badge variant="outline" className="border-sky-300 text-sky-700 dark:text-sky-300">
-                      {convertingCount} processing
-                    </Badge>
-                  )}
-                  {doneCount > 0 && (
-                    <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
-                      {doneCount} ready to download
-                    </Badge>
-                  )}
-                  {errorCount > 0 && (
-                    <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-300">
-                      {errorCount} needs attention
-                    </Badge>
-                  )}
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Limits: {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video · {MAX_NONVIDEO_BATCH} files per batch.
-                  <span className="ml-1 inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
-                    <Shield className="h-3 w-3" aria-hidden /> Temporary processing; downloads stay in your browser.
-                  </span>
-                </p>
+
+      {hasPendingImage && (
+        <details className="group rounded-xl border border-border bg-card">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-xl px-4 text-sm font-semibold hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+            <span className="grid size-8 place-items-center rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+              <Maximize aria-hidden="true" className="size-4" />
+            </span>
+            Resize images
+            <ChevronDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground group-open:rotate-180" />
+          </summary>
+          <div className="border-t border-border/60 p-4">
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="batch-image-width" className="text-xs">Width</Label>
+                <Input
+                  id="batch-image-width"
+                  type="number"
+                  placeholder="Auto"
+                  className="w-24 h-8 text-xs"
+                  onChange={(e) =>
+                    resizeAll(
+                      e.target.value ? parseInt(e.target.value) : null,
+                      null,
+                    )
+                  }
+                />
               </div>
-              <div className="flex w-full items-center gap-2 flex-wrap sm:w-auto sm:justify-end">
-                {pendingCount > 1 && !isConverting && (
-                  <div className="flex items-center gap-1.5">
-                    <FileStack className="w-3.5 h-3.5 text-violet-500" />
-                    <Select onValueChange={applyUniversalFormat}>
-                      <SelectTrigger className="w-28 h-8 text-xs border-violet-300 dark:border-violet-700">
-                        <SelectValue placeholder="All → ..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groupedTargetFormats(allTargetFormats).map(([cat, fmts]) => (
-                          <SelectGroup key={cat}>
-                            <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
-                            {fmts.map((fmt) => (
-                              <SelectItem key={fmt} value={fmt} className="text-xs uppercase">{fmt}</SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="hidden sm:inline-flex"
-                  onClick={convertAll}
-                  disabled={!canStartConvert}
-                  title={
-                    isUploading
-                      ? "Wait until all uploads finish"
-                      : isConverting
-                        ? "Conversion in progress"
-                        : undefined
+              <span className="text-muted-foreground text-xs self-center">
+                ×
+              </span>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="batch-image-height" className="text-xs">Height</Label>
+                <Input
+                  id="batch-image-height"
+                  type="number"
+                  placeholder="Auto"
+                  className="w-24 h-8 text-xs"
+                  onChange={(e) =>
+                    resizeAll(
+                      null,
+                      e.target.value ? parseInt(e.target.value) : null,
+                    )
                   }
-                >
-                  {isQueueBusy ? (
-                    <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5 mr-1" />
-                  )}
-                  {isUploading
-                    ? "Uploading…"
-                    : isConverting
-                      ? "Converting…"
-                      : "Convert All"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 sm:flex-none"
-                  onClick={downloadAll}
-                  disabled={!canBulkExport}
-                  title={
-                    canBulkExport
-                      ? "Download all converted files"
-                      : "Available when every file has finished converting"
-                  }
-                >
-                  <Download className="w-3.5 h-3.5 mr-1" />
-                  Download All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 sm:flex-none"
-                  onClick={async () => {
-                    if (!canBulkExport) return;
-                    const doneFiles = files.filter(
-                      (f) => f.status === "done" && f.result,
-                    );
-                    if (doneFiles.length === 0) return;
-                    showToast(`Creating ZIP with ${doneFiles.length} files...`);
-                    try {
-                      const { default: JSZip } = await import("jszip");
-                      const zip = new JSZip();
-                      const usedNames = new Set<string>();
-                      for (const f of doneFiles) {
-                        const baseName = f.name.replace(/\.[^/.]+$/, "");
-                        const arrayBuffer = await f.result!.arrayBuffer();
-                        const entryBase =
-                          f.outputPackage === "zip"
-                            ? `${baseName}-pages`
-                            : baseName;
-                        const entryExt =
-                          f.outputPackage === "zip"
-                            ? "zip"
-                            : f.targetFormat || "bin";
-                        const preferred = brandedDownloadFilename(
-                          entryBase,
-                          entryExt,
-                        );
-                        zip.file(
-                          uniqueZipEntryName(usedNames, preferred),
-                          arrayBuffer,
-                        );
-                      }
-                      const blob = await zip.generateAsync({ type: "blob" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = bulkZipDownloadFilename(
-                        doneFiles.map((f) => f.name),
-                      );
-                      a.click();
-                      URL.revokeObjectURL(url);
-                      showToast(
-                        `ZIP downloaded with ${doneFiles.length} files!`,
-                      );
-                    } catch {
-                      showToast("Failed to create ZIP", "error");
-                    }
-                  }}
-                  disabled={!canBulkExport}
-                  title={
-                    canBulkExport
-                      ? "Download all as ZIP"
-                      : "Available when every file has finished converting"
-                  }
-                >
-                  <DownloadCloud className="w-3.5 h-3.5 mr-1" />
-                  ZIP
-                </Button>
-                {mergeableCount >= 2 && (
-                  <Button
+                />
+              </div>
+              <div className="flex gap-1.5">
+                {[
+                  { label: "50%", w: 0.5 },
+                  { label: "75%", w: 0.75 },
+                  { label: "150%", w: 1.5 },
+                ].map((preset) => (
+                  <Badge
+                    key={preset.label}
                     variant="outline"
-                    size="sm"
-                    className="border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                    disabled={isQueueBusy}
-                    onClick={async () => {
-                      if (isQueueBusy) return;
-                      const filesToMerge = files.filter(
-                        (f) => getMergeSourceBlob(f) !== null,
-                      );
-                      if (filesToMerge.length < 2) {
-                        showToast("Need at least 2 PDF files to merge", "error");
-                        return;
-                      }
-                      showToast(`Merging ${filesToMerge.length} files into PDF...`);
-                      try {
-                        const formData = new FormData();
-                        for (const f of filesToMerge) {
-                          const source = getMergeSourceBlob(f)!;
-                          const fileName = mergeOutputFileName(f);
-                          const file = new File([source], fileName, {
-                            type: source.type || "application/pdf",
-                          });
-                          formData.append("files", file);
-                        }
-                        const response = await fetch("/api/merge-pdf", {
-                          method: "POST",
-                          body: formData,
-                        });
-                        if (!response.ok) {
-                          const err = await response.json().catch(() => ({ error: "Merge failed" }));
-                          throw new Error(err.error || "Merge failed");
-                        }
-                        const blob = await response.blob();
-                        if (blob.size === 0) {
-                          throw new Error("Received empty merged PDF");
-                        }
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `${DOWNLOAD_BRAND_PREFIX}-${filesToMerge[0].name.replace(/\.[^/.]+$/, "").replace(/[^\w.-]+/g, "_")}-merged.pdf`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                        showToast(`Merged ${filesToMerge.length} files into PDF!`);
-                      } catch (err) {
-                        const msg = err instanceof Error ? err.message : "Merge failed";
-                        showToast(msg, "error");
-                      }
+                    className="text-[10px] cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                    onClick={() => {
+                      resizeAll(Math.round(1920 * preset.w), null);
                     }}
                   >
-                    <FileStack className="w-3.5 h-3.5 mr-1" />
-                    Merge
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 sm:flex-none"
-                  onClick={() => dropQueueItems(isActiveItem)}
-                  disabled={doneCount + errorCount === 0 || isQueueBusy}
-                >
-                  <Check className="w-3.5 h-3.5 mr-1" />
-                  <span className="hidden sm:inline">Clear Done</span>
-                  <span className="sm:hidden">Clear</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="sm:flex-none"
-                  onClick={resetQueue}
-                  disabled={files.length === 0}
-                  aria-label="Clear all files"
-                  title="Clear queue and cancel active uploads/conversions"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                    {preset.label}
+                  </Badge>
+                ))}
               </div>
             </div>
-          </CardHeader>
-
-          {/* ── Prominent Batch Completion Banner with Quick ZIP Download ── */}
-          {canBulkExport && doneCount > 0 && (
-            <div className="mx-3 sm:mx-6 mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-xs">
-                  <Check className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">
-                    All {doneCount} file{doneCount === 1 ? "" : "s"} converted successfully!
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    Ready to save to your device.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button
-                  size="default"
-                  className="flex-1 sm:flex-none h-9 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm font-semibold text-xs px-4"
-                  onClick={async () => {
-                    const doneFiles = files.filter(
-                      (f) => f.status === "done" && f.result,
-                    );
-                    if (doneFiles.length === 0) return;
-                    showToast(`Creating ZIP with ${doneFiles.length} files...`);
-                    try {
-                      const { default: JSZip } = await import("jszip");
-                      const zip = new JSZip();
-                      const usedNames = new Set<string>();
-                      for (const f of doneFiles) {
-                        const baseName = f.name.replace(/\.[^/.]+$/, "");
-                        const arrayBuffer = await f.result!.arrayBuffer();
-                        const entryBase =
-                          f.outputPackage === "zip"
-                            ? `${baseName}-pages`
-                            : baseName;
-                        const entryExt =
-                          f.outputPackage === "zip"
-                            ? "zip"
-                            : f.targetFormat || "bin";
-                        const preferred = brandedDownloadFilename(
-                          entryBase,
-                          entryExt,
-                        );
-                        zip.file(
-                          uniqueZipEntryName(usedNames, preferred),
-                          arrayBuffer,
-                        );
-                      }
-                      const blob = await zip.generateAsync({ type: "blob" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = bulkZipDownloadFilename(
-                        doneFiles.map((f) => f.name),
-                      );
-                      a.click();
-                      URL.revokeObjectURL(url);
-                      showToast(
-                        `ZIP downloaded with ${doneFiles.length} files!`,
-                      );
-                    } catch {
-                      showToast("Failed to create ZIP", "error");
-                    }
-                  }}
-                >
-                  <DownloadCloud className="w-4 h-4 mr-1.5" />
-                  Download All (ZIP)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="default"
-                  className="h-9 rounded-lg text-xs px-3"
-                  onClick={downloadAll}
-                  title="Download individually"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1" />
-                  <span className="hidden sm:inline">Files</span>
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <CardContent className="pt-0 px-3 sm:px-6">
-            <div className="max-h-[min(55vh,28rem)] sm:max-h-[50vh] overflow-y-auto pr-1 sm:pr-2 overflow-x-hidden">
-              <div className="space-y-2">
-                {files.map((item) => {
-                  const itemIndex = files.findIndex((f) => f.id === item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={() => setDragIndex(itemIndex)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (dragIndex === null) return;
-                        const dropIndex = itemIndex;
-                        if (dragIndex === dropIndex) return;
-                        const newFiles = [...files];
-                        const [moved] = newFiles.splice(dragIndex, 1);
-                        newFiles.splice(dropIndex, 0, moved);
-                        setFiles(newFiles);
-                        setDragIndex(null);
-                      }}
-                      className={`p-3 rounded-xl border flex flex-col cursor-grab active:cursor-grabbing transition-all shadow-xs ${
-                        item.status === "done"
-                          ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-950/40"
-                          : item.status === "error"
-                            ? "border-red-300 dark:border-red-700 bg-red-50/70 dark:bg-red-950/40"
-                            : item.status === "converting"
-                              ? "border-sky-300 dark:border-sky-700 bg-sky-50/70 dark:bg-sky-950/40"
-                              : "border-border bg-card/60 hover:bg-card/90"
-                      } ${dragIndex === itemIndex ? "opacity-50 ring-2 ring-emerald-500 ring-offset-1" : ""}`}
-                    >
-                      <Collapsible>
-                        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          {/* Grip Handle */}
-                          <div className="hidden sm:block text-muted-foreground/40 mr-0.5 cursor-grab shrink-0">
-                            <GripVertical className="w-4 h-4" />
-                          </div>
-
-                          {/* File Thumbnail */}
-                          <FileThumbnail item={item} />
-
-                          {/* File Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs sm:text-sm font-semibold truncate leading-snug">
-                              {item.name}
-                            </div>
-                            <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-muted-foreground mt-0.5 flex-wrap">
-                              <span className="uppercase font-mono font-medium">
-                                .{item.ext}
-                              </span>
-                              {item.status === "done" && item.outputSize != null ? (
-                                <>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] px-1.5 py-0 font-mono border-emerald-400/70 text-emerald-700 dark:text-emerald-300"
-                                  >
-                                    {formatBytes(item.size)} → {formatBytes(item.outputSize)}
-                                  </Badge>
-                                  {item.size > 0 && (
-                                    <Badge
-                                      variant="outline"
-                                      className={`text-[10px] px-1.5 py-0 ${
-                                        item.outputSize < item.size
-                                          ? "border-emerald-400 text-emerald-600 dark:text-emerald-400"
-                                          : item.outputSize > item.size
-                                            ? "border-amber-400 text-amber-700 dark:text-amber-400"
-                                            : "border-border text-muted-foreground"
-                                      }`}
-                                    >
-                                      {formatSizeChangeLabel(
-                                        item.size,
-                                        item.outputSize,
-                                      )}
-                                    </Badge>
-                                  )}
-                                  {item.startTime && item.endTime && (
-                                    <span className="flex items-center gap-0.5">
-                                      <Timer className="w-3 h-3" />
-                                      {(
-                                        (item.endTime - item.startTime) /
-                                        1000
-                                      ).toFixed(1)}
-                                      s
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <span>{formatBytes(item.size)}</span>
-                              )}
-                              {item.status === "error" && (
-                                <span className="flex w-full max-w-md flex-wrap items-center gap-x-2 gap-y-1 text-red-600 dark:text-red-400 font-medium break-words">
-                                  <span>{item.error || "Conversion failed"}</span>
-                                  <span className="font-normal text-[10px] text-muted-foreground">
-                                    Choose another format or retry.
-                                  </span>
-                                </span>
-                              )}
-                              {item.status === "pending" && item.uploading && (
-                                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
-                                  <span className="flex items-center gap-1">
-                                    <Upload className="w-3 h-3" />
-                                    Uploading…
-                                    {typeof item.progress === "number"
-                                      ? ` ${item.progress}%`
-                                      : ""}
-                                  </span>
-                                  <span
-                                    className="h-1.5 w-full rounded-full bg-emerald-100 dark:bg-emerald-950 overflow-hidden"
-                                    role="progressbar"
-                                    aria-valuenow={item.progress ?? 0}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                  >
-                                    <span
-                                      className="block h-full rounded-full bg-emerald-500 transition-[width] duration-300"
-                                      style={{
-                                        width: `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
-                                      }}
-                                    />
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground font-normal">
-                                    File uploads now — convert when ready
-                                  </span>
-                                </span>
-                              )}
-                              {item.status === "pending" &&
-                                item.uploadReady &&
-                                !item.uploading && (
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                                    <Check className="w-3 h-3" />
-                                    Ready to convert
-                                  </span>
-                                )}
-                              {item.status === "pending" && item.uploadError && (
-                                <span className="text-amber-600 dark:text-amber-400 font-medium break-words">
-                                  Upload failed — convert will re-upload
-                                </span>
-                              )}
-                              {item.status === "converting" && (
-                                <span className="text-sky-600 dark:text-sky-400 font-medium flex flex-col gap-1.5 w-full max-w-xs">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3 animate-spin" />
-                                    {item.progressPhase === "queued"
-                                      ? item.queueMessage
-                                        ? item.queueMessage.slice(0, 80)
-                                        : "In line… waiting for a free slot"
-                                      : item.progressPhase === "converting"
-                                        ? isVideoItem(item.ext, item.targetFormat)
-                                          ? "Encoding video… (may take a few minutes)"
-                                          : "Converting…"
-                                        : item.progressPhase === "reading"
-                                          ? "Reading file…"
-                                          : "Uploading…"}
-                                    {typeof item.progress === "number" &&
-                                    item.progressPhase !== "queued" &&
-                                    item.progressPhase !== "converting"
-                                      ? ` ${item.progress}%`
-                                      : item.progressPhase === "converting"
-                                        ? ""
-                                        : ""}
-                                  </span>
-                                  <span
-                                    className="h-1.5 w-full rounded-full bg-sky-100 dark:bg-sky-950 overflow-hidden"
-                                    role="progressbar"
-                                    aria-valuenow={
-                                      item.progressPhase === "converting"
-                                        ? 70
-                                        : (item.progress ?? 0)
-                                    }
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                  >
-                                    <span
-                                      className={`block h-full rounded-full transition-[width] duration-300 ${
-                                        item.progressPhase === "queued"
-                                          ? "bg-amber-500"
-                                          : "bg-sky-500"
-                                      } ${
-                                        item.progressPhase === "converting"
-                                          ? "animate-pulse"
-                                          : ""
-                                      }`}
-                                      style={{
-                                        width:
-                                          item.progressPhase === "converting"
-                                            ? "70%"
-                                            : `${Math.min(100, Math.max(0, item.progress ?? 5))}%`,
-                                      }}
-                                    />
-                                  </span>
-                                  {item.progressPhase === "uploading" ? (
-                                    <span className="text-[10px] text-muted-foreground font-normal">
-                                      Conversion starts after upload completes
-                                    </span>
-                                  ) : item.progressPhase === "queued" ? (
-                                    <span className="text-[10px] text-muted-foreground font-normal">
-                                      Busy server — auto-retry. Keep this tab open.
-                                    </span>
-                                  ) : item.progressPhase === "converting" &&
-                                    isVideoItem(item.ext, item.targetFormat) ? (
-                                    <span className="text-[10px] text-muted-foreground font-normal">
-                                      Keep this tab open — long video encode runs
-                                      in the background
-                                    </span>
-                                  ) : item.progressPhase === "converting" ? (
-                                    <span className="text-[10px] text-muted-foreground font-normal">
-                                      Processing on the server — keep this tab open
-                                    </span>
-                                  ) : null}
-                                </span>
-                              )}
-                            </div>
-                            {item.status === "done" &&
-                              item.outputSize &&
-                              item.size > 0 && (
-                                <div className="mt-2 max-w-xs">
-                                  <div className="size-comparison-bar">
-                                    <div
-                                      className="size-comparison-bar-input"
-                                      style={{ width: "50%" }}
-                                    />
-                                    <div
-                                      className="size-comparison-bar-output"
-                                      style={{
-                                        width: `${Math.max(2, (item.outputSize / item.size) * 50)}%`,
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="flex justify-between mt-1">
-                                    <span className="text-[9px] text-muted-foreground">
-                                      Before {formatBytes(item.size)}
-                                    </span>
-                                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
-                                      After {formatBytes(item.outputSize)}
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                          </div>
-                          </div>
-
-                          {/* Action strip: full width row on mobile, inline on desktop */}
-                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t border-border/40 sm:border-t-0">
-                          {/* Format Selector */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-[11px] font-mono text-muted-foreground uppercase hidden sm:inline">
-                              {item.ext}
-                            </span>
-                            <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
-                            <Select
-                              value={item.targetFormat}
-                              onValueChange={(val) => {
-                                if (
-                                  item.status === "done" ||
-                                  item.status === "error"
-                                ) {
-                                  const small =
-                                    item.file.size > 0 &&
-                                    item.file.size <= INLINE_UPLOAD_MAX_BYTES;
-                                  const reset: Partial<FileItem> = {
-                                    targetFormat: val,
-                                    status: "pending",
-                                    result: undefined,
-                                    outputSize: undefined,
-                                    outputPackage: undefined,
-                                    pageCount: undefined,
-                                    endTime: undefined,
-                                    uploadId: undefined,
-                                    uploadReady: small,
-                                    uploading: !small,
-                                    uploadError: undefined,
-                                  };
-                                  updateFile(item.id, reset);
-                                  // Re-stage large files only after failed/reconvert
-                                  if (!small) {
-                                    setTimeout(() => {
-                                      const live = filesRef.current.find(
-                                        (f) => f.id === item.id,
-                                      );
-                                      if (live) enqueueAutoUpload([live]);
-                                    }, 0);
-                                  }
-                                } else {
-                                  updateFile(item.id, { targetFormat: val });
-                                }
-                              }}
-                              disabled={item.status === "converting" || isConverting}
-                            >
-                              <SelectTrigger aria-label={`Output format for ${item.name}`} className="w-20 sm:w-24 h-8 text-xs font-semibold">
-                                <SelectValue placeholder="Format">{item.targetFormat.toUpperCase()}</SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {groupedTargetFormats(
-                                  (targetsForExt(item.ext, targetFormatsMap) || []).filter(
-                                    (f) => item.ext === "pdf" || f !== item.ext,
-                                  ),
-                                ).map(
-                                  ([cat, fmts]) => (
-                                    <SelectGroup key={cat}>
-                                      <SelectLabel className="text-[10px] uppercase tracking-wider font-bold">{cat}</SelectLabel>
-                                      {fmts.map((fmt) => (
-                                        <SelectItem
-                                          key={fmt}
-                                          value={fmt}
-                                          className="text-xs uppercase"
-                                        >
-                                          {fmt}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  ),
-                                )}
-                              </SelectContent>
-                            </Select>
-                            {item.ext === "pdf" &&
-                              pdfRasterTargets.has(item.targetFormat) &&
-                              item.status === "pending" && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[9px] whitespace-nowrap border-rose-300 text-rose-700 dark:text-rose-300"
-                                >
-                                  ZIP
-                                </Badge>
-                              )}
-                            {item.status === "done" && item.outputPackage === "zip" && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[9px] whitespace-nowrap"
-                              >
-                                {item.pageCount ?? "?"}p ZIP
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Actions — Convert only after THIS file finished staging; format always until convert runs */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            {item.status === "pending" &&
-                              !isConverting &&
-                              !item.uploading &&
-                              (item.uploadReady || Boolean(item.uploadError)) && (
-                              <>
-                                {getCategoryFromExt(item.ext) === "image" && (
-                                  <CollapsibleTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 hover:bg-slate-100"
-                                      title="Image Settings"
-                                      aria-label="Image Settings"
-                                    >
-                                      <Settings className="w-4 h-4 text-slate-500" />
-                                    </Button>
-                                  </CollapsibleTrigger>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => duplicateFile(item)}
-                                  title="Add another format"
-                                  aria-label="Add another format"
-                                >
-                                  <Plus className="w-4 h-4 text-sky-600" />
-                                </Button>
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  className="h-9 bg-emerald-700 text-xs text-white hover:bg-emerald-800"
-                                  onClick={() => convertFile(item)}
-                                  title={
-                                    item.uploadError
-                                      ? "Retry convert (will re-upload)"
-                                      : "Convert"
-                                  }
-                                  aria-label="Convert file"
-                                >
-                                  <RefreshCw className="w-3.5 h-3.5 mr-1" />{" "}
-                                  Convert
-                                </Button>
-                              </>
-                            )}
-                            {(item.status === "converting" ||
-                              (item.status === "pending" &&
-                                (isConverting ||
-                                  item.uploading ||
-                                  (!item.uploadReady && !item.uploadError)))) && (
-                              <div
-                                className="w-8 h-8 flex items-center justify-center"
-                                title={
-                                  item.status === "converting"
-                                    ? "Converting…"
-                                    : item.uploading ||
-                                        (!item.uploadReady && !item.uploadError)
-                                      ? "Uploading… only format is available until upload finishes"
-                                      : "Waiting in queue — remove with X to skip"
-                                }
-                              >
-                                {item.status === "pending" &&
-                                (item.uploading ||
-                                  (!item.uploadReady && !item.uploadError)) ? (
-                                  <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
-                                ) : (
-                                  <Clock className="w-4 h-4 text-sky-600" />
-                                )}
-                              </div>
-                            )}
-                            {item.status === "done" && !isQueueBusy && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => downloadFile(item)}
-                                  title="Download"
-                                  aria-label={`Download ${item.name}`}
-                                >
-                                  <Download className="w-4 h-4 text-emerald-600" />
-                                </Button>
-                                {item.outputPackage !== "zip" &&
-                                  canPreviewResult(item) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                  onClick={() => {
-                                    if (item.result) {
-                                      const baseName = item.name.replace(
-                                        /\.[^/.]+$/,
-                                        "",
-                                      );
-                                      openPreview(
-                                        item.result,
-                                        `${baseName}.${item.targetFormat}`,
-                                      );
-                                    }
-                                  }}
-                                  title="Preview"
-                                  aria-label={`Preview ${item.name}`}
-                                  >
-                                    <Eye className="w-4 h-4 text-sky-500" />
-                                  </Button>
-                                )}
-                                {currentUser ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => saveBookmark(item)}
-                                    title="Save as bookmark"
-                                  >
-                                    <BookmarkPlus className="w-4 h-4 text-amber-500" />
-                                  </Button>
-                                ) : (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => openAuth("login")}
-                                        aria-label="Sign in to bookmark"
-                                      >
-                                        <BookmarkPlus className="w-4 h-4 text-amber-500/70" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent
-                                      side="top"
-                                      className="max-w-[220px] text-center"
-                                    >
-                                      Sign in or sign up to save bookmarks
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </>
-                            )}
-                            {item.status === "error" && !isQueueBusy && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-2 text-xs text-amber-700 hover:text-amber-800 dark:text-amber-300"
-                                onClick={() => convertFile(item)}
-                                title="Retry conversion"
-                                aria-label={`Retry conversion for ${item.name}`}
-                              >
-                                <RotateCcw className="mr-1 h-3.5 w-3.5 text-amber-500" />
-                                Retry
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => removeFile(item.id)}
-                              title="Remove from queue"
-                              aria-label="Remove from queue"
-                            >
-                              <X className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          </div>
-                          </div>
-                        </div>
-
-                        {/* Collapsible Content - Independent from flex row */}
-                        {item.status === "pending" &&
-                          getCategoryFromExt(item.ext) === "image" && (
-                            <CollapsibleContent className="mt-3 pt-3 border-t border-border/50">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-2">
-                                {/* Quality */}
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                                      Quality
-                                    </span>
-                                    <span className="text-[10px] font-mono text-emerald-600 font-semibold">
-                                      {item.quality}%
-                                    </span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min="10"
-                                    max="100"
-                                    value={item.quality}
-                                    onChange={(e) =>
-                                      updateFile(item.id, {
-                                        quality: parseInt(e.target.value),
-                                      })
-                                    }
-                                    className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                                  />
-                                </div>
-
-                                {/* Resize */}
-                                <div className="space-y-1.5">
-                                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">
-                                    Resize (px)
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <div className="relative flex-1">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                                        W
-                                      </span>
-                                      <Input
-                                        type="number"
-                                        placeholder="Auto"
-                                        className="h-7 text-xs pl-6 pr-2 bg-muted/50 border-transparent focus:bg-background focus-visible:ring-1 focus-visible:ring-sky-500 transition-colors"
-                                        value={item.resizeWidth || ""}
-                                        onChange={(e) =>
-                                          updateFile(item.id, {
-                                            resizeWidth: e.target.value
-                                              ? parseInt(e.target.value)
-                                              : null,
-                                          })
-                                        }
-                                      />
-                                    </div>
-                                    <span className="text-muted-foreground text-[10px]">
-                                      ×
-                                    </span>
-                                    <div className="relative flex-1">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                                        H
-                                      </span>
-                                      <Input
-                                        type="number"
-                                        placeholder="Auto"
-                                        className="h-7 text-xs pl-6 pr-2 bg-muted/50 border-transparent focus:bg-background focus-visible:ring-1 focus-visible:ring-sky-500 transition-colors"
-                                        value={item.resizeHeight || ""}
-                                        onChange={(e) =>
-                                          updateFile(item.id, {
-                                            resizeHeight: e.target.value
-                                              ? parseInt(e.target.value)
-                                              : null,
-                                          })
-                                        }
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </CollapsibleContent>
-                          )}
-                      </Collapsible>
-                      {/* Progress Bar */}
-                      {item.status !== "pending" && (
-                        <div className="mt-2 h-1 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              item.status === "converting"
-                                ? "bg-sky-500 w-full animate-pulse"
-                                : item.status === "done"
-                                  ? "bg-emerald-500 w-full"
-                                  : "bg-red-500 w-full"
-                            }`}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── Image Resize Options (below queue) ─── */}
-      {hasPendingImage && (
-        <Card className="card-accent-sky">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white">
-                <Maximize className="w-4 h-4" />
-              </div>
-              <h3 className="font-semibold text-sm">Image Resize Options</h3>
-              <Switch
-                checked={showResize}
-                onCheckedChange={setShowResize}
-                className="ml-auto"
-              />
-            </div>
-            {showResize && (
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">W</Label>
-                  <Input
-                    type="number"
-                    placeholder="Auto"
-                    className="w-24 h-8 text-xs"
-                    onChange={(e) =>
-                      resizeAll(
-                        e.target.value ? parseInt(e.target.value) : null,
-                        null,
-                      )
-                    }
-                  />
-                </div>
-                <span className="text-muted-foreground text-xs self-center">
-                  ×
-                </span>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">H</Label>
-                  <Input
-                    type="number"
-                    placeholder="Auto"
-                    className="w-24 h-8 text-xs"
-                    onChange={(e) =>
-                      resizeAll(
-                        null,
-                        e.target.value ? parseInt(e.target.value) : null,
-                      )
-                    }
-                  />
-                </div>
-                <div className="flex gap-1.5">
-                  {[
-                    { label: "50%", w: 0.5 },
-                    { label: "75%", w: 0.75 },
-                    { label: "150%", w: 1.5 },
-                  ].map((preset) => (
-                    <Badge
-                      key={preset.label}
-                      variant="outline"
-                      className="text-[10px] cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/30"
-                      onClick={() => {
-                        resizeAll(Math.round(1920 * preset.w), null);
-                      }}
-                    >
-                      {preset.label}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {currentUser && completedConversions.length > 0 && (

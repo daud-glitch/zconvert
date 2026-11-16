@@ -608,7 +608,7 @@ export default function HomeClient({
       </header>
 
       {/* ── Main Content ───────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col relative min-w-0 w-full overflow-x-hidden">
+      <main className="group/converter flex-1 flex flex-col relative min-w-0 w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto w-full min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-10 flex-1 flex flex-col">
           {/* Converter first — ads / feature cards sit below so the tool is the hero */}
           {currentView === "converter" && (

@@ -16,6 +16,7 @@ const popularPairs = [
 export function HomeConverterIntro() {
   return (
     <PageIntro
+      compactWhenQueued
       title="Convert your files"
       description="Convert images, PDFs, video, audio, and more."
       icons={

@@ -45,7 +45,7 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader section="/conversions" />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8 sm:py-10">
+      <main className="group/converter mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8 sm:py-10">
         <div className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
           <Link href="/" className="transition-colors hover:text-foreground">
             Home
@@ -68,6 +68,7 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
         </div>
 
         <PageIntro
+          compactWhenQueued
           title={`Convert ${fromUpper} to ${toUpper}`}
           description={`${from.name} to ${to.name}. No watermarks or sign-up required.`}
           icons={
