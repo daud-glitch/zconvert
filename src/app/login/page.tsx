@@ -46,14 +46,11 @@ function LoginForm() {
   const turnstileOn = isTurnstileEnabled();
   const actionsLocked = isCaptchaBlocking(turnstileOn, turnstileToken);
 
-  // Sync dark mode with main app preference
+  // Sync dark mode with main app preference (light is the default)
   useEffect(() => {
     try {
       const t = localStorage.getItem("theme");
-      if (
-        t === "dark" ||
-        (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)
-      ) {
+      if (t === "dark") {
         document.documentElement.classList.add("dark");
       } else {
         document.documentElement.classList.remove("dark");
@@ -134,15 +131,12 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Top accent bar */}
-      <div className="h-1 w-full bg-emerald-500" />
-
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Back link */}
       <div className="p-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Converter
@@ -163,7 +157,7 @@ function LoginForm() {
             </p>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
+          <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
             {!requires2FA ? (
               <>
                 <GoogleAuthButton
@@ -243,7 +237,7 @@ function LoginForm() {
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+                  <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                     <span className="shrink-0 mt-0.5">⚠</span>
                     <span>{error}</span>
                   </div>
@@ -262,7 +256,7 @@ function LoginForm() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
+                  className="w-full bg-emerald-700 font-medium text-white hover:bg-emerald-800"
                   disabled={loading || actionsLocked}
                 >
                   {loading ? (
@@ -293,8 +287,8 @@ function LoginForm() {
               /* ── 2FA Code ── */
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex flex-col items-center gap-3 py-2">
-                  <div className="w-12 h-12 bg-sky-100 dark:bg-sky-950 rounded-xl flex items-center justify-center">
-                    <ShieldCheck className="w-6 h-6 text-sky-500" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <ShieldCheck className="w-6 h-6" />
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-sm">
@@ -333,7 +327,7 @@ function LoginForm() {
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+                  <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                     <span className="shrink-0 mt-0.5">⚠</span>
                     <span>{error}</span>
                   </div>
@@ -352,7 +346,7 @@ function LoginForm() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
+                  className="w-full bg-emerald-700 font-medium text-white hover:bg-emerald-800"
                   disabled={loading || actionsLocked || totpToken.length !== 6}
                 >
                   {loading ? (

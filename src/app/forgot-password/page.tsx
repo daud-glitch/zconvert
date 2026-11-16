@@ -70,31 +70,30 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <div className="h-1 w-full bg-emerald-500" />
+    <div className="flex min-h-screen flex-col bg-background">
       <div className="p-4">
         <Link
           href="/login"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to login
         </Link>
       </div>
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-              <Mail className="w-7 h-7 text-white" />
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-sm dark:text-emerald-400">
+              <Mail className="w-7 h-7" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">
               Forgot password
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 text-center">
+            <p className="mt-1 text-center text-sm text-muted-foreground">
               We will email a reset link if that account exists
             </p>
           </div>
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="email">Email</Label>
@@ -108,9 +107,11 @@ export default function ForgotPasswordPage() {
                   autoComplete="email"
                 />
               </div>
-              {error ? <p className="text-sm text-red-600">{error}</p> : null}
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
               {message ? (
-                <p className="text-sm text-emerald-600">{message}</p>
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  {message}
+                </p>
               ) : null}
               <TurnstileField
                 ref={turnstileRef}
@@ -120,7 +121,7 @@ export default function ForgotPasswordPage() {
               <CaptchaContinueHint locked={actionsLocked} />
               <Button
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-600"
+                className="w-full bg-emerald-700 hover:bg-emerald-800"
                 disabled={loading || actionsLocked}
               >
                 {loading ? (

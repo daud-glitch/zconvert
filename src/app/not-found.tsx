@@ -27,12 +27,12 @@ export default function NotFound() {
   return (
     <>
     <SiteHeader />
-    <main className="container mx-auto px-4 py-16 sm:py-24">
-      <div className="max-w-2xl mx-auto text-center">
+    <main className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="font-mono text-sm font-bold text-muted-foreground">
           404
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl dark:text-white">
           We couldn&apos;t find that page
         </h1>
         <p className="mt-4 text-muted-foreground">

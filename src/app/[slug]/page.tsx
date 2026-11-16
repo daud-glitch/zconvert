@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { getOptionalDb } from "@/lib/db";
 import { sanitizeHtml } from "@/lib/sanitize-html";
-import { ArrowLeft } from "lucide-react";
+import { FileText } from "lucide-react";
 import {
   parseConversionSlug,
   getAllConversionPairSlugs,
@@ -17,6 +16,9 @@ import {
   SITE_NAME,
   stripBrandSuffix,
 } from "@/lib/seo";
+import { PageHero } from "@/components/common/PageHero";
+import { SiteFooter } from "@/components/common/SiteFooter";
+import { SiteHeader } from "@/components/common/SiteHeader";
 import ConversionPairClient from "@/components/pages/ConversionPairClient";
 import ConversionPairJsonLd from "@/components/seo/ConversionPairJsonLd";
 
@@ -176,21 +178,20 @@ export default async function CmsPage({ params }: Props) {
   const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(page.content);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="h-1 w-full bg-emerald-500" />
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Converter
-        </Link>
+    <>
+      <SiteHeader />
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <PageHero
+          breadcrumb={[
+            { href: "/", label: "Home" },
+            { href: `/${slug}`, label: page.title },
+          ]}
+          eyebrow="Convertek"
+          eyebrowIcon={<FileText className="h-4 w-4" aria-hidden />}
+          title={page.title}
+        />
         <article>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {page.title}
-          </h1>
-          <div className="mt-8 prose prose-neutral dark:prose-invert max-w-none">
+          <div className="prose prose-neutral dark:prose-invert max-w-none">
             {looksLikeHtml ? (
               <div
                 dangerouslySetInnerHTML={{
@@ -204,8 +205,9 @@ export default async function CmsPage({ params }: Props) {
             )}
           </div>
         </article>
-      </div>
-    </div>
+      </main>
+      <SiteFooter />
+    </>
   );
 }
 

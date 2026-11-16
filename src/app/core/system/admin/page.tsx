@@ -70,22 +70,22 @@ export default function AdminSecretPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border/50 shadow-2xl">
+      <Card className="w-full max-w-md border-border shadow-sm">
         <CardHeader className="space-y-3 pb-6">
-          <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center mx-auto text-red-500 mb-2">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
             <ShieldAlert className="w-6 h-6" />
           </div>
-          <CardTitle className="text-2xl text-center font-bold tracking-tight">
+          <CardTitle className="text-center text-2xl font-bold tracking-tight">
             Restricted Access
           </CardTitle>
-          <p className="text-sm text-muted-foreground text-center">
+          <p className="text-center text-sm text-muted-foreground">
             Please enter your administrator credentials to continue.
           </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
-              <div className="p-3 text-sm font-medium text-red-500 bg-red-50 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-800/50 text-center">
+              <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-center text-sm font-medium text-destructive">
                 {error}
               </div>
             )}
@@ -114,7 +114,7 @@ export default function AdminSecretPage() {
             />
             <Button
               type="submit"
-              className="w-full h-11 text-base font-semibold"
+              className="h-11 w-full bg-emerald-700 text-base font-semibold text-white hover:bg-emerald-800"
               disabled={loading}
             >
               {loading ? "Authenticating..." : "Authorize"}
