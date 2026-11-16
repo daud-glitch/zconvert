@@ -21,7 +21,7 @@ import {
   Loader2,
   ScrollText,
 } from "lucide-react";
-import { HomeConverterHero, HomePopularConversions } from "@/components/converter/HomeConverterDesign";
+import { HomeConverterFeatures, HomeConverterHero, HomePopularConversions } from "@/components/converter/HomeConverterDesign";
 import { BrandMark } from "@/components/common/BrandMark";
 import { BrandTaglines, BrandTitle } from "@/components/common/BrandTitle";
 import { CookieSettingsButton } from "@/components/consent/CookieConsent";
@@ -593,6 +593,15 @@ export default function HomeClient({
                   {changelogNavItem.label}
                 </Link>
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="hidden h-12 w-full justify-start gap-3 rounded-xl text-muted-foreground sm:flex"
+                onClick={() => { setMobileNavOpen(false); setShowShortcuts(true); }}
+              >
+                <Keyboard aria-hidden="true" className="size-5" />
+                Keyboard shortcuts
+              </Button>
             </div>
           </nav>
         )}
@@ -610,6 +619,7 @@ export default function HomeClient({
                 </Suspense>
               </HomeConverterHero>
               <HomePopularConversions />
+              <HomeConverterFeatures />
             </>
           )}
           {currentView === "formats" && (
@@ -644,20 +654,6 @@ export default function HomeClient({
           )}
         </div>
 
-        {/* Shortcuts Hint (Floating) */}
-        {!mobileNavOpen && (
-          <div className="fixed bottom-6 right-6 z-40 hidden sm:block">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full bg-background/80 backdrop-blur shadow-lg border-emerald-500/20 hover:border-emerald-500/40 text-[10px] font-bold uppercase tracking-widest gap-2"
-              onClick={() => setShowShortcuts(true)}
-            >
-              <Keyboard className="w-3 h-3" />
-              Shortcuts (?)
-            </Button>
-          </div>
-        )}
       </main>
 
       {currentView === "converter" ? (

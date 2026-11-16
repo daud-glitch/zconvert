@@ -1,29 +1,19 @@
 "use client";
 
-import {
-  Suspense,
-  useState,
-  useEffect,
-  useRef,
-  type SVGProps,
-} from "react";
+import { Suspense, type SVGProps } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { BrandMark } from "@/components/common/BrandMark";
-import { BrandTitle } from "@/components/common/BrandTitle";
+import { SiteHeader } from "@/components/common/SiteHeader";
+import { FileIllustration } from "@/components/common/FileIllustration";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { PairGuideSection } from "@/components/pages/PairGuideSection";
 import {
-  Moon,
-  Sun,
   ChevronRight,
-  RefreshCw,
   Upload,
   Download,
   Settings2,
   Loader2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ResolvedPair } from "@/lib/conversion-pairs";
 import { getRelatedPairs } from "@/lib/conversion-pairs";
@@ -33,7 +23,6 @@ const ConverterView = dynamic(
   () =>
     import("@/components/converter/ConverterView").then((m) => m.ConverterView),
   {
-    ssr: false,
     loading: () => (
       <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-card text-muted-foreground">
         <Loader2 className="h-7 w-7 animate-spin text-emerald-500" aria-hidden />
@@ -44,32 +33,6 @@ const ConverterView = dynamic(
 );
 
 export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
-  const converterRef = useRef<HTMLElement | null>(null);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    const prefersDark =
-      typeof window !== "undefined"
-        ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        : false;
-    return saved ? saved === "dark" : prefersDark;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-  }, [darkMode]);
-
-  const toggleDark = () => {
-    setDarkMode((d) => {
-      const next = !d;
-      localStorage.setItem("theme", next ? "dark" : "light");
-      return next;
-    });
-  };
-
-  const scrollToConverter = () => {
-    converterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   const { from, to } = pair;
   const fromUpper = from.ext.toUpperCase();
   const toUpper = to.ext.toUpperCase();
@@ -79,50 +42,7 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <div className="h-1 bg-emerald-500" />
-
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <BrandMark className="h-9 w-9" rounded="rounded-lg" />
-              <BrandTitle className="text-xl font-bold tracking-tight text-foreground" />
-            </Link>
-            <nav className="flex items-center gap-2">
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Converter
-                </Button>
-              </Link>
-              <Link href="/conversions" aria-current="page">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="bg-emerald-500/10 font-semibold text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-400"
-                >
-                  All Formats
-                </Button>
-              </Link>
-              <Link href="/guides">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Guides
-                </Button>
-              </Link>
-              <Button variant="ghost" size="icon" onClick={toggleDark}>
-                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <SiteHeader section="/conversions" />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8 sm:py-10">
         <div className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -146,54 +66,30 @@ export default function ConversionPairClient({ pair }: { pair: ResolvedPair }) {
           </span>
         </div>
 
-        {/* Compact hero — one job: name the pair + start converting */}
-        <div className="mb-8 text-center sm:mb-10">
-          <div className="mb-4 flex items-center justify-center gap-3">
-            <Badge variant="secondary" className="bg-muted px-3 py-1 text-base uppercase">
-              .{from.ext}
-            </Badge>
-            <RefreshCw className="h-5 w-5 text-muted-foreground" />
-            <Badge variant="secondary" className="bg-muted px-3 py-1 text-base uppercase">
-              .{to.ext}
-            </Badge>
+        <section aria-labelledby="pair-title" className="group mb-12 grid min-w-0 items-center gap-6 rounded-3xl bg-emerald-50/70 p-4 sm:p-7 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-8 lg:has-[[data-converter-queue]]:grid-cols-1 dark:bg-emerald-950/30">
+          <div>
+            <div className="mb-4 flex items-center gap-3 group-has-[[data-converter-queue]]:hidden">
+              <FileIllustration type={from.category} extension={from.ext} className="h-16 w-13" />
+              <ArrowRightIcon aria-hidden="true" className="size-5 text-slate-500 dark:text-slate-400" />
+              <FileIllustration type={to.category} extension={to.ext} className="h-16 w-13" />
+            </div>
+            <h1 id="pair-title" className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl dark:text-white">
+              Convert {fromUpper} to {toUpper}
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Convert {from.name} files to {to.name}. No watermarks or sign-up required.
+            </p>
           </div>
-          <h1 className="mb-3 text-3xl font-extrabold tracking-tight text-foreground sm:text-5xl">
-            Convert <span className="text-emerald-500">{fromUpper}</span> to{" "}
-            <span className="text-emerald-500">{toUpper}</span>
-          </h1>
-          <p className="mx-auto mb-6 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Free, fast {from.name} → {to.name}. No watermarks, no sign-up.
-          </p>
-          <Button
-            size="lg"
-            className="h-12 gap-2 rounded-xl bg-emerald-500 px-8 text-base font-semibold text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600"
-            onClick={scrollToConverter}
-          >
-            <Upload className="h-5 w-5" />
-            Convert {fromUpper} to {toUpper} Now
-          </Button>
-        </div>
-
-        {/* Live converter — pair already selected */}
-        <section
-          id="converter"
-          ref={converterRef}
-          className="mb-14 scroll-mt-24"
-          aria-label={`${fromUpper} to ${toUpper} converter`}
-        >
-          <Suspense
-            fallback={
-              <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-card">
-                <Loader2 className="h-7 w-7 animate-spin text-emerald-500" />
+          <div id="converter" className="min-w-0 scroll-mt-24">
+            <Suspense fallback={
+              <div role="status" className="grid min-h-64 place-items-center rounded-2xl border border-border bg-card">
+                <Loader2 aria-hidden="true" className="size-6 animate-spin text-emerald-700" />
+                <span className="sr-only">Loading converter…</span>
               </div>
-            }
-          >
-            <ConverterView
-              embedded
-              initialFrom={from.ext}
-              initialTo={to.ext}
-            />
-          </Suspense>
+            }>
+              <ConverterView embedded initialFrom={from.ext} initialTo={to.ext} />
+            </Suspense>
+          </div>
         </section>
 
         <div className="mb-16">

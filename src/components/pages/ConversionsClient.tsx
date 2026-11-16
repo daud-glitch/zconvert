@@ -2,16 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { BrandMark } from "@/components/common/BrandMark";
 import { SiteFooter } from "@/components/common/SiteFooter";
-import { BrandTitle } from "@/components/common/BrandTitle";
+import { SiteHeader } from "@/components/common/SiteHeader";
+import { FileIllustration } from "@/components/common/FileIllustration";
 import {
   Search,
-  Moon,
-  Sun,
-  RefreshCw,
   ChevronRight,
-  LayoutGrid,
   ArrowRight,
   FileText,
   Image as ImageIcon,
@@ -44,20 +40,6 @@ const catColors: Record<string, string> = {
   subtitle: "bg-cyan-500",
   font: "bg-pink-500",
   other: "bg-gray-500",
-};
-
-const catBorder: Record<string, string> = {
-  image: "border-l-emerald-500",
-  video: "border-l-violet-500",
-  audio: "border-l-amber-500",
-  document: "border-l-sky-500",
-  data: "border-l-rose-500",
-  archive: "border-l-slate-500",
-  ebook: "border-l-teal-500",
-  presentation: "border-l-orange-500",
-  subtitle: "border-l-cyan-500",
-  font: "border-l-pink-500",
-  other: "border-l-gray-500",
 };
 
 const catTargetBg: Record<string, string> = {
@@ -111,16 +93,12 @@ function FormatCard({ fmt, cat }: { fmt: (typeof formats)[number]; cat: string }
 
   return (
     <div
-      className={`bg-card border rounded-xl overflow-hidden border-l-4 ${catBorder[cat]} hover:shadow-lg transition-shadow flex flex-col`}
+      className={"flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-emerald-400"}
     >
       <div className="p-4 flex-1">
         {/* Format header */}
         <div className="flex items-start gap-3 mb-3">
-          <div
-            className={`w-12 h-12 ${catColors[cat]} rounded-xl flex items-center justify-center text-white font-bold font-mono text-xs shrink-0`}
-          >
-            .{fmt.ext.length > 4 ? fmt.ext.slice(0, 4) : fmt.ext}
-          </div>
+          <FileIllustration type={cat} extension={fmt.ext} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold">{fmt.name}</span>
@@ -145,7 +123,7 @@ function FormatCard({ fmt, cat }: { fmt: (typeof formats)[number]; cat: string }
             {chips.map((t) => {
               const tCat = extCatMap[t] || "other";
               return (
-                <Link key={t} href={`/conversions/${t}`}>
+                <Link key={t} href={`/${fmt.ext}-to-${t}`} aria-label={`Convert ${fmt.ext.toUpperCase()} to ${t.toUpperCase()}`}>
                   <span
                     className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-mono uppercase bg-muted hover:text-white transition-colors cursor-pointer ${catTargetBg[tCat]}`}
                   >
@@ -188,26 +166,6 @@ export default function ConversionsClient() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [visibleCount, setVisibleCount] = useState(CARD_BATCH);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    const prefersDark = typeof window !== "undefined"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-      : false;
-    return saved ? saved === "dark" : prefersDark;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-  }, [darkMode]);
-
-  const toggleDark = () => {
-    setDarkMode((d) => {
-      const next = !d;
-      localStorage.setItem("theme", next ? "dark" : "light");
-      return next;
-    });
-  };
-
   const categories = useMemo(
     () => [...new Set(formats.map((f) => f.category))],
     []
@@ -265,61 +223,7 @@ export default function ConversionsClient() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      {/* Accent bar */}
-      <div className="h-1 bg-emerald-500" />
-
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-3">
-              <BrandMark className="h-9 w-9" rounded="rounded-lg" />
-              <BrandTitle className="text-xl font-bold tracking-tight text-foreground" />
-            </Link>
-            <nav className="flex items-center gap-2">
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Converter
-                </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-current="page"
-                className="bg-emerald-500/10 font-semibold text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-400"
-              >
-                <LayoutGrid className="w-4 h-4 mr-1.5" />
-                Conversions
-              </Button>
-              <Link href="/guides">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Guides
-                </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleDark}
-                title="Toggle dark mode"
-              >
-                {darkMode ? (
-                  <Sun className="w-4 h-4" />
-                ) : (
-                  <Moon className="w-4 h-4" />
-                )}
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       {/* Main */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10">
@@ -333,14 +237,15 @@ export default function ConversionsClient() {
         </div>
 
         {/* Heading */}
-        <div className="mb-10">
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3">
+        <div className="mb-10 rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30">
+          <div className="mb-4 flex gap-2"><FileIllustration type="image" /><FileIllustration type="pdf" /><FileIllustration type="video" /></div>
+          <h1 className="mb-3 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-5xl dark:text-white">
             All{" "}
             <span className="text-emerald-600 dark:text-emerald-400">
               Conversions
             </span>
           </h1>
-          <p className="text-lg text-muted-foreground max-w-3xl">
+          <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
             Free online conversion hub. Convert between {formats.length} input formats and explore {totalConversions}+ conversion pairs across {categories.length} categories. No watermarks.
           </p>
         </div>

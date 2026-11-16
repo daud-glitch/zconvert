@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { BrandMark } from "@/components/common/BrandMark";
-import { BrandTitle } from "@/components/common/BrandTitle";
+import { SiteHeader } from "@/components/common/SiteHeader";
+import { FileIllustration } from "@/components/common/FileIllustration";
 import {
-  RefreshCw,
-  Moon,
-  Sun,
   ChevronRight,
   ArrowRight,
   ArrowLeft,
@@ -91,26 +88,6 @@ function getCatIcon(cat: string, size = "w-5 h-5") {
 }
 
 export default function FormatDetailClient({ ext }: { ext: string }) {
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    const prefersDark = typeof window !== "undefined"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-      : false;
-    return saved ? saved === "dark" : prefersDark;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-  }, [darkMode]);
-
-  const toggleDark = () => {
-    setDarkMode((d) => {
-      const next = !d;
-      localStorage.setItem("theme", next ? "dark" : "light");
-      return next;
-    });
-  };
-
   const format = useMemo(() => formats.find((f) => f.ext === ext), [ext]);
 
   // All formats that list this ext in their targetFormats
@@ -122,7 +99,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
   if (!format) {
     return (
       <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <div className="h-1 bg-emerald-500" />
+        <SiteHeader />
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-8">
           <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center text-4xl">
             ❓
@@ -146,57 +123,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      {/* Accent bar */}
-      <div className="h-1 bg-emerald-500" />
-
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-3">
-              <BrandMark className="h-9 w-9" rounded="rounded-lg" />
-              <BrandTitle className="text-xl font-bold tracking-tight text-foreground" />
-            </Link>
-            <nav className="flex items-center gap-2">
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Converter
-                </Button>
-              </Link>
-              <Link href="/conversions" aria-current="page">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="bg-emerald-500/10 font-semibold text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-400"
-                >
-                  <LayoutGrid className="w-4 h-4 mr-1.5" />
-                  Conversions
-                </Button>
-              </Link>
-              <Link href="/guides">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Guides
-                </Button>
-              </Link>
-              <Button variant="ghost" size="icon" onClick={toggleDark}>
-                {darkMode ? (
-                  <Sun className="w-4 h-4" />
-                ) : (
-                  <Moon className="w-4 h-4" />
-                )}
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       {/* Main */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10">
@@ -220,14 +147,10 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
 
         {/* Format Hero Card */}
         <div
-          className={`rounded-2xl p-6 sm:p-8 mb-8 bg-card border border-l-4 ${catBorder[format.category]}`}
+          className="mb-8 rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30"
         >
           <div className="flex flex-col sm:flex-row items-start gap-5">
-            <div
-              className={`w-20 h-20 ${catColors[format.category]} rounded-2xl flex items-center justify-center text-white shrink-0`}
-            >
-              {getCatIcon(format.category, "w-10 h-10")}
-            </div>
+            <FileIllustration type={format.category} extension={format.ext} className="h-18 w-15 sm:h-23 sm:w-19" />
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <span className="font-mono text-3xl sm:text-4xl font-extrabold uppercase tracking-tight">
@@ -239,7 +162,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
                   {meta?.label}
                 </Badge>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold mb-1">
+              <h1 className="mb-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
                 Convert {format.ext.toUpperCase()} Files Online Free
               </h1>
               <p className="text-base font-semibold text-foreground/90 mb-1">
@@ -257,7 +180,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
               rel="nofollow"
               className="shrink-0"
             >
-              <Button className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2">
+              <Button className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2">
                 <ArrowRightLeft className="w-4 h-4" />
                 Start Converting
               </Button>
@@ -430,7 +353,7 @@ export default function FormatDetailClient({ ext }: { ext: string }) {
             <Link href={`/?from=${encodeURIComponent(ext)}`} rel="nofollow">
               <Button
                 size="lg"
-                className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2"
               >
                 <ArrowRightLeft className="w-5 h-5" />
                 Convert .{ext} Now

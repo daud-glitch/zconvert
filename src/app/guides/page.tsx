@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, Clock } from "lucide-react";
+import { FileIllustration } from "@/components/common/FileIllustration";
+import { getFormatByExt } from "@/lib/formats";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { SiteHeader } from "@/components/common/SiteHeader";
 import { guides } from "@/lib/guides";
@@ -43,7 +45,6 @@ export default function GuidesIndexPage() {
 
   return (
     <>
-      <div className="h-1 w-full bg-emerald-500" />
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
         <nav aria-label="Breadcrumb" className="mb-8">
@@ -56,15 +57,15 @@ export default function GuidesIndexPage() {
           </Link>
         </nav>
 
-        <div className="mb-10 max-w-2xl">
+        <div className="mb-10 rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
             <BookOpen className="h-4 w-4" />
             Guides
           </div>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl dark:text-white">
             File conversion guides
           </h1>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
             Decisions you actually have to make when converting files — which
             format to pick, what a conversion throws away, and how to avoid the
             mistakes that quietly ruin an output. Written for Convertek&apos;s
@@ -74,30 +75,34 @@ export default function GuidesIndexPage() {
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
-          {list.map((guide) => (
-            <Link
-              key={guide.slug}
-              href={`/guides/${guide.slug}`}
-              className="group flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-emerald-500/50 hover:bg-muted/30"
-            >
-              <h2 className="text-lg font-semibold leading-snug text-foreground group-hover:text-emerald-600">
-                {guide.title}
-              </h2>
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-muted-foreground">
-                {guide.description}
-              </p>
-              <div className="mt-5 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" />
-                  {guide.readingMinutes} min read
-                </span>
-                <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
-                  Read guide
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </div>
-            </Link>
-          ))}
+          {list.map((guide) => {
+            const extension = guide.related[0]?.from ?? guide.relatedFormats[0];
+            return (
+              <Link
+                key={guide.slug}
+                href={`/guides/${guide.slug}`}
+                className="group flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-emerald-500/50 hover:bg-muted/30"
+              >
+                <FileIllustration className="mb-4" extension={extension} type={getFormatByExt(extension ?? "")?.category} />
+                <h2 className="text-lg font-semibold leading-snug text-foreground group-hover:text-emerald-600">
+                  {guide.title}
+                </h2>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-muted-foreground">
+                  {guide.description}
+                </p>
+                <div className="mt-5 flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
+                    {guide.readingMinutes} min read
+                  </span>
+                  <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
+                    Read guide
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         <section className="mt-14 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
@@ -111,7 +116,7 @@ export default function GuidesIndexPage() {
           <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/"
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800"
             >
               Open the converter
               <ArrowRight className="h-4 w-4" />

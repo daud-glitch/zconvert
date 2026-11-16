@@ -1,15 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AudioLines, ChevronRight, FileText, ImageIcon, Play, Table2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const fileIcons = {
-  image: { Icon: ImageIcon, color: "from-indigo-400 to-indigo-600" },
-  pdf: { Icon: FileText, color: "from-red-400 to-rose-600" },
-  video: { Icon: Play, color: "from-amber-300 to-amber-500" },
-  audio: { Icon: AudioLines, color: "from-cyan-400 to-sky-600" },
-  data: { Icon: Table2, color: "from-emerald-400 to-emerald-600" },
-};
+import { ArrowRightLeft, ChevronRight, HardDrive, Layers, Shield, Zap } from "lucide-react";
+import { FileIllustration } from "@/components/common/FileIllustration";
+import { formatNonVideoMaxUploadLabel, formatVideoMaxUploadLabel, getMaxNonVideoBatchFiles } from "@/lib/upload-limits";
 
 const popularPairs = [
   { from: "heic", to: "jpg", type: "image" },
@@ -19,23 +12,6 @@ const popularPairs = [
   { from: "mp3", to: "wav", type: "audio" },
   { from: "xlsx", to: "csv", type: "data" },
 ] as const;
-
-function FileIllustration({ type, className }: { type: keyof typeof fileIcons; className?: string }) {
-  const { Icon, color } = fileIcons[type];
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "relative grid h-11 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-linear-to-br text-white shadow-sm [clip-path:polygon(0_0,69%_0,100%_27%,100%_100%,0_100%)]",
-        color,
-        className,
-      )}
-    >
-      <span className="absolute right-0 top-0 h-[28%] w-[32%] rounded-bl-sm bg-white/45" />
-      <Icon className="mt-[16%] size-1/2" strokeWidth={2.25} />
-    </span>
-  );
-}
 
 export function HomeConverterHero({ children }: { children: ReactNode }) {
   return (
@@ -83,6 +59,34 @@ export function HomePopularConversions() {
               <span className="min-w-0 flex-1">{from.toUpperCase()} to {to.toUpperCase()}</span>
               <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-300" />
             </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+
+export function HomeConverterFeatures() {
+  const features = [
+    { icon: Layers, title: "Mixed file batches", description: "Add images, documents, and audio to the same queue.", color: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300" },
+    { icon: ArrowRightLeft, title: "Per-file formats", description: "Choose a different output format for each file.", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
+    { icon: Zap, title: "Server-side processing", description: "Convert files in the background and download each result when it is ready.", color: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
+    { icon: Shield, title: "Temporary processing", description: "Files are processed temporarily. Download results from your browser.", color: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300" },
+    { icon: HardDrive, title: "Clear upload limits", description: `Up to ${formatNonVideoMaxUploadLabel()} per file, ${formatVideoMaxUploadLabel()} per video, and ${getMaxNonVideoBatchFiles()} non-video files per batch.`, color: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" },
+  ];
+
+  return (
+    <section aria-labelledby="converter-features-heading" className="mt-10">
+      <h2 id="converter-features-heading" className="mb-4 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl dark:text-white">Why Convertek?</h2>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {features.map(({ icon: Icon, title, description, color }) => (
+          <li key={title} className="rounded-xl border border-border bg-card p-4">
+            <span className={`mb-3 grid size-9 place-items-center rounded-lg ${color}`}>
+              <Icon aria-hidden="true" className="size-4" />
+            </span>
+            <h3 className="text-sm font-semibold">{title}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
           </li>
         ))}
       </ul>

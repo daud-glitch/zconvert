@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock,
 } from "lucide-react";
+import { FileIllustration } from "@/components/common/FileIllustration";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { SiteHeader } from "@/components/common/SiteHeader";
 import { getGuide, getGuideSlugs } from "@/lib/guides";
@@ -56,6 +57,7 @@ export default async function GuidePage({ params }: Props) {
   const { slug } = await params;
   const guide = getGuide(slug);
   if (!guide) notFound();
+  const extension = guide.related[0]?.from ?? guide.relatedFormats[0];
 
   const updated = new Date(guide.updated).toLocaleDateString("en-US", {
     year: "numeric",
@@ -96,7 +98,6 @@ export default async function GuidePage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      <div className="h-1 w-full bg-emerald-500" />
       <SiteHeader />
 
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -118,24 +119,27 @@ export default async function GuidePage({ params }: Props) {
         </nav>
 
         <article>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {guide.title}
-          </h1>
+          <header className="rounded-3xl bg-emerald-50/70 p-5 sm:p-8 dark:bg-emerald-950/30">
+            <FileIllustration className="mb-4 h-16 w-13" extension={extension} type={getFormatByExt(extension ?? "")?.category} />
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl dark:text-white">
+              {guide.title}
+            </h1>
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
-              Updated {updated}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              {guide.readingMinutes} min read
-            </span>
-          </div>
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                Updated {updated}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {guide.readingMinutes} min read
+              </span>
+            </div>
 
-          <p className="mt-6 text-base leading-relaxed text-muted-foreground">
-            {guide.lead}
-          </p>
+            <p className="mt-6 text-base leading-relaxed text-muted-foreground">
+              {guide.lead}
+            </p>
+          </header>
 
           <div className="mt-10 space-y-10">
             {guide.blocks.map((block) => (
