@@ -4,8 +4,8 @@ import { HOME_FAQS } from "@/lib/faq";
 /** FAQ answers are rendered from the same content as the homepage JSON-LD. */
 export function HomeFaqSection() {
   return (
-    <section id="faq" aria-labelledby="faq-heading" className="px-3 pb-12 sm:px-6 sm:pb-16 lg:px-8">
-      <div className="mx-auto grid max-w-5xl gap-5 border-t border-border/70 pt-8 sm:pt-10 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-8">
+    <section id="faq" aria-labelledby="faq-heading" className="mx-auto w-full max-w-7xl px-3 pb-12 sm:px-6 sm:pb-16 lg:px-8">
+      <div className="grid gap-5 border-t border-border/70 pt-8 sm:pt-10 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-8">
         <div>
           <span aria-hidden="true" className="mb-3 grid size-11 place-items-center rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/65 dark:text-emerald-300">
             <CircleHelp className="size-5" />
