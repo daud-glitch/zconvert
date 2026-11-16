@@ -3,6 +3,7 @@ import HomeClient from "@/components/pages/HomeClient";
 import HomeFaqJsonLd from "@/components/seo/HomeFaqJsonLd";
 import type { GuideTeaser } from "@/components/seo/HomeGuidesSection";
 import { guides } from "@/lib/guides";
+import { getFormatByExt } from "@/lib/formats";
 import {
   BRAND_TAGLINE,
   BRAND_TAGLINE_ACTION,
@@ -54,12 +55,15 @@ const HOMEPAGE_GUIDE_SLUGS = [
 const homepageGuides: GuideTeaser[] = HOMEPAGE_GUIDE_SLUGS.flatMap((slug) => {
   const guide = guides.find((g) => g.slug === slug);
   if (!guide) return [];
+  const extension = guide.related[0]?.from ?? guide.relatedFormats[0];
+  const format = extension ? getFormatByExt(extension) : undefined;
   return [
     {
       slug: guide.slug,
       title: guide.title,
       description: guide.description,
       readingMinutes: guide.readingMinutes,
+      format: format ? { extension: format.ext, category: format.category } : undefined,
     },
   ];
 });
