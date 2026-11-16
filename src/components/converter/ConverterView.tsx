@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Download, RefreshCw, Plus, Settings,
   History, Layers, Check,
-  File as FileIcon, FileText, Globe, Shield, Clock, HardDrive,
+  File as FileIcon, FileText, Globe, Shield, Clock,
   DownloadCloud, Eye, BookmarkPlus, ArrowRightLeft,
   RotateCcw, Sparkles,
   GripVertical, Maximize, Upload, Trash2,
@@ -299,14 +299,7 @@ export function ConverterView({
     );
   }, [formatsData]);
 
-  const formatCount = formatsData?.totalFormats ?? 0;
-  const activeCategories = formatsData
-    ? Object.values(formatsData.categoryCounts).filter((n) => n > 0).length
-    : 0;
-  const pairCount = formatsData?.totalConversions ?? 0;
-
   const pickerFormats = useMemo(() => {
-    if (embedded) return { sources: [], outputs: [] };
     const catalog = formatsData
       ? Object.values(formatsData.grouped).flatMap((group) => group.formats)
       : formats;
@@ -318,7 +311,7 @@ export function ConverterView({
       ? (formatsData ? targetFormatsMap[preferredFrom] ?? [] : targetsForExt(preferredFrom, {}))
       : catalog.flatMap((format) => format.targetFormats);
     return { sources, outputs: [...new Set(outputs)].sort() };
-  }, [embedded, formatsData, preferredFrom, targetFormatsMap]);
+  }, [formatsData, preferredFrom, targetFormatsMap]);
 
   function changePreferredFormats(from: string | null, to: string | null) {
     const availableTargets = from ? (
@@ -1521,8 +1514,10 @@ export function ConverterView({
       ? presetTabChoice
       : defaultPresetTab;
 
-  const requiredMediaUnavailable =
-    !AUDIO_CONVERSION_ENABLED || !VIDEO_CONVERSION_ENABLED;
+  const requestedCategories = [preferredFrom, preferredTo].map((format) => format && getCategoryFromExt(format));
+  const mediaUnavailable =
+    (requestedCategories.includes("audio") && !AUDIO_CONVERSION_ENABLED) ||
+    (requestedCategories.includes("video") && !VIDEO_CONVERSION_ENABLED);
 
   const hasFiles = files.length > 0;
 
@@ -1593,36 +1588,18 @@ export function ConverterView({
 
   return (
     <div
-      data-converter-queue={!embedded && hasFiles ? "" : undefined}
+      data-converter-queue={hasFiles ? "" : undefined}
       className={embedded ? "space-y-6 pb-24 sm:space-y-8 sm:pb-0" : "space-y-6 sm:space-y-8"}
     >
 
-      {embedded && preferredFrom && preferredTo && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-50/50 px-4 py-3 dark:bg-emerald-950/20">
-          <p className="text-sm font-medium text-foreground">
-            Ready to convert{" "}
-            <span className="font-mono uppercase text-emerald-600 dark:text-emerald-400">
-              .{preferredFrom}
-            </span>{" "}
-            →{" "}
-            <span className="font-mono uppercase text-emerald-600 dark:text-emerald-400">
-              .{preferredTo}
-            </span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Upload your file below — output is already set.
-          </p>
-        </div>
-      )}
-
-      {/* ─── Upload Zone: full dropzone when empty, compact add-more toolbar when queue has files ─── */}
-      {!hasFiles && !embedded && (
+      {!hasFiles && (
         <Card ref={uploadCardRef} className="min-w-0 scroll-mt-24 gap-0 rounded-2xl border-border bg-card py-0 shadow-sm">
           <CardContent className="p-3 sm:p-5">
             <ConverterFormatFields
               from={preferredFrom}
               to={preferredTo}
               sourceFormats={pickerFormats.sources}
+              lockedSource={embedded && Boolean(preferredFrom)}
               outputFormats={pickerFormats.outputs}
               onChange={changePreferredFormats}
             />
@@ -1663,228 +1640,13 @@ export function ConverterView({
             <p className="mt-3 text-center text-xs text-muted-foreground">
               {formatNonVideoMaxUploadLabel()} per file · {formatVideoMaxUploadLabel()} per video
             </p>
+            {mediaUnavailable && (
+              <p className="mt-2 text-center text-sm text-destructive">This media conversion is currently unavailable.</p>
+            )}
             <details className="mt-2 text-center">
               <summary className="mx-auto w-fit cursor-pointer py-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">Import from a link</summary>
               <div className="mt-4">{urlImport}</div>
             </details>
-          </CardContent>
-        </Card>
-      )}
-
-      {!hasFiles && embedded && (
-        <Card
-          ref={uploadCardRef}
-          className={`card-elevated overflow-hidden border-border/60 shadow-md ${
-            embedded ? "" : "-mt-2 sm:-mt-4"
-          }`}
-        >
-          <CardContent className="p-0">
-            <div
-              className={`upload-zone-enhanced p-5 sm:p-8 text-center cursor-pointer relative border-2 border-dashed rounded-t-2xl ${
-                dragOver
-                  ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25"
-                  : "border-border/80"
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={fileAccept}
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files) addFiles(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-              <div className="relative z-10">
-                {(preferredFrom || preferredTo) && (
-                  <div className="mb-4 flex flex-col items-center gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                      {preferredFrom && preferredTo
-                        ? "Selected conversion"
-                        : preferredFrom
-                          ? "Selected input"
-                          : "Selected output"}
-                    </p>
-                    <div className="flex items-center justify-center gap-2 sm:gap-3">
-                      {preferredFrom && (
-                        <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
-                          .{preferredFrom}
-                        </span>
-                      )}
-                      {preferredFrom && preferredTo && (
-                        <ArrowRightLeft
-                          className="h-5 w-5 shrink-0 text-emerald-500"
-                          aria-hidden
-                        />
-                      )}
-                      {preferredTo && (
-                        <span className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 font-mono text-base font-bold uppercase tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300 sm:px-4 sm:text-lg">
-                          .{preferredTo}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <div
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
-                    dragOver
-                      ? "bg-emerald-500 shadow-emerald-500/40"
-                      : "bg-emerald-500 shadow-emerald-500/30"
-                  }`}
-                >
-                  <Upload className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-base font-semibold mb-1">
-                  {dragOver
-                    ? "Drop files to upload"
-                    : preferredFrom && preferredTo
-                      ? `Drop .${preferredFrom.toUpperCase()} files to convert to .${preferredTo.toUpperCase()}`
-                      : preferredFrom
-                        ? `Drop .${preferredFrom.toUpperCase()} files here`
-                        : "Drop files here or click to browse"}
-                </h3>
-                <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  {preferredFrom && preferredTo
-                    ? `Accepts .${preferredFrom} · output set to .${preferredTo}`
-                    : preferredFrom
-                      ? `Accepts .${preferredFrom} · choose any output after upload`
-                      : "Images, video, documents, data, audio, archives, subtitles, fonts & more"}
-                </p>
-                {hasPendingVideo && (
-                  <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
-                    Videos convert one at a time after smaller files — this keeps the server stable.
-                  </p>
-                )}
-                {hasPendingAudio && !AUDIO_CONVERSION_ENABLED && (
-                  <p className="mt-3 text-xs text-destructive">
-                    Audio conversion is currently unavailable.
-                  </p>
-                )}
-                {hasPendingVideo && !VIDEO_CONVERSION_ENABLED && (
-                  <p className="mt-3 text-xs text-destructive">
-                    Video conversion is currently unavailable.
-                  </p>
-                )}
-                {requiredMediaUnavailable && (
-                  <p className="mt-3 text-xs text-destructive">
-                    This conversion can’t run because media conversion is unavailable right now.
-                  </p>
-                )}
-
-                {pendingCount > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground/70">
-                    {pendingCount} file${pendingCount === 1 ? "" : "s"} ready. Choose output formats, then Convert All.
-                  </p>
-                )}
-
-                <p className="text-[11px] text-muted-foreground/70 mt-2">
-                  Up to {MAX_NONVIDEO_BATCH} files · Ctrl+U to browse
-                </p>
-                <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
-                  <HardDrive className="h-3 w-3 shrink-0" />
-                  Temp process · converted files stay in your browser
-                </p>
-
-                {/* ── Quick Target Format Pills ── */}
-                <div
-                  className="mt-4 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <span className="text-[11px] font-medium text-muted-foreground mr-1">
-                    Convert to:
-                  </span>
-                  {[
-                    { ext: "pdf", label: "PDF" },
-                    { ext: "png", label: "PNG" },
-                    { ext: "webp", label: "WEBP" },
-                    { ext: "jpg", label: "JPG" },
-                    { ext: "mp4", label: "MP4" },
-                    { ext: "mp3", label: "MP3" },
-                  ].map(({ ext, label }) => {
-                    const isSelected = preferredTo?.toLowerCase() === ext;
-                    return (
-                      <button
-                        key={ext}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setPreferredTo(null);
-                            if (!embedded) syncPreferredPairUrl(preferredFrom, null);
-                          } else {
-                            setPreferredTo(ext);
-                            if (!embedded) syncPreferredPairUrl(preferredFrom, ext);
-                          }
-                        }}
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide transition-all shadow-xs ${
-                          isSelected
-                            ? "bg-emerald-600 text-white shadow-emerald-500/25 ring-2 ring-emerald-500/40"
-                            : "border border-border/80 bg-background/80 text-foreground hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
-                        }`}
-                        aria-label={`Set output format to ${label}`}
-                        aria-pressed={isSelected}
-                      >
-                        <span>{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div
-                  className="mt-4 border-t border-border/50 pt-3"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
-                    {[
-                      {
-                        value: formatCount > 0 ? `${formatCount}+` : "—",
-                        label: "Formats",
-                      },
-                      {
-                        value: activeCategories > 0 ? String(activeCategories) : "—",
-                        label: "Categories",
-                      },
-                      {
-                        value: pairCount > 0 ? `${pairCount.toLocaleString()}+` : "—",
-                        label: "Pairs",
-                      },
-                      {
-                        value: String(MAX_NONVIDEO_BATCH),
-                        label: "Per batch",
-                      },
-                      {
-                        value: formatNonVideoMaxUploadLabel(),
-                        label: "Max file",
-                      },
-                      {
-                        value: formatVideoMaxUploadLabel(),
-                        label: "Max video",
-                      },
-                    ].map((stat) => (
-                      <span
-                        key={stat.label}
-                        className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/90 px-2 py-0.5 text-[10px] sm:text-[11px]"
-                      >
-                        <span className="font-bold tabular-nums text-foreground">
-                          {stat.value}
-                        </span>
-                        <span className="text-muted-foreground">{stat.label}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {urlImport}
           </CardContent>
         </Card>
       )}
@@ -3466,66 +3228,6 @@ export function ConverterView({
           </CardContent>
         </Card>
       )}
-
-      {/* ─── Feature Cards (original position, larger 5 cards) ─── */}
-      <section>
-        <h2 className="section-header mb-5 sm:mb-6">Why Convertek?</h2>
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
-          {[
-            {
-              icon: <Layers className="h-5 w-5" />,
-              title: "Mixed-type batch",
-              desc: "PNG, PDF, MP3 and more in one queue — pick a different output for each file.",
-              color: "bg-sky-500",
-            },
-            {
-              icon: <ArrowRightLeft className="h-5 w-5" />,
-              title: "Per-file formats",
-              desc: "WebP for one file, DOCX for another — no same-format lock-in.",
-              color: "bg-emerald-500",
-            },
-            {
-              icon: <Zap className="h-5 w-5" />,
-              title: "Lightning Fast",
-              desc: "Server-side engines process files so downloads are ready in seconds.",
-              color: "bg-amber-500",
-            },
-            {
-              icon: <Shield className="h-5 w-5" />,
-              title: "Privacy-first",
-              desc: "Temp process only — converted results stay in your browser.",
-              color: "bg-teal-500",
-            },
-            {
-              icon: <HardDrive className="h-5 w-5" />,
-              title: "Clear limits",
-              desc: `Up to ${formatNonVideoMaxUploadLabel()} per file · video ${formatVideoMaxUploadLabel()} · ${MAX_NONVIDEO_BATCH}-file batch · no watermarks.`,
-              color: "bg-rose-500",
-            },
-          ].map((feature) => (
-            <Card
-              key={feature.title}
-              className="card-elevated border-border/60 transition-colors hover:bg-muted/15"
-            >
-              <CardContent className="flex h-full flex-col gap-3 p-4 sm:p-5">
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${feature.color}`}
-                >
-                  {feature.icon}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-[15px] font-semibold leading-snug tracking-tight">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground sm:text-[13px]">
-                    {feature.desc}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
 
       {/* ─── Image Preview Dialog ─── */}
       <Dialog

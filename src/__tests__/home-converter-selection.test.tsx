@@ -52,3 +52,21 @@ it("updates compatible output options and sends the selected format to the file 
   expect(screen.getByLabelText("To")).toHaveValue("");
   expect(window.location.search).toBe("");
 });
+
+it("shows the same uploader on a pair page and retains the pair defaults", () => {
+  const { container } = render(<ConverterView embedded initialFrom="pdf" initialTo="jpg" />);
+
+  expect(screen.getByLabelText("From")).toBeDisabled();
+  expect(screen.getByLabelText("From")).toHaveValue("pdf");
+  expect(screen.getByLabelText("To")).toHaveValue("jpg");
+  expect(screen.getByRole("button", { name: "Choose PDF files" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Why Convertek?" })).toBeNull();
+
+  const fileInput = container.querySelector('input[type="file"]');
+  expect(fileInput).toHaveAttribute("accept", ".pdf");
+  fireEvent.change(fileInput!, {
+    target: { files: [new File(["%PDF-1.4"], "sample.pdf", { type: "application/pdf" })] },
+  });
+  expect(screen.getByRole("combobox", { name: "Output format for sample.pdf" })).toHaveTextContent("JPG");
+  expect(window.location.search).toBe("");
+});
