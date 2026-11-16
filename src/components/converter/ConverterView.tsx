@@ -54,6 +54,7 @@ import {
 } from "@/lib/app-helpers";
 import { FileThumbnail } from "@/components/common/FileThumbnail";
 import { ConverterWorkspace, homeWorkspace, type ConverterWorkspaceIntro } from "@/components/converter/ConverterWorkspace";
+import { FileIllustration } from "@/components/common/FileIllustration";
 import { ConverterFormatFields } from "@/components/converter/ConverterFormatFields";
 import { toast } from "@/hooks/use-toast";
 import { useResultPreview } from "@/components/converter/useResultPreview";
@@ -3041,17 +3042,21 @@ export function ConverterView({
       )}
 
       {currentUser && completedConversions.length > 0 && (
-        <details className="group mx-auto w-full max-w-5xl rounded-xl border border-border bg-card">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-4 text-sm font-semibold hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
-            <History aria-hidden="true" className="size-4 text-emerald-700 dark:text-emerald-300" />
+        <details className="group mx-auto w-full max-w-5xl rounded-xl border border-border bg-card shadow-xs">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors hover:bg-emerald-50/60 sm:px-4 dark:hover:bg-emerald-950/30 [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+              <History className="size-4" />
+            </span>
             Recent conversions
-            <ChevronDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground group-open:rotate-180" />
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground" aria-label={`${completedConversions.length} completed conversions`}>{completedConversions.length}</span>
+            <ChevronDown aria-hidden="true" className="ml-auto size-4 shrink-0 text-muted-foreground group-open:rotate-180" />
           </summary>
           <ul className="divide-y divide-border/60 border-t border-border/60 px-4">
             {completedConversions.map((conversion) => (
               <li key={conversion.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-4">
-                <span className="truncate text-sm font-medium" title={conversion.fileName}>
-                  {conversion.fileName}
+                <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium">
+                  <FileIllustration type={conversion.category} extension={conversion.originalExt} className="h-7 w-5.5" />
+                  <span className="truncate" title={conversion.fileName}>{conversion.fileName}</span>
                 </span>
                 <span className="flex items-center gap-1.5 font-mono text-xs uppercase text-muted-foreground">
                   {conversion.originalExt}

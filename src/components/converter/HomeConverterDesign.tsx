@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRightLeft, ChevronRight, HardDrive, Layers, Shield, Zap } from "lucide-react";
-import { FileIllustration } from "@/components/common/FileIllustration";
+import { FileIconTile } from "@/components/common/FileIconTile";
 import { formatNonVideoMaxUploadLabel, formatVideoMaxUploadLabel, getMaxNonVideoBatchFiles } from "@/lib/upload-limits";
 
 const popularPairs = [
@@ -14,12 +14,12 @@ const popularPairs = [
 
 export function HomePopularConversions() {
   return (
-    <section aria-labelledby="popular-pairs-heading" className="mt-8 sm:mt-10">
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 sm:mb-5">
+    <section aria-labelledby="popular-pairs-heading" className="mx-auto mt-9 w-full max-w-5xl sm:mt-12">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:mb-5">
         <h2 id="popular-pairs-heading" className="text-xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
           Popular conversions
         </h2>
-        <Link href="/conversions" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 hover:underline dark:text-emerald-300">
+        <Link href="/conversions" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-semibold text-emerald-800 transition-colors hover:border-emerald-300 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40">
           Browse all formats <ChevronRight aria-hidden="true" className="size-4" />
         </Link>
       </div>
@@ -28,11 +28,13 @@ export function HomePopularConversions() {
           <li key={`${from}-to-${to}`} className="min-w-0">
             <Link
               href={`/${from}-to-${to}`}
-              className="group flex min-h-17 items-center gap-3 rounded-xl border border-border bg-card p-3 text-sm font-bold text-slate-950 transition-colors hover:border-emerald-400 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:gap-4 sm:p-4 sm:text-base dark:text-white dark:hover:bg-emerald-950/30"
+              className="group flex min-h-18 items-center gap-3 rounded-xl border border-border bg-card p-3 text-sm font-bold text-slate-950 shadow-xs transition-colors hover:border-emerald-300 hover:bg-emerald-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:min-h-21 sm:gap-3.5 sm:px-4 sm:text-base dark:text-white dark:hover:bg-emerald-950/25"
             >
-              <FileIllustration type={type} />
+              <FileIconTile type={type} extension={from} />
               <span className="min-w-0 flex-1">{from.toUpperCase()} to {to.toUpperCase()}</span>
-              <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-300" />
+              <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground group-hover:border-emerald-200 group-hover:text-emerald-800 dark:group-hover:border-emerald-800 dark:group-hover:text-emerald-300">
+                <ChevronRight className="size-4" />
+              </span>
             </Link>
           </li>
         ))}
@@ -52,7 +54,7 @@ export function HomeConverterFeatures() {
   ];
 
   return (
-    <section aria-labelledby="converter-features-heading" className="mt-10">
+    <section aria-labelledby="converter-features-heading" className="mx-auto mt-10 w-full max-w-5xl">
       <h2 id="converter-features-heading" className="mb-4 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl dark:text-white">Why Convertek?</h2>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {features.map(({ icon: Icon, title, description, color }) => (
