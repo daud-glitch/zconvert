@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Ban,
   Coffee,
   CreditCard,
@@ -12,7 +11,7 @@ import {
   ShieldOff,
   Sparkles,
 } from "lucide-react";
-import { BrandMark } from "@/components/common/BrandMark";
+import { PageHero } from "@/components/common/PageHero";
 import { getDonationSettings } from "@/lib/donation-settings";
 import { OG_IMAGE_PATH } from "@/lib/seo";
 import { SiteFooter } from "@/components/common/SiteFooter";
@@ -112,65 +111,49 @@ export default async function DonatePage() {
 
   return (
     <>
-    <SiteHeader />
-    <div className="relative min-h-screen overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(244,63,94,0.12),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(16,185,129,0.10),_transparent_50%)]" />
-      <div className="h-1 w-full bg-gradient-to-r from-rose-500 via-emerald-500 to-rose-400" />
-
-      <div className="relative mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      <SiteHeader />
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <PageHero
+          breadcrumb={[
+            { href: "/", label: "Home" },
+            { href: "/donate", label: "Donate" },
+          ]}
+          eyebrow="Optional support"
+          eyebrowIcon={
+            <Heart className="h-4 w-4 fill-current text-rose-500" aria-hidden />
+          }
+          title="Keep Convertek free"
+          lead={
+            <>
+              Convertek is a{" "}
+              <strong className="font-semibold text-foreground">
+                free online file converter
+              </strong>
+              — no paywall for basic conversion,{" "}
+              <strong className="font-semibold text-foreground">no ads</strong>,
+              and{" "}
+              <strong className="font-semibold text-foreground">
+                no subscription
+              </strong>{" "}
+              required to use the product. Donations are optional; they simply
+              help us cover real infrastructure costs.
+            </>
+          }
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Converter
-        </Link>
-
-        <header className="text-center sm:text-left">
-          <div className="mb-5 flex flex-col items-center gap-4 sm:flex-row sm:items-end">
-            <div className="relative">
-              <BrandMark className="h-14 w-14 sm:h-16 sm:w-16" priority />
-              <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 text-white shadow-md shadow-rose-500/30">
-                <Heart className="h-3.5 w-3.5 fill-current" aria-hidden />
-              </span>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-600 dark:text-rose-400">
-                Optional support
-              </p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                Keep Convertek free
-              </h1>
-            </div>
-          </div>
-          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:mx-0">
-            Convertek is a{" "}
-            <strong className="font-semibold text-foreground">
-              free online file converter
-            </strong>
-            — no paywall for basic conversion,{" "}
-            <strong className="font-semibold text-foreground">no ads</strong>,
-            and{" "}
-            <strong className="font-semibold text-foreground">
-              no subscription
-            </strong>{" "}
-            required to use the product. Donations are optional; they simply
-            help us cover real infrastructure costs.
-          </p>
           <p className="mt-3 text-xs text-muted-foreground">
             Last updated: {UPDATED}
           </p>
-        </header>
+        </PageHero>
 
-        <section className="mt-10 grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-3">
           {reasons.map((item) => {
             const Icon = item.icon;
             return (
               <div
                 key={item.title}
-                className="rounded-2xl border border-border/70 bg-background/80 p-4 backdrop-blur-sm"
+                className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-emerald-500/50"
               >
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                   <Icon className="h-5 w-5" aria-hidden />
                 </div>
                 <h2 className="text-sm font-semibold text-foreground">
@@ -186,8 +169,11 @@ export default async function DonatePage() {
 
         <section className="mt-12">
           <div className="mb-4 flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-emerald-500" aria-hidden />
-            <h2 className="text-lg font-semibold text-foreground">
+            <Sparkles
+              className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+              aria-hidden
+            />
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
               Online tips
             </h2>
           </div>
@@ -235,8 +221,11 @@ export default async function DonatePage() {
 
         <section className="mt-12">
           <div className="mb-4 flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-500" aria-hidden />
-            <h2 className="text-lg font-semibold text-foreground">
+            <Landmark
+              className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+              aria-hidden
+            />
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
               Bank transfer (IBAN)
             </h2>
           </div>
@@ -252,7 +241,7 @@ export default async function DonatePage() {
             Email{" "}
             <a
               href={`mailto:${contactEmail}`}
-              className="font-medium text-emerald-600 underline-offset-2 hover:underline"
+              className="font-medium text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
             >
               {contactEmail}
             </a>{" "}
@@ -262,14 +251,14 @@ export default async function DonatePage() {
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <a
               href={bankMailto}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-semibold text-background no-underline transition hover:opacity-90"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-semibold text-white no-underline transition hover:bg-emerald-800"
             >
               <Landmark className="h-4 w-4" aria-hidden />
               Request IBAN by email
             </a>
             <a
               href={`mailto:${contactEmail}`}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-background/80 px-5 text-sm font-semibold text-foreground no-underline transition hover:bg-muted"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-semibold text-foreground no-underline transition hover:bg-muted"
             >
               <Mail className="h-4 w-4" aria-hidden />
               {contactEmail}
@@ -277,7 +266,7 @@ export default async function DonatePage() {
           </div>
         </section>
 
-        <section className="mt-12 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-5 py-6 text-center sm:text-left">
+        <section className="mt-12 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-6 text-center sm:text-left">
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white">
               <Heart className="h-5 w-5 fill-current" aria-hidden />
@@ -291,17 +280,10 @@ export default async function DonatePage() {
                 being here. Every clean conversion is why we keep building.
               </p>
               <p className="mt-3 text-sm text-muted-foreground">
-                Back to the{" "}
-                <Link
-                  href="/"
-                  className="font-medium text-emerald-600 underline-offset-2 hover:underline"
-                >
-                  converter
-                </Link>
-                , or read{" "}
+                Read{" "}
                 <Link
                   href="/about"
-                  className="font-medium text-emerald-600 underline-offset-2 hover:underline"
+                  className="font-medium text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
                 >
                   about Convertek
                 </Link>
@@ -315,13 +297,12 @@ export default async function DonatePage() {
           Convertek ·{" "}
           <a
             href={SITE}
-            className="text-emerald-600 underline-offset-2 hover:underline"
+            className="text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
           >
             www.convertek.tech
           </a>
         </p>
-      </div>
-    </div>
+      </main>
       <SiteFooter />
     </>
   );

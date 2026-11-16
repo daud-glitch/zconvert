@@ -37,10 +37,7 @@ function SignupForm() {
   useEffect(() => {
     try {
       const t = localStorage.getItem("theme");
-      if (
-        t === "dark" ||
-        (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)
-      ) {
+      if (t === "dark") {
         document.documentElement.classList.add("dark");
       } else {
         document.documentElement.classList.remove("dark");
@@ -116,9 +113,7 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <div className="h-1 w-full bg-emerald-500" />
-
+    <div className="flex min-h-screen flex-col bg-background">
       <div className="p-4">
         <Link
           href="/"
@@ -141,7 +136,7 @@ function SignupForm() {
             </p>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
+          <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
             <GoogleAuthButton
               label="Sign up with Google"
               disabled={loading}
@@ -219,7 +214,7 @@ function SignupForm() {
               </div>
 
               {error && (
-                <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                   <span className="shrink-0 mt-0.5">⚠</span>
                   <span>{error}</span>
                 </div>
@@ -238,7 +233,7 @@ function SignupForm() {
 
               <Button
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
+                className="w-full bg-emerald-700 font-medium text-white hover:bg-emerald-800"
                 disabled={loading || actionsLocked}
               >
                 {loading ? (

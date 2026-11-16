@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, LifeBuoy, Send } from "lucide-react";
+import { LifeBuoy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +10,7 @@ import {
   type TurnstileHandle,
   isTurnstileEnabled,
 } from "@/components/security/TurnstileField";
+import { PageHero } from "@/components/common/PageHero";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { SiteHeader } from "@/components/common/SiteHeader";
 
@@ -78,29 +78,18 @@ export default function ContactPage() {
 
   return (
     <>
-    <SiteHeader />
-    <div className="min-h-screen bg-background">
-      <div className="h-1 w-full bg-emerald-500" />
-      <div className="mx-auto max-w-lg px-4 py-10">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Converter
-        </Link>
-
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white">
-            <LifeBuoy className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Contact</h1>
-            <p className="text-sm text-muted-foreground">
-              Report a broken conversion, send feedback, or ask a question.
-            </p>
-          </div>
-        </div>
+      <SiteHeader />
+      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+        <PageHero
+          breadcrumb={[
+            { href: "/", label: "Home" },
+            { href: "/contact", label: "Contact" },
+          ]}
+          eyebrow="Support"
+          eyebrowIcon={<LifeBuoy className="h-4 w-4" aria-hidden />}
+          title="Contact"
+          lead="Report a broken conversion, send feedback, or ask a question."
+        />
 
         <form
           onSubmit={submit}
@@ -190,7 +179,7 @@ export default function ContactPage() {
 
           <Button
             type="submit"
-            className="w-full bg-emerald-500 hover:bg-emerald-600"
+            className="w-full bg-emerald-700 hover:bg-emerald-800"
             disabled={loading}
           >
             <Send className="mr-2 h-4 w-4" />
@@ -202,8 +191,7 @@ export default function ContactPage() {
             business days.
           </p>
         </form>
-      </div>
-    </div>
+      </main>
       <SiteFooter />
     </>
   );

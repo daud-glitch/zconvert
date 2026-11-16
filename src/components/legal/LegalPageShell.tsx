@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
+import { PageHero } from "@/components/common/PageHero";
 import { SiteFooter } from "@/components/common/SiteFooter";
 import { SiteHeader } from "@/components/common/SiteHeader";
 
@@ -14,25 +14,24 @@ export function LegalPageShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="h-1 w-full bg-emerald-500" />
+    <>
       <SiteHeader />
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <PageHero
+          breadcrumb={[
+            { href: "/", label: "Home" },
+            { href: "#", label: title },
+          ]}
+          eyebrow="Legal"
+          eyebrowIcon={<ShieldCheck className="h-4 w-4" aria-hidden />}
+          title={title}
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Converter
-        </Link>
-        <article>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {title}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-3 text-xs text-muted-foreground">
             Last updated: {updated}
           </p>
-          <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted-foreground [&_h2]:mt-8 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5 [&_a]:text-emerald-600 [&_a]:underline-offset-2 hover:[&_a]:underline">
+        </PageHero>
+        <article>
+          <div className="space-y-6 text-sm leading-relaxed text-muted-foreground [&_h2]:mt-8 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5 [&_a]:text-emerald-600 [&_a]:underline-offset-2 hover:[&_a]:underline dark:[&_a]:text-emerald-400">
             {children}
           </div>
           <p className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
@@ -40,8 +39,8 @@ export function LegalPageShell({
             <a href="https://www.convertek.tech">www.convertek.tech</a>
           </p>
         </article>
-      </div>
+      </main>
       <SiteFooter />
-    </div>
+    </>
   );
 }
